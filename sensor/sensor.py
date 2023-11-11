@@ -92,13 +92,13 @@ def update_bme280_sensor():
     humidity_diff = abs(last_humidity - current_humidity)
     
     if temp_diff > 0.1:
-        send_update(current_temp, "temperature", "°C", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
+        send_update(current_temp, "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
     
     if pressure_diff > 0.25:
-        send_update(current_pressure, "atmospheric_pressure", "hPa", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
+        send_update(current_pressure, "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
         
     if humidity_diff > 1:
-        send_update(current_humidity, "humidity", "%", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
+        send_update(current_humidity, "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
     
     last_temp = current_temp
     last_pressure = current_pressure
