@@ -58,6 +58,7 @@ def send_update(state, unit, device_class, friendly_name, sensor):
         raise Exception("Status " + str(response.status_code) + ": " + response.text)
     
     print("Updated state")
+    gc.collect()
 
 last_motion_ms = 0
 previous_motion_state = False
@@ -125,3 +126,4 @@ while True:
         time.sleep(2)
 
 print('exit')
+
