@@ -1,4 +1,4 @@
-from machine import Pin
+import machine
 import network
 import time
 import ujson
@@ -8,10 +8,10 @@ import bme280
 import config
 
 # Init LED
-led = Pin("LED", Pin.OUT)
+led = machine.Pin("LED", machine.Pin.OUT)
 
 # Init motion sensor
-motion = Pin(config.motion_sensor['pin'], Pin.IN) if config.motion_sensor['enabled'] else None
+motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN) if config.motion_sensor['enabled'] else None
 
 # Init BME280
 i2c = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin']) if config.bme280_sensor['enabled'] else None
@@ -22,16 +22,25 @@ wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 wlan.config(pm = 0xa11140, hostname = config.wifi['host'])
 
+def flash_led(flashes):
+    duration = 0.2
+    time.sleep(duration)
+    for flash in range(0, flashes):
+        led.on()
+        time.sleep(duration)
+        led.off()
+        time.sleep(duration)
+
 def connect_to_wifi():
     if not wlan.isconnected():
+        flash_led(3)
         print("Connecting to Wi-Fi...")
         wlan.connect(config.wifi['ssid'], config.wifi['key'])
         print("Connect returned")
-        while not wlan.isconnected():
-            led.on()
-            time.sleep(0.01)
-            led.off()
+        while wlan.isconnected() == False:
+            time.sleep(1)
     print("Connected to Wi-Fi")
+    flash_led(3)
     
 def send_update(state, unit, device_class, friendly_name, sensor):
     print("Sending update for " + sensor + "=" + str(state))    
@@ -58,6 +67,7 @@ def send_update(state, unit, device_class, friendly_name, sensor):
         raise Exception("Status " + str(response.status_code) + ": " + response.text)
     
     print("Updated state")
+    flash_led(1)
     gc.collect()
 
 last_motion_ms = 0
@@ -115,15 +125,18 @@ def main_loop():
     if config.bme280_sensor['enabled']:
         update_bme280_sensor()
 
-while True:
-    led.off()
+flash_led(1)
+time.sleep(2)
+
+while True:    
     try:
         main_loop()
         time.sleep(0.1)
     except Exception as e:
         print("Something went wrong", e)
-        led.on()
+        flash_led(5)
         time.sleep(2)
 
 print('exit')
+
 
