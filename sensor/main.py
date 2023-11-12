@@ -6,6 +6,7 @@ import urequests
 import gc
 import bme280
 import config
+import _thread
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -103,16 +104,26 @@ def update_bme280_sensor():
     
     if temp_diff > 0.1:
         send_update(current_temp, "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
+        last_temp = current_temp
     
     if pressure_diff > 0.25:
         send_update(current_pressure, "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
+        last_pressure = current_pressure
         
     if humidity_diff > 1:
         send_update(current_humidity, "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
+        last_humidity = current_humidity
+
+last_tick_ms = time.ticks_ms()
+def watchdog_thread():
+    global last_tick_ms
     
-    last_temp = current_temp
-    last_pressure = current_pressure
-    last_humidity = current_humidity
+    while True:
+        time_since_last_tick_ms = time.ticks_diff(time.ticks_ms(), last_tick_ms)
+        if time_since_last_tick_ms > 30_000:
+            print('Watchdog detected hang. Attempting reset (debugger will disconnect)')
+            machine.reset()
+        time.sleep(1)
 
 def main_loop():  
     if not wlan.isconnected():
@@ -128,7 +139,10 @@ def main_loop():
 flash_led(1)
 time.sleep(2)
 
-while True:    
+_thread.start_new_thread(watchdog_thread, ())
+
+while True:
+    last_tick_ms = time.ticks_ms()
     try:
         main_loop()
         time.sleep(0.1)
