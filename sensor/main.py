@@ -5,6 +5,7 @@ import ujson
 import urequests
 import gc
 import bme280
+import scd4x
 import config
 import _thread
 
@@ -17,6 +18,12 @@ motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN) if config.moti
 # Init BME280
 i2c = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin']) if config.bme280_sensor['enabled'] else None
 bme = bme280.BME280(i2c=i2c) if config.bme280_sensor['enabled'] else None
+
+# Init SCD4X
+if config.scd4x_sensor['enabled']:
+    i2c_scd4x = machine.I2C(0, scl=config.scd4x_sensor['scl_pin'], sda=config.scd4x_sensor['sda_pin'], freq=100000)
+    scd = scd4x.SCD4X(i2c_scd4x)
+    scd.start_periodic_measurement()
 
 # Init WLAN
 wlan = network.WLAN(network.STA_IF)
@@ -114,6 +121,35 @@ def update_bme280_sensor():
         send_update(current_humidity, "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
         last_humidity = current_humidity
 
+last_temp = 0
+last_co2 = 0
+last_humidity = 0
+def update_scd4x_sensor():
+    global last_temp, last_co2, last_humidity, scd4x
+    
+    current_temp = scd.temperature
+    current_co2 = scd.co2
+    current_humidity = scd.relative_humidity
+    
+    if current_temp is None or current_co2 is None or current_humidity is None:
+        return
+    
+    temp_diff = abs(last_temp - current_temp)
+    co2_diff = abs(last_co2 - current_co2)
+    humidity_diff = abs(last_humidity - current_humidity)
+    
+    if temp_diff > 0.1:
+        send_update(current_temp, "°C", "temperature", config.scd4x_sensor['temp_friendly_name'], "sensor." + config.scd4x_sensor['temp_name'])
+        last_temp = current_temp
+    
+    if co2_diff > 50:
+        send_update(current_co2, "ppm", "co2", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
+        last_co2 = current_co2
+        
+    if humidity_diff > 1:
+        send_update(current_humidity, "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
+        last_humidity = current_humidity
+
 last_tick_ms = time.ticks_ms()
 def watchdog_thread():
     global last_tick_ms
@@ -135,6 +171,9 @@ def main_loop():
         
     if config.bme280_sensor['enabled']:
         update_bme280_sensor()
+        
+    if config.scd4x_sensor['enabled']:
+        update_scd4x_sensor()
 
 flash_led(1)
 time.sleep(2)
@@ -152,5 +191,3 @@ while True:
         time.sleep(2)
 
 print('exit')
-
-
