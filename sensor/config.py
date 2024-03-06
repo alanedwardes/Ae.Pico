@@ -28,3 +28,15 @@ bme280_sensor = dict(
     humidity_friendly_name = "Test Humidity",
     humidity_name = "test_humidity"
 )
+
+scd4x_sensor = dict(
+    enabled = True,
+    sda_pin = 0,
+    scl_pin = 1,
+    temp_friendly_name = "Test Temperature",
+    temp_name = "test_temperature",
+    co2_friendly_name = "Test Carbon Dioxide",
+    co2_name = "test_co2",
+    humidity_friendly_name = "Test Humidity",
+    humidity_name = "test_humidity"
+)
