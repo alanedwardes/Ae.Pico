@@ -143,7 +143,7 @@ def update_scd4x_sensor():
         last_temp = current_temp
     
     if co2_diff > 50:
-        send_update(current_co2, "ppm", "co2", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
+        send_update(current_co2, "ppm", "carbon_dioxide", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
         last_co2 = current_co2
         
     if humidity_diff > 1:
