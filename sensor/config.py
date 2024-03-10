@@ -13,7 +13,6 @@ motion_sensor = dict(
     enabled = True,
     friendly_name = "Test Motion",
     name = "test_motion",
-    timeout_ms = 900_000,
     pin = 22
 )
 

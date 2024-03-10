@@ -8,6 +8,7 @@ import bme280
 import scd4x
 import config
 import _thread
+import datapoint
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -78,77 +79,54 @@ def send_update(state, unit, device_class, friendly_name, sensor):
     flash_led(1)
     gc.collect()
 
-last_motion_ms = 0
-previous_motion_state = False
+motion_state = datapoint.DataPoint()
 def update_motion_sensor():
-    global last_motion_ms, previous_motion_state
-    
-    sensor_value = motion.value() == 1
-    
-    if sensor_value:
-        last_motion_ms = time.ticks_ms()
-        
-    time_since_last_motion_ms = time.ticks_diff(time.ticks_ms(), last_motion_ms)
-    
-    current_motion_state = sensor_value or time_since_last_motion_ms < config.motion_sensor['timeout_ms']
-    
-    if current_motion_state != previous_motion_state:
-        send_update("on" if current_motion_state else "off", None, "occupancy", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
+    motion_state.set_value(motion.value() == 1)
 
-    previous_motion_state = current_motion_state
+    if motion_state.get_needs_update():
+        send_update("on" if motion_state.get_value() else "off", None, "occupancy", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
+        motion_state.set_value_updated()
 
-last_temp = 0
-last_pressure = 0
-last_humidity = 0
+temperature = datapoint.DataPoint(0.1)
+humidity = datapoint.DataPoint(0.5)
+
+pressure = datapoint.DataPoint(0.25)
 def update_bme280_sensor():
-    global last_temp, last_pressure, last_humidity
-    
     current_temp, current_pressure, current_humidity = bme.float_values()
     
-    temp_diff = abs(last_temp - current_temp)
-    pressure_diff = abs(last_pressure - current_pressure)
-    humidity_diff = abs(last_humidity - current_humidity)
-    
-    if temp_diff > 0.1:
-        send_update(current_temp, "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
-        last_temp = current_temp
-    
-    if pressure_diff > 0.25:
-        send_update(current_pressure, "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
-        last_pressure = current_pressure
-        
-    if humidity_diff > 1:
-        send_update(current_humidity, "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
-        last_humidity = current_humidity
+    temperature.set_value(current_temp)
+    pressure.set_value(current_pressure)
+    humidity.set_value(current_humidity)
 
-last_temp = 0
-last_co2 = 0
-last_humidity = 0
-def update_scd4x_sensor():
-    global last_temp, last_co2, last_humidity, scd4x
+    if temperature.get_needs_update():
+        send_update(temperature.get_value(), "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
+        temperature.set_value_updated()
     
-    current_temp = scd.temperature
-    current_co2 = scd.co2
-    current_humidity = scd.relative_humidity
-    
-    if current_temp is None or current_co2 is None or current_humidity is None:
-        return
-    
-    temp_diff = abs(last_temp - current_temp)
-    co2_diff = abs(last_co2 - current_co2)
-    humidity_diff = abs(last_humidity - current_humidity)
-    
-    if temp_diff > 0.1:
-        send_update(current_temp, "°C", "temperature", config.scd4x_sensor['temp_friendly_name'], "sensor." + config.scd4x_sensor['temp_name'])
-        last_temp = current_temp
-    
-    if co2_diff > 50:
-        send_update(current_co2, "ppm", "carbon_dioxide", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
-        last_co2 = current_co2
+    if pressure.get_needs_update():
+        send_update(pressure.get_value(), "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
+        pressure.set_value_updated()
         
-    if humidity_diff > 1:
-        send_update(current_humidity, "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
-        last_humidity = current_humidity
+    if humidity.get_needs_update():
+        send_update(humidity.get_value(), "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
+        humidity.set_value_updated()
+
+co2 = datapoint.DataPoint(20)
+def update_scd4x_sensor():
+    temperature.set_value(scd.temperature)
+    humidity.set_value(scd.relative_humidity)
+    co2.set_value(scd.co2)
+    
+    if temperature.get_needs_update():
+        send_update(temperature.get_value(), "°C", "temperature", config.scd4x_sensor['temp_friendly_name'], "sensor." + config.scd4x_sensor['temp_name'])
+        temperature.set_value_updated()
+    
+    if co2.get_needs_update():
+        send_update(co2.get_value(), "ppm", "carbon_dioxide", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
+        co2.set_value_updated()
+        
+    if humidity.get_needs_update():
+        send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
+        humidity.set_value_updated()
 
 last_tick_ms = time.ticks_ms()
 def watchdog_thread():
@@ -191,3 +169,4 @@ while True:
         time.sleep(2)
 
 print('exit')
+
