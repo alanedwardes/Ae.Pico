@@ -84,7 +84,7 @@ def update_motion_sensor():
     motion_state.set_value(motion.value() == 1)
 
     if motion_state.get_needs_update():
-        send_update("on" if motion_state.get_value() else "off", None, "occupancy", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
+        send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
         motion_state.set_value_updated()
 
 temperature = datapoint.DataPoint(0.1)
