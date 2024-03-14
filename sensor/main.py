@@ -44,6 +44,7 @@ def connect_to_wifi():
     if not wlan.isconnected():
         flash_led(3)
         print("Connecting to Wi-Fi...")
+        wlan.disconnect()
         wlan.connect(config.wifi['ssid'], config.wifi['key'])
         print("Connect returned")
         while wlan.isconnected() == False:
