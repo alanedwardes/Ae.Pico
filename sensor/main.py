@@ -124,7 +124,7 @@ def watchdog_thread():
         if time_since_last_tick_ms > 30_000:
             print('Watchdog detected hang. Attempting reset (debugger will disconnect)')
             machine.reset()
-        time.sleep(60)
+        time.sleep(1)
 
 def main_loop():  
     wifi.ensure_connected()
