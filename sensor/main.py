@@ -70,6 +70,9 @@ def send_update(state, unit, device_class, friendly_name, sensor):
 
 motion_state = datapoint.DataPoint()
 def update_motion_sensor():
+    if not config.motion_sensor['enabled']:
+        return
+    
     motion_state.set_value(motion.value() == 1)
 
     if motion_state.get_needs_update():
@@ -81,6 +84,9 @@ humidity = datapoint.DataPoint(0.5)
 
 pressure = datapoint.DataPoint(0.25)
 def update_bme280_sensor():
+    if not config.bme280_sensor['enabled']:
+        return
+    
     current_temp, current_pressure, current_humidity = bme.float_values()
     
     temperature.set_value(current_temp)
@@ -101,6 +107,9 @@ def update_bme280_sensor():
 
 co2 = datapoint.DataPoint(20)
 def update_scd4x_sensor():
+    if not config.scd4x_sensor['enabled']:
+        return
+    
     temperature.set_value(scd.temperature)
     humidity.set_value(scd.relative_humidity)
     co2.set_value(scd.co2)
@@ -119,15 +128,9 @@ def update_scd4x_sensor():
 
 def main_loop():  
     wifi.ensure_connected()
-    
-    if config.motion_sensor['enabled']:
-        update_motion_sensor()
-        
-    if config.bme280_sensor['enabled']:
-        update_bme280_sensor()
-        
-    if config.scd4x_sensor['enabled']:
-        update_scd4x_sensor()
+    update_motion_sensor()
+    update_bme280_sensor()
+    update_scd4x_sensor()
 
 flash_led(1)
 time.sleep(2)
@@ -136,6 +139,8 @@ wd = watchdog.Watchdog()
 
 while True:
     wd.feed()
-    main_loop()
+    try:
+        main_loop()
+    except Exception as e:
+        print(e)
     time.sleep(0.1)
-
