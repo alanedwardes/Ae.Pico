@@ -1,4 +1,4 @@
-import machine
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import machine
 import time
 import ujson
 import urequests
@@ -6,9 +6,9 @@ import gc
 import bme280
 import scd4x
 import config
-import _thread
+import watchdog
 import datapoint
-import wifi
+from wifi import WiFi
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -27,7 +27,7 @@ if config.scd4x_sensor['enabled']:
     scd.start_periodic_measurement()
     
 # Init WiFi
-wifi = wifi.WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
+wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 
 def flash_led(flashes):
     duration = 0.2
@@ -58,7 +58,7 @@ def send_update(state, unit, device_class, friendly_name, sensor):
         "Content-Type": "application/json; charset=utf-8"
     }
 
-    response = urequests.post(config.hass['url'] + "/api/states/" + sensor, data=ujson.dumps(data).encode('utf-8'), headers=headers)
+    response = urequests.post(config.hass['url'] + "/api/states/" + sensor, data=ujson.dumps(data).encode('utf-8'), headers=headers, timeout=5)
     if not response.status_code in [200, 201]:
         raise Exception("Status " + str(response.status_code) + ": " + response.text)
     
@@ -115,17 +115,6 @@ def update_scd4x_sensor():
         send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
         humidity.set_value_updated()
 
-last_tick_ms = time.ticks_ms()
-def watchdog_thread():
-    global last_tick_ms
-    
-    while True:
-        time_since_last_tick_ms = time.ticks_diff(time.ticks_ms(), last_tick_ms)
-        if time_since_last_tick_ms > 30_000:
-            print('Watchdog detected hang. Attempting reset (debugger will disconnect)')
-            machine.reset()
-        time.sleep(1)
-
 def main_loop():  
     wifi.ensure_connected()
     
@@ -141,16 +130,9 @@ def main_loop():
 flash_led(1)
 time.sleep(2)
 
-_thread.start_new_thread(watchdog_thread, ())
+wd = watchdog.Watchdog()
 
 while True:
-    last_tick_ms = time.ticks_ms()
-    try:
-        main_loop()
-        time.sleep(0.1)
-    except Exception as e:
-        print("Something went wrong", e)
-        flash_led(5)
-        time.sleep(2)
-
-print('exit')
+    wd.feed()
+    main_loop()
+    time.sleep(0.1)
