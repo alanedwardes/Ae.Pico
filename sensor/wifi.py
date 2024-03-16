@@ -1,4 +1,5 @@
 import network
+import utime
 
 class WiFi:
     wlan = None
@@ -16,7 +17,6 @@ class WiFi:
         if self.wlan.isconnected():
             return
         
-        self.disconnect()
         self.connect()
         
     def disconnect(self):
@@ -25,8 +25,8 @@ class WiFi:
         
     def connect(self):
         self.wlan.active(True)
-        self.wlan.connect(ssid, key)
+        self.wlan.connect(self.ssid, self.key)
         
         while not self.wlan.isconnected():
-            time.sleep(5)
-            print(wlan)
+            utime.sleep(5)
+            print(self.wlan)
