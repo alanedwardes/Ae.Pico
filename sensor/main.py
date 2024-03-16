@@ -1,10 +1,8 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import machine
+import machine
 import time
 import ujson
 import urequests
 import gc
-import bme280
-import scd4x
 import config
 import watchdog
 import datapoint
@@ -14,14 +12,18 @@ from wifi import WiFi
 led = machine.Pin("LED", machine.Pin.OUT)
 
 # Init motion sensor
-motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN) if config.motion_sensor['enabled'] else None
+if config.motion_sensor['enabled']:
+    motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN)
 
 # Init BME280
-i2c = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin']) if config.bme280_sensor['enabled'] else None
-bme = bme280.BME280(i2c=i2c) if config.bme280_sensor['enabled'] else None
+if config.bme280_sensor['enabled']:
+    import bme280
+    i2c_bme = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin'])
+    bme = bme280.BME280(i2c=i2c_bme)
 
 # Init SCD4X
 if config.scd4x_sensor['enabled']:
+    import scd4x
     i2c_scd4x = machine.I2C(0, scl=config.scd4x_sensor['scl_pin'], sda=config.scd4x_sensor['sda_pin'], freq=100000)
     scd = scd4x.SCD4X(i2c_scd4x)
     scd.start_periodic_measurement()
@@ -136,3 +138,4 @@ while True:
     wd.feed()
     main_loop()
     time.sleep(0.1)
+
