@@ -1,5 +1,4 @@
 import machine
-import network
 import time
 import ujson
 import urequests
@@ -9,6 +8,7 @@ import scd4x
 import config
 import _thread
 import datapoint
+import wifi
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -25,11 +25,9 @@ if config.scd4x_sensor['enabled']:
     i2c_scd4x = machine.I2C(0, scl=config.scd4x_sensor['scl_pin'], sda=config.scd4x_sensor['sda_pin'], freq=100000)
     scd = scd4x.SCD4X(i2c_scd4x)
     scd.start_periodic_measurement()
-
-# Init WLAN
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.config(pm = 0xa11140, hostname = config.wifi['host'])
+    
+# Init WiFi
+wifi = wifi.WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 
 def flash_led(flashes):
     duration = 0.2
@@ -39,19 +37,7 @@ def flash_led(flashes):
         time.sleep(duration)
         led.off()
         time.sleep(duration)
-
-def connect_to_wifi():
-    if not wlan.isconnected():
-        flash_led(3)
-        print("Connecting to Wi-Fi...")
-        wlan.disconnect()
-        wlan.connect(config.wifi['ssid'], config.wifi['key'])
-        print("Connect returned")
-        while wlan.isconnected() == False:
-            time.sleep(1)
-    print("Connected to Wi-Fi")
-    flash_led(3)
-    
+   
 def send_update(state, unit, device_class, friendly_name, sensor):
     print("Sending update for " + sensor + "=" + str(state))    
     
@@ -138,12 +124,10 @@ def watchdog_thread():
         if time_since_last_tick_ms > 30_000:
             print('Watchdog detected hang. Attempting reset (debugger will disconnect)')
             machine.reset()
-        time.sleep(1)
+        time.sleep(60)
 
 def main_loop():  
-    if not wlan.isconnected():
-        print("Wi-Fi connection dropped. Reconnecting...")
-        connect_to_wifi()
+    wifi.ensure_connected()
     
     if config.motion_sensor['enabled']:
         update_motion_sensor()
@@ -170,4 +154,3 @@ while True:
         time.sleep(2)
 
 print('exit')
-
