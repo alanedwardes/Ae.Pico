@@ -133,11 +133,10 @@ def main_loop():
     update_scd4x_sensor()
 
 wd = watchdog.Watchdog()
-
 while True:
     wd.feed()
     try:
         main_loop()
     except Exception as e:
         print(e)
-    machine.lightsleep(100)
+    time.sleep(0.1)
