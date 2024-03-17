@@ -41,8 +41,6 @@ def flash_led(flashes):
         time.sleep(duration)
    
 def send_update(state, unit, device_class, friendly_name, sensor):
-    print("Sending update for " + sensor + "=" + str(state))    
-    
     data = {
         "state": state,
         "attributes": {
@@ -64,7 +62,6 @@ def send_update(state, unit, device_class, friendly_name, sensor):
     if not response.status_code in [200, 201]:
         raise Exception("Status " + str(response.status_code) + ": " + response.text)
     
-    print("Updated state")
     flash_led(1)
     gc.collect()
 
