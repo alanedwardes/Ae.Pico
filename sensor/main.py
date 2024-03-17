@@ -132,9 +132,6 @@ def main_loop():
     update_bme280_sensor()
     update_scd4x_sensor()
 
-flash_led(1)
-time.sleep(2)
-
 wd = watchdog.Watchdog()
 
 while True:
@@ -143,4 +140,4 @@ while True:
         main_loop()
     except Exception as e:
         print(e)
-    time.sleep(0.1)
+    machine.lightsleep(100)
