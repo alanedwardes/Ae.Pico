@@ -1,5 +1,5 @@
 import machine
-import time
+import utime
 import ujson
 import urequests
 import gc
@@ -33,12 +33,12 @@ wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 
 def flash_led(flashes):
     duration = 0.2
-    time.sleep(duration)
+    utime.sleep(duration)
     for flash in range(0, flashes):
         led.on()
-        time.sleep(duration)
+        utime.sleep(duration)
         led.off()
-        time.sleep(duration)
+        utime.sleep(duration)
    
 def send_update(state, unit, device_class, friendly_name, sensor):
     data = {
@@ -135,5 +135,5 @@ while True:
     try:
         main_loop()
     except Exception as e:
-        print(e)
-    time.sleep(0.1)
+        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
+    utime.sleep(0.1)
