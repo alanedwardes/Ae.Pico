@@ -14,6 +14,9 @@ class WiFi:
         self.wlan = network.WLAN(network.STA_IF)
         self.wlan.config(pm = 0xa11140, hostname = host)
         
+    def get_signal(self):
+        return self.wlan.status('rssi')
+        
     def ensure_connected(self):
         if self.wlan.isconnected():
             return
