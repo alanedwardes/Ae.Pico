@@ -46,7 +46,7 @@ class DataPoint:
         if isinstance(self.__value, bool):
             return self.__value != self.__last_updated_value
         else:
-            return abs(self.__value - self.__last_updated_value) > self.required_change_amount
+            return abs(self.__value - self.__last_updated_value) >= self.required_change_amount
     
     def get_value(self):
         return self.__value

@@ -18,7 +18,7 @@ class TestDatapoint(unittest.TestCase):
         self.assertIsNone(dp.get_value())
         self.assertFalse(dp.get_needs_update())
 
-    def test_number(self):
+    def test_float(self):
         dp = datapoint.DataPoint(0.1)
 
         # Set a value, and ensure it triggers the first update
@@ -42,6 +42,34 @@ class TestDatapoint(unittest.TestCase):
         # Set a larger change to transmit
         dp.last_updated_time = utime.ticks_add(utime.ticks_ms(), -20_000)
         dp.set_value(0.2)
+        self.assertTrue(dp.get_needs_update())
+        dp.set_value_updated()
+        self.assertFalse(dp.get_needs_update())
+
+    def test_integer(self):
+        dp = datapoint.DataPoint(1)
+
+        # Set a value, and ensure it triggers the first update
+        dp.last_updated_time = None
+        dp.set_value(-66)
+        self.assertEqual(-66, dp.get_value())
+        self.assertTrue(dp.get_needs_update())
+        dp.set_value_updated()
+        self.assertFalse(dp.get_needs_update())
+
+        # Pretend the last value update was over 5 minutes ago and that an update is needed
+        dp.last_updated_time = utime.ticks_add(utime.ticks_ms(), -400_000)
+        self.assertTrue(dp.get_needs_update())
+        dp.set_value_updated()
+        self.assertFalse(dp.get_needs_update())
+
+        # Set a change too small to transmit
+        dp.set_value(-66)
+        self.assertFalse(dp.get_needs_update())
+
+        # Set a larger change to transmit
+        dp.last_updated_time = utime.ticks_add(utime.ticks_ms(), -20_000)
+        dp.set_value(-65)
         self.assertTrue(dp.get_needs_update())
         dp.set_value_updated()
         self.assertFalse(dp.get_needs_update())
