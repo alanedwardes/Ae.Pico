@@ -123,8 +123,18 @@ def update_scd4x_sensor():
         send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
         humidity.set_value_updated()
 
-def main_loop():  
+wifi_sensor = datapoint.DataPoint(1)
+def update_wifi_sensor():
+    wifi_sensor.set_value(wifi.get_signal())
+    
+    if wifi_sensor.get_needs_update():
+        send_update(wifi_sensor.get_value(), "dBm", "signal_strength", config.wifi['rssi_friendly_name'], "sensor." + config.wifi['rssi_name'])
+        wifi_sensor.set_value_updated()
+    
+
+def main_loop():
     wifi.ensure_connected()
+    update_wifi_sensor()
     update_motion_sensor()
     update_bme280_sensor()
     update_scd4x_sensor()
