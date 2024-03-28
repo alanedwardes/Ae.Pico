@@ -123,7 +123,7 @@ def update_scd4x_sensor():
         send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
         humidity.set_value_updated()
 
-wifi_sensor = datapoint.DataPoint(1)
+wifi_sensor = datapoint.DataPoint(5)
 def update_wifi_sensor():
     wifi_sensor.set_value(wifi.get_signal())
     
