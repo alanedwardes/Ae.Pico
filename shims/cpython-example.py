@@ -45,8 +45,21 @@ def update_bme280_sensor():
         hass.send_update(humidity.get_value(), "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
         humidity.set_value_updated()
 
-cpu_temperature = DataPoint(2)
+wifi_sensor = DataPoint(5)
+def update_wifi_sensor():
+    if not config.wifi_sensor['enabled']:
+        return
 
+    with open('/proc/net/wireless') as f:
+        wifi_signal = int(float(f.readlines()[2].split()[3].strip()))
+
+    wifi_sensor.set_value(wifi_signal)
+
+    if wifi_sensor.get_needs_update():
+        hass.send_update(wifi_sensor.get_value(), "dBm", "signal_strength", config.wifi_sensor['rssi_friendly_name'], "sensor." + config.wifi_sensor['rssi_name'])
+        wifi_sensor.set_value_updated()
+
+cpu_temperature = DataPoint(2)
 def update_cpu_sensor():
     if not config.cpu_sensor['enabled']:
         return
@@ -62,6 +75,7 @@ def update_cpu_sensor():
 
 def main_loop():
     update_bme280_sensor()
+    update_wifi_sensor()
     update_cpu_sensor()
 
 while True:
