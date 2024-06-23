@@ -1,7 +1,9 @@
-import unittest
 import sys
-import utime
+sys.path.insert(1, '../shims')
 sys.path.insert(1, '../sensor')
+
+import unittest
+import utime
 import datapoint
 
 class TestDatapoint(unittest.TestCase):

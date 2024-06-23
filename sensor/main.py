@@ -1,11 +1,10 @@
 import machine
 import utime
-import ujson
-import urequests
 import gc
 import config
 import watchdog
-import datapoint
+from datapoint import DataPoint
+from hass import Hass
 from wifi import WiFi
 
 # Init LED
@@ -31,6 +30,9 @@ if config.scd4x_sensor['enabled']:
 # Init WiFi
 wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 
+# Init Home Assistant
+hass = Hass(config.hass['url'], config.hass['token'])
+
 def flash_led(flashes):
     duration = 0.2
     utime.sleep(duration)
@@ -41,31 +43,11 @@ def flash_led(flashes):
         utime.sleep(duration)
    
 def send_update(state, unit, device_class, friendly_name, sensor):
-    data = {
-        "state": state,
-        "attributes": {
-            "device_class": device_class,
-            "friendly_name": friendly_name
-        }
-    }
-    
-    if unit is not None:
-        data['attributes']['unit_of_measurement'] = unit
-        data['attributes']['state_class'] = "measurement"
-
-    headers = {
-        "Authorization": "Bearer " + config.hass['token'],
-        "Content-Type": "application/json; charset=utf-8"
-    }
-
-    response = urequests.post(config.hass['url'] + "/api/states/" + sensor, data=ujson.dumps(data).encode('utf-8'), headers=headers, timeout=5)
-    if not response.status_code in [200, 201]:
-        raise Exception("Status " + str(response.status_code) + ": " + response.text)
-    
-    flash_led(1)
+    hass.send_update(state, unit, device_class, friendly_name, sensor)
     gc.collect()
+    flash_led(1)
 
-motion_state = datapoint.DataPoint()
+motion_state = DataPoint()
 def update_motion_sensor():
     if not config.motion_sensor['enabled']:
         return
@@ -76,10 +58,10 @@ def update_motion_sensor():
         send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
         motion_state.set_value_updated()
 
-temperature = datapoint.DataPoint(0.1)
-humidity = datapoint.DataPoint(0.5)
+temperature = DataPoint(0.1)
+humidity = DataPoint(0.5)
 
-pressure = datapoint.DataPoint(0.25)
+pressure = DataPoint(0.25)
 def update_bme280_sensor():
     if not config.bme280_sensor['enabled']:
         return
@@ -102,7 +84,7 @@ def update_bme280_sensor():
         send_update(humidity.get_value(), "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
         humidity.set_value_updated()
 
-co2 = datapoint.DataPoint(20)
+co2 = DataPoint(20)
 def update_scd4x_sensor():
     if not config.scd4x_sensor['enabled']:
         return
@@ -123,7 +105,7 @@ def update_scd4x_sensor():
         send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
         humidity.set_value_updated()
 
-wifi_sensor = datapoint.DataPoint(5)
+wifi_sensor = DataPoint(5)
 def update_wifi_sensor():
     wifi_sensor.set_value(wifi.get_signal())
     
