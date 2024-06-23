@@ -1,5 +1,9 @@
-import ujson
-import urequests
+try:
+    import ujson
+    import urequests
+except ModuleNotFoundError:
+    import json as ujson
+    import requests as urequests
 
 class Hass:
     url = None
