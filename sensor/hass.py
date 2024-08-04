@@ -6,9 +6,7 @@ except ModuleNotFoundError:
     import requests as urequests
 
 class Hass:
-    url = None
-    token = None
-
+    
     def __init__(self, url, token):
         self.url = url
         self.token = token

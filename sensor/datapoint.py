@@ -1,17 +1,12 @@
 import utime
 
 class DataPoint:
-    # Config
-    change_amount = 0
-    max_time_between_updates = 0
-    min_time_between_updates = 0
-
-    # State
-    __value = None
-    __last_updated_value = None
-    last_updated_time = None
-
+    
     def __init__(self, required_change_amount = None, max_time_between_updates = 300_000, min_time_between_updates = 5_000):
+        self.__value = None
+        self.__last_updated_value = None
+        self.last_updated_time = None
+
         self.required_change_amount = required_change_amount
         self.max_time_between_updates = max_time_between_updates
         self.min_time_between_updates = min_time_between_updates

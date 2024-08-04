@@ -3,9 +3,6 @@ import utime
 import machine
 
 class Watchdog:
-    timeout = None
-    last_updated_time = None
-    thread = None
     
     def __init__(self, timeout = 30_000):
         self.timeout = timeout

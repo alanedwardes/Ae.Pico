@@ -2,6 +2,7 @@ import utime
 import datapoint
 
 class ClickTracker:
+
     def __init__(self):
         self.clicks = 0
         self.started_time = utime.ticks_ms()
@@ -10,6 +11,7 @@ class ClickTracker:
         return utime.ticks_diff(utime.ticks_ms(), self.started_time)
 
 class Geiger:
+    
     # Init: tube_cpm_ratio is specific to each geiger tube and represents the
     # value needed to convert between CPM and μSv/h (e.g. 153.8 for the tube M4011)
     def __init__(self, tube_cpm_ratio, pin, pin_trigger):

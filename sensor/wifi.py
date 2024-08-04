@@ -3,9 +3,6 @@ import utime
 import utime
 
 class WiFi:
-    wlan = None
-    ssid = None
-    key = None
     
     def __init__(self, host, ssid, key):
         self.ssid = ssid
