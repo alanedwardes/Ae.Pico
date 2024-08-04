@@ -15,10 +15,12 @@ class Hass:
         data = {
             "state": state,
             "attributes": {
-                "device_class": device_class,
                 "friendly_name": friendly_name
             }
         }
+
+        if device_class is not None:
+            data['attributes']['device_class'] = device_class
         
         if unit is not None:
             data['attributes']['unit_of_measurement'] = unit
