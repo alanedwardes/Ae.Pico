@@ -11,24 +11,24 @@ from wifi import WiFi
 led = machine.Pin("LED", machine.Pin.OUT)
 
 # Init motion sensor
-if config.get('motion_sensor', {}).get('enabled', False):
+if config.motion_sensor.get('enabled', False):
     motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN)
 
 # Init BME280
-if config.get('bme280_sensor', {}).get('enabled', False):
+if config.bme280_sensor.get('enabled', False):
     import bme280
     i2c_bme = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin'])
     bme = bme280.BME280(i2c=i2c_bme)
 
 # Init SCD4X
-if config.get('scd4x_sensor', {}).get('enabled', False):
+if config.scd4x_sensor.get('enabled', False):
     import scd4x
     i2c_scd4x = machine.I2C(0, scl=config.scd4x_sensor['scl_pin'], sda=config.scd4x_sensor['sda_pin'], freq=100000)
     scd = scd4x.SCD4X(i2c_scd4x)
     scd.start_periodic_measurement()
 
 # Init Geiger
-if config.get('geiger_sensor', {}).get('enabled', False):
+if config.geiger_sensor.get('enabled', False):
     from geiger import Geiger
     geiger_pin = machine.Pin(config.geiger_sensor['pin'], machine.Pin.IN)
     geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'])
@@ -69,7 +69,7 @@ humidity = DataPoint(0.5)
 
 pressure = DataPoint(0.25)
 def update_bme280_sensor():
-    if not config.get('bme280_sensor', {}).get('enabled', False):
+    if not config.bme280_sensor.get('enabled', False):
         return
     
     current_temp, current_pressure, current_humidity = bme.float_values()
@@ -92,7 +92,7 @@ def update_bme280_sensor():
 
 co2 = DataPoint(20)
 def update_scd4x_sensor():
-    if not config.get('scd4x_sensor', {}).get('enabled', False):
+    if not config.scd4x_sensor.get('enabled', False):
         return
     
     temperature.set_value(scd.temperature)
@@ -112,7 +112,7 @@ def update_scd4x_sensor():
         humidity.set_value_updated()
 
 def update_geiger_sensor():
-    if not config.get('geiger_sensor', {}).get('enabled', False):
+    if not config.geiger_sensor.get('enabled', False):
         return
     
     geiger.update()
