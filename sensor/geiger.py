@@ -33,7 +33,7 @@ class Geiger:
     def update(self):
         # Don't update more frequently than configured
         if self.click_tracker.get_ms_since_start() < self.min_time_between_updates:
-            return
+            return None
 
         # Swap out the current click tracker
         previous_click_tracker = self.click_tracker
@@ -44,3 +44,6 @@ class Geiger:
         cpm_multiplier = 60_000 / total_time
         cpm = previous_click_tracker.clicks * cpm_multiplier
         self.datapoint.set_value(cpm / self.tube_cpm_ratio)
+        
+        # Return the previous click tracker
+        return previous_click_tracker

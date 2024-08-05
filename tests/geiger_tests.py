@@ -44,15 +44,19 @@ class TestGeiger(unittest.TestCase):
         self.assertEqual(25, g.click_tracker.clicks)
 
         # Within the 60s time, so an update will not take effect
-        g.update()
+        self.assertIsNone(g.update())
         self.assertEqual(25, g.click_tracker.clicks)
         self.assertFalse(g.datapoint.get_needs_update())
 
         # Pretend we started 70s ago, to force an update
         g.click_tracker.started_time = utime.ticks_ms() - 70_000
-        g.update()
+        previous_click_tracker = g.update()
+        self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
         self.assertTrue(g.datapoint.get_needs_update())
+
+        # Check the old click tracker
+        self.assertEqual(25, previous_click_tracker.clicks)
 
     def test_clicks_60_seconds(self):
         pin = MockPin(self)
@@ -61,9 +65,13 @@ class TestGeiger(unittest.TestCase):
 
         # Pretend we started 60s ago, update
         g.click_tracker.started_time = utime.ticks_ms() - 60_000
-        g.update()
+        previous_click_tracker = g.update()
+        self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
         self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+
+        # Check the old click tracker
+        self.assertEqual(25, previous_click_tracker.clicks)
 
         # See what the μSv/h value is
         self.assertAlmostEqual(0.16, g.datapoint.get_value(), 2)
@@ -76,9 +84,13 @@ class TestGeiger(unittest.TestCase):
 
         # Pretend we started 10s ago, update
         g.click_tracker.started_time = utime.ticks_ms() - 10_000
-        g.update()
+        previous_click_tracker = g.update()
+        self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
         self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+
+        # Check the old click tracker
+        self.assertEqual(4, previous_click_tracker.clicks)
 
         # See what the μSv/h value is
         self.assertAlmostEqual(0.16, g.datapoint.get_value(), 2)
@@ -91,9 +103,13 @@ class TestGeiger(unittest.TestCase):
 
         # Pretend we started 120s ago, update
         g.click_tracker.started_time = utime.ticks_ms() - 120_000
-        g.update()
+        previous_click_tracker = g.update()
+        self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
         self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+
+        # Check the old click tracker
+        self.assertEqual(50, previous_click_tracker.clicks)
 
         # See what the μSv/h value is
         self.assertAlmostEqual(0.16, g.datapoint.get_value(), 2)
