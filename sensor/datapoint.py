@@ -37,11 +37,16 @@ class DataPoint:
         if ms_since_last_update < self.min_time_between_updates:
             return False
         
-        # Check the value has changed enough
+        # If the value is a boolean, check it changed
         if isinstance(self.__value, bool):
             return self.__value != self.__last_updated_value
-        else:
-            return abs(self.__value - self.__last_updated_value) >= self.required_change_amount
+        
+        # If there is no required change amount set, update
+        if self.required_change_amount is None:
+            return True
+
+        # Check the numeric value has changed enough
+        return abs(self.__value - self.__last_updated_value) >= self.required_change_amount
     
     def get_value(self):
         return self.__value
