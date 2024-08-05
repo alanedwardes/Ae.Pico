@@ -25,11 +25,15 @@ class TestGeiger(unittest.TestCase):
 
     def test_init(self):
         pin = MockPin(self)
-        g = geiger.Geiger(153.8, pin, MockPin.MOCK_TRIGGER_TYPE, 60_000)
+        g = geiger.Geiger(153.8, pin, MockPin.MOCK_TRIGGER_TYPE, 60_000, 0.001)
+        self.assertEqual(153.8, g.tube_cpm_ratio)
+        self.assertEqual(60_000, g.time_between_updates)
+
         self.assertEqual(0, g.click_tracker.clicks)
         self.assertFalse(g.datapoint.get_needs_update())
         self.assertEqual(None, g.datapoint.get_value())
-        self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+        self.assertLess(g.click_tracker.get_ms_since_start(), 1)
+        self.assertEqual(0.001, g.datapoint.required_change_amount)
 
     def test_clicks(self):
         pin = MockPin(self)
@@ -49,7 +53,7 @@ class TestGeiger(unittest.TestCase):
         self.assertFalse(g.datapoint.get_needs_update())
 
         # Pretend we started 70s ago, to force an update
-        g.click_tracker.started_time = utime.ticks_ms() - 70_000
+        g.click_tracker.started_time = utime.ticks_add(utime.ticks_ms(), -70_000)
         previous_click_tracker = g.update()
         self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
@@ -64,11 +68,11 @@ class TestGeiger(unittest.TestCase):
         pin.click(25)
 
         # Pretend we started 60s ago, update
-        g.click_tracker.started_time = utime.ticks_ms() - 60_000
+        g.click_tracker.started_time = utime.ticks_add(utime.ticks_ms(), -60_000)
         previous_click_tracker = g.update()
         self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
-        self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+        self.assertLess(g.click_tracker.get_ms_since_start(), 1)
 
         # Check the old click tracker
         self.assertEqual(25, previous_click_tracker.clicks)
@@ -83,11 +87,11 @@ class TestGeiger(unittest.TestCase):
         self.assertEqual(4, g.click_tracker.clicks)
 
         # Pretend we started 10s ago, update
-        g.click_tracker.started_time = utime.ticks_ms() - 10_000
+        g.click_tracker.started_time = utime.ticks_add(utime.ticks_ms(), -10_000)
         previous_click_tracker = g.update()
         self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
-        self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+        self.assertLess(g.click_tracker.get_ms_since_start(), 1)
 
         # Check the old click tracker
         self.assertEqual(4, previous_click_tracker.clicks)
@@ -102,11 +106,11 @@ class TestGeiger(unittest.TestCase):
         self.assertEqual(50, g.click_tracker.clicks)
 
         # Pretend we started 120s ago, update
-        g.click_tracker.started_time = utime.ticks_ms() - 120_000
+        g.click_tracker.started_time = utime.ticks_add(utime.ticks_ms(), -120_000)
         previous_click_tracker = g.update()
         self.assertIsNotNone(previous_click_tracker)
         self.assertEqual(0, g.click_tracker.clicks)
-        self.assertAlmostEqual(0, g.click_tracker.get_ms_since_start(), 0)
+        self.assertLess(g.click_tracker.get_ms_since_start(), 1)
 
         # Check the old click tracker
         self.assertEqual(50, previous_click_tracker.clicks)

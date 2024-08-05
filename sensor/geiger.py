@@ -14,8 +14,8 @@ class Geiger:
     
     # Init: tube_cpm_ratio is specific to each geiger tube and represents the
     # value needed to convert between CPM and μSv/h (e.g. 153.8 for the tube M4011)
-    def __init__(self, tube_cpm_ratio, pin, pin_trigger, time_between_updates):
-        self.datapoint = datapoint.DataPoint()
+    def __init__(self, tube_cpm_ratio, pin, pin_trigger, time_between_updates, required_change_amount = None):
+        self.datapoint = datapoint.DataPoint(required_change_amount)
         self.click_tracker = ClickTracker()
         pin.irq(trigger=pin_trigger, handler=self.__click, hard=True)
         self.tube_cpm_ratio = tube_cpm_ratio
