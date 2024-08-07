@@ -31,7 +31,7 @@ if config.scd4x_sensor.get('enabled', False):
 if config.geiger_sensor.get('enabled', False):
     from geiger import Geiger
     geiger_pin = machine.Pin(config.geiger_sensor['pin'], machine.Pin.IN)
-    geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'], config.geiger_sensor.get('required_change_amount'))
+    geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'], 0.01)
     
 # Init WiFi
 wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
