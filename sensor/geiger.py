@@ -37,10 +37,7 @@ class Geiger:
     def __click(self, pin):
         self.click_tracker.clicks += 1
     
-    # Updates the datapoint with the current μSv/h value
-    # This can be called at whatever interval is desired,
-    # but waiting longer periods of time will result in more
-    # accurate results (e.g. 1 minute)
+    # Updates the datapoint with the current μSv/h value when time_between_updates elapses
     def update(self):
         # Don't update more frequently than configured
         if self.click_tracker.get_ms_since_start() < self.time_between_updates:
