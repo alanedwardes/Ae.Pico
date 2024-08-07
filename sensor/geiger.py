@@ -9,6 +9,17 @@ class ClickTracker:
 
     def get_ms_since_start(self):
         return utime.ticks_diff(utime.ticks_ms(), self.started_time)
+    
+    # To derive the μSv/h value, multiply this value by tube's
+    # specific CPM ratio (e.g. 153.8 for the tube M4011)
+    def get_clicks_per_minute(self):
+        total_time = self.get_ms_since_start()
+
+        if total_time == 0:
+            return 0
+        
+        cpm_multiplier = 60_000 / total_time
+        return self.clicks * cpm_multiplier
 
 class Geiger:
     
@@ -40,10 +51,7 @@ class Geiger:
         self.click_tracker = ClickTracker()
 
         # Process the saturated click tracker to obtain μSv/h
-        total_time = previous_click_tracker.get_ms_since_start()
-        cpm_multiplier = 60_000 / total_time
-        cpm = previous_click_tracker.clicks * cpm_multiplier
-        self.datapoint.set_value(cpm / self.tube_cpm_ratio)
+        self.datapoint.set_value(previous_click_tracker.get_clicks_per_minute() / self.tube_cpm_ratio)
         
         # Return the previous click tracker
         return previous_click_tracker
