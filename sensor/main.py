@@ -131,14 +131,16 @@ def update_wifi_sensor():
     
 
 def main_loop():
-    wifi.ensure_connected()
-    update_motion_sensor()
-    update_bme280_sensor()
-    update_scd4x_sensor()
-    update_geiger_sensor()
-    update_wifi_sensor()
+    wifi.update()
 
-wd = watchdog.Watchdog()
+    if wifi.is_connected():
+        update_motion_sensor()
+        update_bme280_sensor()
+        update_scd4x_sensor()
+        update_geiger_sensor()
+        update_wifi_sensor()
+
+wd = machine.WDT(timeout=8388)
 while True:
     wd.feed()
     try:
