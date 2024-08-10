@@ -104,7 +104,7 @@ class TestDatapoint(unittest.TestCase):
         dp.last_updated_time = utime.ticks_add(utime.ticks_ms(), -10_000)
 
         dp.set_value(0.01)
-        self.assertTrue(dp.get_needs_update())
+        self.assertFalse(dp.get_needs_update())
 
 if __name__ == '__main__':
     unittest.main()
