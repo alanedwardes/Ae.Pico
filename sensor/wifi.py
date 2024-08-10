@@ -9,7 +9,7 @@ class WiFi:
         self.started_connect_time = utime.ticks_ms()
         
         self.wlan = network.WLAN(network.STA_IF)
-        self.wlan.config(pm = 0xa11140, hostname = host)
+        self.wlan.config(hostname = host)
         
     def get_signal(self):
         return self.wlan.status('rssi')
