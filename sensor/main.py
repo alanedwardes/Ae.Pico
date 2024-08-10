@@ -2,7 +2,6 @@ import machine
 import utime
 import gc
 import config
-import watchdog
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
