@@ -2,6 +2,7 @@ import machine
 import utime
 import gc
 import config
+import watchdog
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
@@ -139,7 +140,7 @@ def main_loop():
         update_geiger_sensor()
         update_wifi_sensor()
 
-wd = machine.WDT(timeout=8388)
+wd = watchdog.Watchdog()
 while True:
     wd.feed()
     try:
