@@ -119,11 +119,7 @@ class UploadController:
         content_size = content_length - offset - len(boundary) - len(HEADER_TERMINATOR) * 2
         
         with open(filename, 'w') as f:
-            try:
-                f.write(connection.read(content_size))
-            except:
-                self.__read_noop(connection, content_size)
-                connection.write('<p>Error: Could not allocate enough memory</p>')
+            f.write(connection.read(content_size))
         
         # After the content there should always be a terminator
         if connection.readline() != HEADER_TERMINATOR:
@@ -198,13 +194,6 @@ class ManagementServer:
         self.__route(command[0], command[1], headers, connection)
         connection.close()
         gc.collect()
-        
-    def __read_noop(self, connection, amount):
-        remaining = amount
-        while remaining > 0:
-            read = min(4096, remaining)
-            connection.read(read)
-            remaining -= read
         
     def __route(self, method, path, headers, connection):
         for controller in self.controllers:
