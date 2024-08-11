@@ -44,8 +44,8 @@ scd4x_sensor = dict(
 
 geiger_sensor = dict(
     enabled = True,
-    friendly_name = "Test Geiger",
-    name = "test_geiger",
+    geiger_friendly_name = "Test Geiger",
+    geiger_name = "test_geiger",
     pin = 2,
     tube_cpm_ratio = 153.8,
     min_update_ms = 60_000
