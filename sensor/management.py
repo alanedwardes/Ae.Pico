@@ -43,19 +43,19 @@ class IndexController:
         connection.write('<h2>System</h2>')
         connection.write('<form action="reboot" method="post"><button>Reboot</button/></form>')
         connection.write('<h2>Memory</h2>')
-        connection.write('<p>Free Memory: {:,} KB</p>'.format(free_memory / KB))
+        connection.write('<p>Free Memory: {:.2f} KB</p>'.format(free_memory / KB))
         connection.write('<h2>Filesystem</h2>')
-        connection.write('<p>Free Space: {:,} KB</p>'.format(free_space / KB))
+        connection.write('<p>Free Space: {:.2f} KB</p>'.format(free_space / KB))
         connection.write('<h3>Files</h3>')
         connection.write('<table>')
-        connection.write('<thead><tr><th>Name</th><th>Size (bytes)</th><th>Action</th></tr></thead>')
+        connection.write('<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
         connection.write('<tbody>')
         
         def write_file(parent, file):
             path = parent + file[0]
             connection.write('<tr>')
             connection.write('<td>' + path + '</td>')
-            connection.write('<td>' + str(file[3]) + '</td>')
+            connection.write('<td>{:.2f} KB</td>'.format(file[3] / KB))
             connection.write('<td>')
             connection.write('<form action="delete" method="post"><input type="hidden" name="filename" value="' + path + '"/><button>Delete</button/></form>')
             connection.write('<form action="download" method="post"><input type="hidden" name="filename" value="' + path + '"/><button>Download</button/></form>')
