@@ -27,22 +27,25 @@ class IndexController:
         return method == b'GET' and path == b'/'
     
     def serve(self, headers, connection):
-        stat = os.statvfs("/")
-        size = stat[1] * stat[2]
-        free = stat[0] * stat[3]
-        used = size - free
+        connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+        connection.write(b'Content-Type: text/html' + HEADER_TERMINATOR)
+        connection.write(HEADER_TERMINATOR)
+        
+        statvfs = os.statvfs("/")
+        free_space = statvfs[0] * statvfs[3]
+        free_memory = gc.mem_free()
         
         KB = 1024
-        MB = 1024 * 1024
         
-        connection.write('<style>body{font-family:sans-serif;}form{display:inline}</style>')        
+        connection.write('<style>body{form{display:inline}</style>')        
         connection.write('<h1>Management Dashboard</h1>')
         connection.write('<p>{}</p>'.format(os.uname()))
-        connection.write('<h2>Actions</h2>')
+        connection.write('<h2>System</h2>')
         connection.write('<form action="reboot" method="post"><button>Reboot</button/></form>')
-        connection.write('<form action="gc" method="post"><button>Run Garbage Collection</button/></form>')
+        connection.write('<h2>Memory</h2>')
+        connection.write('<p>Free Memory: {:,} KB</p>'.format(free_memory / KB))
         connection.write('<h2>Filesystem</h2>')
-        connection.write('<p>Free Space: {:,} KB</p>'.format(free / KB))
+        connection.write('<p>Free Space: {:,} KB</p>'.format(free_space / KB))
         connection.write('<h3>Files</h3>')
         connection.write('<table>')
         connection.write('<thead><tr><th>Name</th><th>Size (bytes)</th><th>Action</th></tr></thead>')
@@ -79,6 +82,10 @@ class DeleteController:
         return method == b'POST' and path == b'/delete'
     
     def serve(self, headers, connection):
+        connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+        connection.write(b'Content-Type: text/html' + HEADER_TERMINATOR)
+        connection.write(HEADER_TERMINATOR)
+        
         content_length = int(headers.get(b'content-length', '0'))
         filename = connection.read(content_length).split(b'filename=')[1]
         
@@ -95,6 +102,10 @@ class UploadController:
         return method == b'POST' and path == b'/upload'
     
     def serve(self, headers, connection):
+        connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+        connection.write(b'Content-Type: text/html' + HEADER_TERMINATOR)
+        connection.write(HEADER_TERMINATOR)
+        
         content_length = int(headers.get(b'content-length', '0'))
         
         boundary = connection.readline()
@@ -129,14 +140,27 @@ class DownloadController:
     def route(self, method, path):
         return method == b'POST' and path == b'/download'
     
-    def serve(self, headers, connection):
+    def serve(self, headers, connection):        
         content_length = int(headers.get(b'content-length', '0'))
-        filename = connection.read(content_length).split(b'filename=')[1]
-                
+        filename = connection.read(content_length).split(b'filename=')[1].decode('utf-8')
+        
+        connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+        
         try:
+            stat = os.stat(filename)
+            connection.write(b'Content-Length: {}'.format(stat[6]) + HEADER_TERMINATOR)
+            connection.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
+            connection.write(b'Content-Disposition: attachment; filename="{}"'.format(filename) + HEADER_TERMINATOR)
+            connection.write(HEADER_TERMINATOR)
+            
             with open(filename, 'r') as f:
                 connection.write(f.read())
+        
         except Exception as e:
+            connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+            connection.write(b'Content-Type: text/html' + HEADER_TERMINATOR)
+            connection.write(HEADER_TERMINATOR)
+            
             connection.write('<p>Error reading "{}": {}</p>'.format(filename, e))
             connection.write('<p><a href="/">Back</a></p>')
             
@@ -145,14 +169,9 @@ class RebootController:
         return method == b'POST' and path == b'/reboot'
     
     def serve(self, headers, connection):
+        connection.write(b'HTTP/1.0 200 OK' + HEADER_TERMINATOR)
+        connection.write(HEADER_TERMINATOR)
         machine.reset()
-        
-class GarbageCollectionController:
-    def route(self, method, path):
-        return method == b'POST' and path == b'/gc'
-    
-    def serve(self, headers, connection):
-        gc.collect()
 
 class ManagementServer:   
     def __init__(self, port = 80):
@@ -162,8 +181,7 @@ class ManagementServer:
         self.socket.settimeout(None)
         self.socket.bind(addr)
         self.socket.listen(5)
-        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController(), GarbageCollectionController()]
-        print('listening on', addr)
+        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController()]
     
     def update(self):
         try:
@@ -172,16 +190,14 @@ class ManagementServer:
         except OSError as e:
             pass
         
-    def __serve(self, cl, addr):
-        cl.settimeout(10)
-        cl_file = cl.makefile('rwb', 0)
-        command = cl_file.readline().split(b' ')
-        
-        (offset, headers) = __parse_headers(cl_file)
-            
-        cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
-        self.__route(command[0], command[1], headers, cl_file)
-        cl.close()
+    def __serve(self, connection, addr):
+        gc.collect()
+        connection.settimeout(10)
+        command = connection.readline().split(b' ')        
+        (offset, headers) = __parse_headers(connection)                
+        self.__route(command[0], command[1], headers, connection)
+        connection.close()
+        gc.collect()
         
     def __read_noop(self, connection, amount):
         remaining = amount
@@ -197,4 +213,3 @@ class ManagementServer:
                 return
         
         connection.write('404')
-
