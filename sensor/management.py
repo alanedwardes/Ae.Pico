@@ -50,6 +50,10 @@ class IndexController:
             unique_id = machine.unique_id()
             return ''.join([f"{b:02x}" for b in unique_id])
         
+        def current_time():
+            rtc = machine.RTC()
+            return rtc.datetime()
+        
         KB = 1024
         
         connection.write('<style>body{form{display:inline}</style>')        
@@ -60,6 +64,7 @@ class IndexController:
         connection.write('<li>CPU frequency: {:.0f} MHz</li>'.format(machine.freq() / 1_000_000))
         connection.write('<li>CPU temperature: {:.0f} celcius</li>'.format(cpu_temp()))
         connection.write('<li>Unique ID: {}</li>'.format(unique_id()))
+        connection.write('<li>Current time: {}</li>'.format(current_time()))
         connection.write('</ul>')
         connection.write('<h2>System</h2>')
         connection.write('<form action="reboot" method="post"><button>Reboot</button/></form>')

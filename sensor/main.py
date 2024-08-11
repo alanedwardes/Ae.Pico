@@ -142,11 +142,12 @@ def main_loop():
         update_wifi_sensor()
         server.update()
 
-wd = watchdog.Watchdog()
+wd = machine.WDT(timeout=8388)
 while True:
     wd.feed()
     try:
         main_loop()
     except Exception as e:
         print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
-    utime.sleep(0.1)
+    
+    machine.idle()
