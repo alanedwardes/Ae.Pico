@@ -178,7 +178,7 @@ class ManagementServer:
         addr = socket.getaddrinfo('0.0.0.0', port)[0][-1]
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.settimeout(None)
+        self.socket.setblocking(False)
         self.socket.bind(addr)
         self.socket.listen(5)
         self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController()]
