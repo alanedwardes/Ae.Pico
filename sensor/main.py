@@ -6,6 +6,7 @@ import watchdog
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
+from management import ManagementServer
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -129,7 +130,7 @@ def update_wifi_sensor():
         send_update(wifi_sensor.get_value(), "dBm", "signal_strength", config.wifi['rssi_friendly_name'], "sensor." + config.wifi['rssi_name'])
         wifi_sensor.set_value_updated()
     
-
+server = ManagementServer()
 def main_loop():
     wifi.update()
 
@@ -139,6 +140,7 @@ def main_loop():
         update_scd4x_sensor()
         update_geiger_sensor()
         update_wifi_sensor()
+        server.update()
 
 wd = watchdog.Watchdog()
 while True:
