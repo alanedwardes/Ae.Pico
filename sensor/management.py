@@ -1,0 +1,200 @@
+import machine
+import socket
+import os
+import gc
+
+HEADER_TERMINATOR = b'\r\n'
+
+def __parse_headers(connection):
+    headers = {}
+    offset = 0
+    
+    while True:
+        header = connection.readline()
+        offset += len(header)
+        if not header or header == HEADER_TERMINATOR:
+            break
+        
+        header_parts = header.split(b':', 1)
+        header_name = header_parts[0].lower().strip()
+        header_value = header_parts[1][:-len(HEADER_TERMINATOR)].strip()
+        headers[header_name] = header_value
+        
+    return (offset, headers)
+
+class IndexController:
+    def route(self, method, path):
+        return method == b'GET' and path == b'/'
+    
+    def serve(self, headers, connection):
+        stat = os.statvfs("/")
+        size = stat[1] * stat[2]
+        free = stat[0] * stat[3]
+        used = size - free
+        
+        KB = 1024
+        MB = 1024 * 1024
+        
+        connection.write('<style>body{font-family:sans-serif;}form{display:inline}</style>')        
+        connection.write('<h1>Management Dashboard</h1>')
+        connection.write('<p>{}</p>'.format(os.uname()))
+        connection.write('<h2>Actions</h2>')
+        connection.write('<form action="reboot" method="post"><button>Reboot</button/></form>')
+        connection.write('<form action="gc" method="post"><button>Run Garbage Collection</button/></form>')
+        connection.write('<h2>Filesystem</h2>')
+        connection.write('<p>Free Space: {:,} KB</p>'.format(free / KB))
+        connection.write('<h3>Files</h3>')
+        connection.write('<table>')
+        connection.write('<thead><tr><th>Name</th><th>Size (bytes)</th><th>Action</th></tr></thead>')
+        connection.write('<tbody>')
+        
+        def write_file(parent, file):
+            path = parent + file[0]
+            connection.write('<tr>')
+            connection.write('<td>' + path + '</td>')
+            connection.write('<td>' + str(file[3]) + '</td>')
+            connection.write('<td>')
+            connection.write('<form action="delete" method="post"><input type="hidden" name="filename" value="' + path + '"/><button>Delete</button/></form>')
+            connection.write('<form action="download" method="post"><input type="hidden" name="filename" value="' + path + '"/><button>Download</button/></form>')
+            connection.write('</td>')
+            connection.write('</tr>')
+        
+        def list_contents_recursive(start):
+            for node in os.ilistdir(start):
+                if node[1] == 0x4000:
+                    list_contents_recursive(start + node[0] + '/')
+                else:
+                    write_file(start, node)
+        
+        list_contents_recursive('')
+        
+        connection.write('</tbody>')
+        connection.write('</table>')
+        
+        connection.write('<h3>Upload File</h3>')        
+        connection.write('<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
+
+class DeleteController:
+    def route(self, method, path):
+        return method == b'POST' and path == b'/delete'
+    
+    def serve(self, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        filename = connection.read(content_length).split(b'filename=')[1]
+        
+        try:
+            os.unlink(filename)
+            connection.write('<p>Deleted "{}"</p>'.format(filename))
+        except Exception as e:
+            connection.write('<p>Error deleting "{}": {}</p>'.format(filename, e))
+            
+        connection.write('<p><a href="/">Back</a></p>')
+        
+class UploadController:    
+    def route(self, method, path):
+        return method == b'POST' and path == b'/upload'
+    
+    def serve(self, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        
+        boundary = connection.readline()
+        
+        (headers_offset, content_headers) = __parse_headers(connection)
+
+        filename = content_headers[b'content-disposition'].split(b'filename=')[1].split(b'"')[1]
+        
+        offset = headers_offset + len(boundary)
+
+        content_size = content_length - offset - len(boundary) - len(HEADER_TERMINATOR) * 2
+        
+        with open(filename, 'w') as f:
+            try:
+                f.write(connection.read(content_size))
+            except:
+                self.__read_noop(connection, content_size)
+                connection.write('<p>Error: Could not allocate enough memory</p>')
+        
+        # After the content there should always be a terminator
+        if connection.readline() != HEADER_TERMINATOR:
+            raise Exception('Expected newline')
+        
+        # Read the final boundary
+        if connection.readline() != boundary[:len(boundary) - len(HEADER_TERMINATOR)] + b'--\r\n':
+            raise Exception('Expected final boundary')
+
+        connection.write('<p>{} uploaded ({} bytes)'.format(filename, content_size))
+        connection.write('<p><a href="/">Back</a></p>')
+
+class DownloadController:
+    def route(self, method, path):
+        return method == b'POST' and path == b'/download'
+    
+    def serve(self, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        filename = connection.read(content_length).split(b'filename=')[1]
+                
+        try:
+            with open(filename, 'r') as f:
+                connection.write(f.read())
+        except Exception as e:
+            connection.write('<p>Error reading "{}": {}</p>'.format(filename, e))
+            connection.write('<p><a href="/">Back</a></p>')
+            
+class RebootController:
+    def route(self, method, path):
+        return method == b'POST' and path == b'/reboot'
+    
+    def serve(self, headers, connection):
+        machine.reset()
+        
+class GarbageCollectionController:
+    def route(self, method, path):
+        return method == b'POST' and path == b'/gc'
+    
+    def serve(self, headers, connection):
+        gc.collect()
+
+class ManagementServer:   
+    def __init__(self, port = 80):
+        addr = socket.getaddrinfo('0.0.0.0', port)[0][-1]
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.settimeout(None)
+        self.socket.bind(addr)
+        self.socket.listen(5)
+        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController(), GarbageCollectionController()]
+        print('listening on', addr)
+    
+    def update(self):
+        try:
+            cl, addr = self.socket.accept()
+            self.__serve(cl, addr)
+        except OSError as e:
+            pass
+        
+    def __serve(self, cl, addr):
+        cl.settimeout(10)
+        cl_file = cl.makefile('rwb', 0)
+        command = cl_file.readline().split(b' ')
+        
+        (offset, headers) = __parse_headers(cl_file)
+            
+        cl.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
+        self.__route(command[0], command[1], headers, cl_file)
+        cl.close()
+        
+    def __read_noop(self, connection, amount):
+        remaining = amount
+        while remaining > 0:
+            read = min(4096, remaining)
+            connection.read(read)
+            remaining -= read
+        
+    def __route(self, method, path, headers, connection):
+        for controller in self.controllers:
+            if controller.route(method, path):
+                controller.serve(headers, connection)
+                return
+        
+        connection.write('404')
+
