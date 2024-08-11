@@ -1,5 +1,6 @@
 import machine
 import socket
+import utime
 import os
 import gc
 
@@ -23,6 +24,9 @@ def __parse_headers(connection):
     return (offset, headers)
 
 class IndexController:
+    def __init__(self):
+        self.init_time = utime.ticks_ms()
+    
     def route(self, method, path):
         return method == b'GET' and path == b'/'
     
@@ -34,12 +38,29 @@ class IndexController:
         statvfs = os.statvfs("/")
         free_space = statvfs[0] * statvfs[3]
         free_memory = gc.mem_free()
+        uptime_ms = utime.ticks_diff(utime.ticks_ms(), self.init_time)
+        
+        def cpu_temp():
+            cpu_sensor = machine.ADC(4)
+            adc_value = cpu_sensor.read_u16()
+            volt = (3.3/65535) * adc_value
+            return 27 - (volt - 0.706)/0.001721
+        
+        def unique_id():
+            unique_id = machine.unique_id()
+            return ''.join([f"{b:02x}" for b in unique_id])
         
         KB = 1024
         
         connection.write('<style>body{form{display:inline}</style>')        
         connection.write('<h1>Management Dashboard</h1>')
         connection.write('<p>{}</p>'.format(os.uname()))
+        connection.write('<ul>')
+        connection.write('<li>Uptime: {:.0f}s</li>'.format(uptime_ms / 1000))
+        connection.write('<li>CPU frequency: {:.0f} MHz</li>'.format(machine.freq() / 1_000_000))
+        connection.write('<li>CPU temperature: {:.0f} celcius</li>'.format(cpu_temp()))
+        connection.write('<li>Unique ID: {}</li>'.format(unique_id()))
+        connection.write('</ul>')
         connection.write('<h2>System</h2>')
         connection.write('<form action="reboot" method="post"><button>Reboot</button/></form>')
         connection.write('<h2>Memory</h2>')
