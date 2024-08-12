@@ -1,3 +1,4 @@
+from machine import Timer
 import machine
 import socket
 import utime
@@ -200,7 +201,7 @@ class ManagementServer:
         addr = socket.getaddrinfo('0.0.0.0', port)[0][-1]
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.setblocking(False)
+        self.socket.settimeout(0)
         self.socket.bind(addr)
         self.socket.listen(5)
         self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController()]
@@ -208,18 +209,30 @@ class ManagementServer:
     def update(self):
         try:
             cl, addr = self.socket.accept()
-            self.__serve(cl, addr)
+            self.__serve(cl, addr, 2000)
         except OSError as e:
             pass
         
-    def __serve(self, connection, addr):
+    def __serve(self, connection, addr, timeout):
         gc.collect()
-        connection.settimeout(10)
-        command = connection.readline().split(b' ')        
-        (offset, headers) = __parse_headers(connection)                
-        self.__route(command[0], command[1], headers, connection)
-        connection.close()
-        gc.collect()
+        
+        def socket_timeout(t):
+            print('Socket timeout after', timeout)
+            connection.close()
+        
+        timer = Timer(period=timeout, mode=Timer.ONE_SHOT, callback=socket_timeout)
+        connection.settimeout(None)
+        
+        try:
+            command = connection.readline().split(b' ')
+            (offset, headers) = __parse_headers(connection)
+            self.__route(command[0], command[1], headers, connection)
+        except Exception as e:
+            print('Error', e)
+        finally:
+            connection.close()
+            timer.deinit()
+            gc.collect()
         
     def __route(self, method, path, headers, connection):
         for controller in self.controllers:
