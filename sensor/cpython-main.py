@@ -5,6 +5,8 @@
 # It requires the following pip modules:
 # - requests
 # - pimoroni-bme280
+import sys
+sys.path.insert(0,'../shims')
 
 import utime
 import config
