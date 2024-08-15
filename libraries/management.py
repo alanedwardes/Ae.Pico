@@ -1,4 +1,5 @@
 from machine import Timer
+import binascii
 import machine
 import socket
 import utime
@@ -205,6 +206,11 @@ class ManagementServer:
         self.socket.bind(addr)
         self.socket.listen(5)
         self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController()]
+        self.authorization_header = None
+    
+    def set_credentials(self, username, password):
+        encoded = binascii.b2a_base64(('%s:%s' % (username, password)).encode('utf-8'))
+        self.authorization_header = b'Basic ' + encoded[:-1]
     
     def update(self):
         try:
@@ -226,9 +232,19 @@ class ManagementServer:
         try:
             command = connection.readline().split(b' ')
             (offset, headers) = __parse_headers(connection)
-            self.__route(command[0], command[1], headers, connection)
+            
+            # HTTP Basic Authentication
+            if self.authorization_header and headers.get(b'authorization', None) != self.authorization_header:
+                connection.write(b'HTTP/1.0 401 Unauthorized' + HEADER_TERMINATOR)
+                connection.write(b'WWW-Authenticate: Basic realm="Management Server"' + HEADER_TERMINATOR)
+                connection.write(HEADER_TERMINATOR)
+                connection.write(b'<p>Unauthorized</p>' + HEADER_TERMINATOR)
+            else:
+                self.__route(command[0], command[1], headers, connection)
+            
         except Exception as e:
             print('Error', e)
+        
         finally:
             connection.close()
             timer.deinit()
