@@ -10,7 +10,7 @@ def ilistdir(path):
     with os.scandir(b'./' + path) as it:
         for entry in it:
             stat = entry.stat()
-            yield (entry.name, 0x4000 if entry.is_dir() else 0, None, stat.st_size)
+            yield (entry.name, 0x4000 if entry.is_dir() else 0x8000, None, stat.st_size)
 
 def stat(path):
     stat = os.stat(path)

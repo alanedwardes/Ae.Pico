@@ -116,7 +116,7 @@ class IndexController:
         connection.write(b'<h1>Management Dashboard</h1>')
         connection.write(b'<p>%s</p>' % str(uos.uname()).encode('utf-8'))
         connection.write(b'<ul>')
-        connection.write(b'<li>Uptime: %.0f KB</li>' % (uptime_ms / 1000))
+        connection.write(b'<li>Uptime: %.0f seconds</li>' % (uptime_ms / 1000))
         connection.write(b'<li>CPU frequency: %.0f KB</li>' % (machine.freq() / 1_000_000))
         connection.write(b'<li>CPU temperature: %.0f celcius</li>' % (cpu_temp()))
         connection.write(b'<li>Unique ID: %s</li>' % (unique_id().encode('utf-8')))
@@ -133,23 +133,23 @@ class IndexController:
         connection.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
         connection.write(b'<tbody>')
         
-        def write_file(parent, file):
-            path = parent + file[0]
+        def write_file(parent, node):
+            path = parent + node[0]
             connection.write(b'<tr>')
             connection.write(b'<td>%s</td>' % (path))
-            connection.write(b'<td>%.2f KB</td>' % (file[3] / KB))
+            connection.write(b'<td>%.2f KB</td>' % (node[3] / KB))
             connection.write(b'<td>')
             connection.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button/></form>' % (path))
-            connection.write(b'<form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button/></form>' % (path))
+            if node[1] == 0x8000:
+                connection.write(b'<form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button/></form>' % (path))
             connection.write(b'</td>')
             connection.write(b'</tr>')
         
         def list_contents_recursive(start):
             for node in uos.ilistdir(start):
+                write_file(start, node)
                 if node[1] == 0x4000:
                     list_contents_recursive(start + node[0] + b'/')
-                else:
-                    write_file(start, node)
         
         list_contents_recursive(b'')
         
@@ -285,8 +285,8 @@ class ManagementServer:
             connection.write(HTML_HEADER)
             connection.write(HEADER_TERMINATOR)
             connection.write(MINIMAL_CSS)
-            connection.write(b'<p>Unhandled Exception: %s</p>' % type(e).__name__)
-            connection.write(b'<pre>%s</pre>' % str(e))
+            connection.write(b'<p>Unhandled Exception: %s</p>' % type(e).__name__.encode('utf-8'))
+            connection.write(b'<pre>%s</pre>' % str(e).encode('utf-8'))
             connection.write(BACK_LINK)
         
         finally:
