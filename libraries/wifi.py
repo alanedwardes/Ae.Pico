@@ -72,7 +72,7 @@ class WiFi:
         return status_map.get(self.wlan.status(), str(self.wlan.status()))
         
     def disconnect(self):
-        self.wlan.deinit()
+        self.wlan.disconnect()
         
     def time_since_started_connecting(self):
         return utime.ticks_diff(utime.ticks_ms(), self.started_connect_time)
