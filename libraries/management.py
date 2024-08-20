@@ -123,7 +123,8 @@ class IndexController:
         connection.write(b'<li>Current time: %s</li>' % str(current_time()).encode('utf-8'))
         connection.write(b'</ul>')
         connection.write(b'<h2>System</h2>')
-        connection.write(b'<form action="reboot" method="post"><button>Reboot</button/></form>')
+        connection.write(b'<form action="reboot" method="post"><button>Reboot Now</button></form>')
+        connection.write(b'<form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time</button></form>')
         connection.write(b'<h2>Memory</h2>')
         connection.write(b'<p>Free Memory: %.2f KB</p>' % (free_memory / KB))
         connection.write(b'<h2>Filesystem</h2>')
@@ -139,9 +140,9 @@ class IndexController:
             connection.write(b'<td>%s</td>' % (path))
             connection.write(b'<td>%.2f KB</td>' % (node[3] / KB))
             connection.write(b'<td>')
-            connection.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button/></form>' % (path))
+            connection.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
-                connection.write(b'<form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button/></form>' % (path))
+                connection.write(b'<form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
             connection.write(b'</td>')
             connection.write(b'</tr>')
         
@@ -174,6 +175,32 @@ class DeleteController:
         connection.write(HEADER_TERMINATOR)
         connection.write(MINIMAL_CSS)
         connection.write(b'<p>Deleted %s</p>' % (filename))            
+        connection.write(BACK_LINK)
+        
+class TimeController:
+    def route(self, method, path):
+        return method == b'POST' and path == b'/time'
+    
+    def serve(self, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        form = parse_form(connection.read(content_length))
+        form_datetime = form[b'datetime']
+        
+        parts = form_datetime.split(b'T')
+        date = parts[0].split(b'-')
+        time = parts[1].split(b':')
+        seconds = time[2].split(b'.')
+        
+        # (year, month, day, weekday, hours, minutes, seconds, subseconds)
+        datetime = (int(date[0]), int(date[1]), int(date[2]), 1, int(time[0]), int(time[1]), int(seconds[0]), 0)
+        
+        machine.RTC().datetime(datetime)
+
+        connection.write(OK_STATUS)
+        connection.write(HTML_HEADER)
+        connection.write(HEADER_TERMINATOR)
+        connection.write(MINIMAL_CSS)
+        connection.write(b'<p>Time set %s</p>' % (str(machine.RTC().datetime())))
         connection.write(BACK_LINK)
         
 class UploadController:    
@@ -247,7 +274,7 @@ class ManagementServer:
         self.socket.setblocking(False)
         self.socket.bind(addr)
         self.socket.listen(5)
-        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController()]
+        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController(), TimeController()]
         self.authorization_header = None
     
     def set_credentials(self, username, password):
