@@ -89,7 +89,10 @@ class IndexController:
     
     def serve(self, headers, connection):        
         statvfs = uos.statvfs("/")
+        total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
+        used_space = total_space - free_space
+        used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
         free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
         uptime_ms = utime.ticks_diff(utime.ticks_ms(), self.init_time)
         
@@ -115,6 +118,10 @@ class IndexController:
         connection.write(MINIMAL_CSS)
         connection.write(b'<h1>Management Dashboard</h1>')
         connection.write(b'<p>%s</p>' % str(uos.uname()).encode('utf-8'))
+        connection.write(b'<p>')
+        connection.write(b'Memory <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
+        connection.write(b' Flash <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_space + used_space, used_space, used_space / KB, free_space / KB))
+        connection.write(b'</p>')
         connection.write(b'<ul>')
         connection.write(b'<li>Uptime: %.0f seconds</li>' % (uptime_ms / 1000))
         connection.write(b'<li>CPU frequency: %.0f MHz</li>' % (machine.freq() / 1_000_000))
@@ -125,11 +132,7 @@ class IndexController:
         connection.write(b'<h2>System</h2>')
         connection.write(b'<form action="reboot" method="post"><button>Reboot Now</button></form>')
         connection.write(b'<form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time</button></form>')
-        connection.write(b'<h2>Memory</h2>')
-        connection.write(b'<p>Free Memory: %.2f KB</p>' % (free_memory / KB))
         connection.write(b'<h2>Filesystem</h2>')
-        connection.write(b'<p>Free Space: %.2f KB</p>' % (free_space / KB))
-        connection.write(b'<h3>Files</h3>')
         connection.write(b'<table>')
         connection.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
         connection.write(b'<tbody>')
