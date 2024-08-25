@@ -1,10 +1,10 @@
 import os
 
 def statvfs(path):
-    return (0,0,0,0,0,0)
+    return (4096, 4096, 212, 196, 196, 0, 0, 0, 0, 255)
 
 def uname():
-    return 'cypython'
+    return ('rp2', 'rp2', '1.21.0', 'v1.21.0 on 2023-10-06 (GNU 13.2.0 MinSizeRel)', 'Raspberry Pi Pico W with RP2040')
 
 def ilistdir(path):
     with os.scandir(b'./' + path) as it:

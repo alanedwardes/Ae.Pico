@@ -1,4 +1,5 @@
 import binascii
+import network
 import machine
 import socket
 import utime
@@ -81,57 +82,53 @@ def parse_headers(connection):
     return (offset, headers)
 
 class IndexController:
-    def __init__(self):
-        self.init_time = utime.ticks_ms()
-    
     def route(self, method, path):
         return method == b'GET' and path == b'/'
     
-    def serve(self, headers, connection):        
+    def serve(self, headers, connection):
+        started_ticks_ms = utime.ticks_ms()
         statvfs = uos.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
         used_space = total_space - free_space
         used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
         free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
-        uptime_ms = utime.ticks_diff(utime.ticks_ms(), self.init_time)
         
-        def cpu_temp():
-            cpu_sensor = machine.ADC(4)
-            adc_value = cpu_sensor.read_u16()
-            volt = (3.3/65535) * adc_value
-            return 27 - (volt - 0.706)/0.001721
+        wlan = network.WLAN(network.STA_IF)
+        
+        ssid = wlan.config('ssid').encode('utf-8')
+        rssi = wlan.status('rssi')
+        ifconfig = wlan.ifconfig()
+        
+        def mac_address():
+            mac = wlan.config('mac')
+            return ':'.join([f"{b:02x}" for b in mac])
         
         def unique_id():
             unique_id = machine.unique_id()
             return ''.join([f"{b:02x}" for b in unique_id])
         
-        def current_time():
-            rtc = machine.RTC()
-            return rtc.datetime()
-        
         KB = 1024
+        
+        uname = uos.uname()
+        mac = mac_address().encode('utf-8')
+        ip = ifconfig[0].encode('utf-8')
 
         connection.write(OK_STATUS)
         connection.write(HTML_HEADER)
         connection.write(HEADER_TERMINATOR)
         connection.write(MINIMAL_CSS)
         connection.write(b'<h1>Management Dashboard</h1>')
-        connection.write(b'<p>%s</p>' % str(uos.uname()).encode('utf-8'))
+        connection.write(b'<p><b>MicroPython:</b> %s <b>Machine:</b> %s</p>' % (uname[3].encode('utf-8'), uname[4].encode('utf-8')))
         connection.write(b'<p>')
-        connection.write(b'Memory <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
-        connection.write(b' Flash <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_space + used_space, used_space, used_space / KB, free_space / KB))
+        connection.write(b'<b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
+        connection.write(b' <b>Flash</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress>' % (free_space + used_space, used_space, used_space / KB, free_space / KB))
+        connection.write(b' <b>WiFi</b> <progress max="60" value="%i" title="Signal: %i dBm, SSID: %s, Mac: %s, IP: %s"></progress>' % (60 - abs(rssi) + 30, rssi, ssid, mac, ip))
         connection.write(b'</p>')
-        connection.write(b'<ul>')
-        connection.write(b'<li>Uptime: %.0f seconds</li>' % (uptime_ms / 1000))
-        connection.write(b'<li>CPU frequency: %.0f MHz</li>' % (machine.freq() / 1_000_000))
-        connection.write(b'<li>CPU temperature: %.0f C</li>' % (cpu_temp()))
-        connection.write(b'<li>Unique ID: %s</li>' % (unique_id().encode('utf-8')))
-        connection.write(b'<li>Current time: %s</li>' % str(current_time()).encode('utf-8'))
-        connection.write(b'</ul>')
+        connection.write(b'<p><b>CPU:</b> %.0f MHz <b>ID:</b> %s <b>Mac:</b> %s <b>IP:</b> %s</p>' % (machine.freq() / 1_000_000, unique_id().encode('utf-8'), mac, ip))
         connection.write(b'<h2>System</h2>')
         connection.write(b'<form action="reboot" method="post"><button>Reboot Now</button></form>')
-        connection.write(b'<form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time</button></form>')
+        connection.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
         connection.write(b'<h2>Filesystem</h2>')
         connection.write(b'<table>')
         connection.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
@@ -145,7 +142,7 @@ class IndexController:
             connection.write(b'<td>')
             connection.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
-                connection.write(b'<form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
+                connection.write(b' <form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
             connection.write(b'</td>')
             connection.write(b'</tr>')
         
@@ -162,6 +159,8 @@ class IndexController:
         
         connection.write(b'<h3>Upload File</h3>')        
         connection.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
+        
+        connection.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
 
 class DeleteController:
     def route(self, method, path):

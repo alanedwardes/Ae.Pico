@@ -4,7 +4,7 @@ def freq():
     return 0
 
 def unique_id():
-    return b'test'
+    return b'\xe6c8a\xa3x/,'
 
 def reset():
     pass
