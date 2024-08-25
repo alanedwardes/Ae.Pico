@@ -56,6 +56,9 @@ def parse_form(form):
     data = {}
 
     for item in form.split(b'&'):
+        if not item:
+            continue
+        
         item = item.replace(b'+', b' ')
         parts = item.split(b'=')
         key = unquote(parts[0])
@@ -129,6 +132,7 @@ class IndexController:
         connection.write(b'<h2>System</h2>')
         connection.write(b'<form action="reboot" method="post"><button>Reboot Now</button></form>')
         connection.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
+        connection.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
         connection.write(b'<h2>Filesystem</h2>')
         connection.write(b'<table>')
         connection.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
@@ -204,7 +208,49 @@ class TimeController:
         connection.write(MINIMAL_CSS)
         connection.write(b'<p>Time set %s</p>' % (str(machine.RTC().datetime())))
         connection.write(BACK_LINK)
+
+class ShellController:
+    def __init__(self):
+        self.shell_locals = {}
+    
+    def route(self, method, path):
+        return method == b'POST' and path == b'/shell'
+    
+    def serve(self, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        form = parse_form(connection.read(content_length))
+        history = form.get(b'history', '')
+        command = form.get(b'command', '')
+        is_eval = form.get(b'eval', '') == b'on'
         
+        if command:
+            history += b'>> ' + command + b'\n'
+            try:
+                if is_eval:
+                    history += str(eval(command, {}, self.shell_locals)) + '\n'
+                else:
+                    exec(command, {}, self.shell_locals)
+                
+            except Exception as e:
+                history += str(e) + '\n'
+        
+        connection.write(OK_STATUS)
+        connection.write(HTML_HEADER)
+        connection.write(HEADER_TERMINATOR)
+        connection.write(MINIMAL_CSS)
+        connection.write(b'<script>window.onload = () => {');
+        connection.write(b'document.getElementById("command").focus();');
+        connection.write(b'let h = document.getElementById("history");');
+        connection.write(b'h.scrollTop = h.scrollHeight;');
+        connection.write(b'}</script>');
+        connection.write(b'<pre>Locals: %s</pre>' % str(self.shell_locals));
+        connection.write(b'<form action="shell" method="post">')
+        connection.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % history)
+        connection.write(b'<p><input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/> <label for="eval">Statement</label></p>' % ('checked' if is_eval else ''))
+        connection.write(b'<p><input type="submit"/></p>')
+        connection.write(b'</form>')
+        connection.write(BACK_LINK)
+
 class UploadController:    
     def route(self, method, path):
         return method == b'POST' and path == b'/upload'
@@ -276,7 +322,9 @@ class ManagementServer:
         self.socket.setblocking(False)
         self.socket.bind(addr)
         self.socket.listen(5)
-        self.controllers = [IndexController(), DownloadController(), UploadController(), DeleteController(), RebootController(), TimeController()]
+        self.controllers = [IndexController(), DownloadController(), UploadController(),
+                            DeleteController(), RebootController(), TimeController(),
+                            ShellController()]
         self.authorization_header = None
     
     def set_credentials(self, username, password):
