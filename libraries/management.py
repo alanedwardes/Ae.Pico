@@ -21,6 +21,20 @@ NOT_FOUND_STATUS = b'HTTP/1.0 404 Not Found' + HEADER_TERMINATOR
 UNAUTHORIZED_STATUS = b'HTTP/1.0 401 Unauthorized' + HEADER_TERMINATOR
 HTML_HEADER = b'Content-Type: text/html; charset=utf-8' + HEADER_TERMINATOR
 
+def escape(string, quote=True):
+    if not string:
+        return b''
+
+    if isinstance(string, str):
+        string = string.encode('utf-8')
+        
+    string = string.replace(b'&', b'&amp;').replace(b'<', b'&lt;').replace(b'>', b'&gt;')
+         
+    if quote:
+         string = string.replace(b'"', b'&quot;').replace(b"'", b'&#x27;')
+    
+    return string
+
 def unquote(string):
     """unquote('abc%20def') -> b'abc def'.
 
@@ -211,28 +225,34 @@ class TimeController:
 
 class ShellController:
     def __init__(self):
+        self.clear()
+        
+    def clear(self):
         self.shell_locals = {}
+        self.history = b''
     
     def route(self, method, path):
-        return method == b'POST' and path == b'/shell'
+        return path == b'/shell'
     
     def serve(self, headers, connection):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(connection.read(content_length))
-        history = form.get(b'history', '')
         command = form.get(b'command', '')
         is_eval = form.get(b'eval', '') == b'on'
         
+        if b'clear' in form:
+            self.clear()
+        
         if command:
-            history += b'>> ' + command + b'\n'
+            self.history += b'>> ' + command + b'\n'
             try:
                 if is_eval:
-                    history += str(eval(command, {}, self.shell_locals)) + '\n'
+                    self.history += str(eval(command, {}, self.shell_locals)) + '\n'
                 else:
                     exec(command, {}, self.shell_locals)
                 
             except Exception as e:
-                history += str(e) + '\n'
+                self.history += str(e) + '\n'
         
         connection.write(OK_STATUS)
         connection.write(HTML_HEADER)
@@ -243,11 +263,15 @@ class ShellController:
         connection.write(b'let h = document.getElementById("history");');
         connection.write(b'h.scrollTop = h.scrollHeight;');
         connection.write(b'}</script>');
-        connection.write(b'<pre>Locals: %s</pre>' % str(self.shell_locals));
+        connection.write(b'<pre>Locals: %s</pre>' % escape(str(self.shell_locals)));
         connection.write(b'<form action="shell" method="post">')
-        connection.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % history)
-        connection.write(b'<p><input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/> <label for="eval">Statement</label></p>' % ('checked' if is_eval else ''))
-        connection.write(b'<p><input type="submit"/></p>')
+        connection.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % escape(self.history))
+        connection.write(b'<p>')
+        connection.write(b'<input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/>' % ('checked' if is_eval else ''))
+        connection.write(b' <label for="eval">Statement</label>')
+        connection.write(b' <input type="submit" value="Execute"/>')
+        connection.write(b' <input type="submit" name="clear" value="Reset"/>')
+        connection.write(b'</p>')
         connection.write(b'</form>')
         connection.write(BACK_LINK)
 
@@ -259,7 +283,7 @@ class UploadController:
         content_length = int(headers.get(b'content-length', '0'))        
         boundary = connection.readline()        
         (headers_offset, content_headers) = parse_headers(connection)
-        filename = content_headers[b'content-disposition'].split(b'filename=')[1].split(b'"')[1]        
+        filename = content_headers[b'content-disposition'].split(b'filename=')[1].split(b'"')[1]
         offset = headers_offset + len(boundary)
         content_size = content_length - offset - len(boundary) - len(HEADER_TERMINATOR) * 2
         
@@ -358,6 +382,7 @@ class ManagementServer:
                 self.__route(command[0], command[1], headers, connection)
             
         except Exception as e:
+            print(e)
             connection.write(ERROR_STATUS)
             connection.write(HTML_HEADER)
             connection.write(HEADER_TERMINATOR)
