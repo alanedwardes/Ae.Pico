@@ -252,22 +252,22 @@ class ShellController:
                     exec(command, {}, self.shell_locals)
                 
             except Exception as e:
-                self.history += str(e) + '\n'
+                self.history += str(e).encode('utf-8') + b'\n'
         
         connection.write(OK_STATUS)
         connection.write(HTML_HEADER)
         connection.write(HEADER_TERMINATOR)
         connection.write(MINIMAL_CSS)
-        connection.write(b'<script>window.onload = () => {');
-        connection.write(b'document.getElementById("command").focus();');
-        connection.write(b'let h = document.getElementById("history");');
-        connection.write(b'h.scrollTop = h.scrollHeight;');
-        connection.write(b'}</script>');
-        connection.write(b'<pre>Locals: %s</pre>' % escape(str(self.shell_locals)));
+        connection.write(b'<script>window.onload = () => {')
+        connection.write(b'document.getElementById("command").focus();')
+        connection.write(b'let h = document.getElementById("history");')
+        connection.write(b'h.scrollTop = h.scrollHeight;')
+        connection.write(b'}</script>')
+        connection.write(b'<pre>Locals: %s</pre>' % escape(str(self.shell_locals)))
         connection.write(b'<form action="shell" method="post">')
         connection.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % escape(self.history))
         connection.write(b'<p>')
-        connection.write(b'<input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/>' % ('checked' if is_eval else ''))
+        connection.write(b'<input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/>' % (b'checked' if is_eval else b''))
         connection.write(b' <label for="eval">Statement</label>')
         connection.write(b' <input type="submit" value="Execute"/>')
         connection.write(b' <input type="submit" name="clear" value="Reset"/>')
