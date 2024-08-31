@@ -102,7 +102,7 @@ class IndexController:
     def route(self, method, path):
         return method == b'GET' and path == b'/'
     
-    def serve(self, headers, connection):
+    def serve(self, method, path, headers, connection):
         started_ticks_ms = utime.ticks_ms()
         statvfs = uos.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
@@ -184,7 +184,7 @@ class DeleteController:
     def route(self, method, path):
         return method == b'POST' and path == b'/delete'
     
-    def serve(self, headers, connection):
+    def serve(self, method, path, headers, connection):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(connection.read(content_length))
         filename = form[b'filename']
@@ -201,7 +201,7 @@ class TimeController:
     def route(self, method, path):
         return method == b'POST' and path == b'/time'
     
-    def serve(self, headers, connection):
+    def serve(self, method, path, headers, connection):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(connection.read(content_length))
         form_datetime = form[b'datetime']
@@ -234,7 +234,7 @@ class ShellController:
     def route(self, method, path):
         return path == b'/shell'
     
-    def serve(self, headers, connection):
+    def serve(self, method, path, headers, connection):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(connection.read(content_length))
         command = form.get(b'command', '')
@@ -275,12 +275,29 @@ class ShellController:
         connection.write(b'</form>')
         connection.write(BACK_LINK)
 
+class GPIOController:
+    def route(self, method, path):
+        return path.startswith(b'/gpio')
+    
+    def serve(self, method, path, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        body = connection.read(content_length)
+        pin_number = int(path.split(b'/gpio/out/')[1])
+        pin = machine.Pin(pin_number, machine.Pin.OUT)
+        
+        if body:
+            pin.value(body == b'ON')
+
+        connection.write(OK_STATUS)
+        connection.write(HEADER_TERMINATOR)
+        connection.write('ON' if pin.value() else 'OFF')
+
 class UploadController:    
     def route(self, method, path):
         return method == b'POST' and path == b'/upload'
     
-    def serve(self, headers, connection):
-        content_length = int(headers.get(b'content-length', '0'))        
+    def serve(self, method, path, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))   
         boundary = connection.readline()        
         (headers_offset, content_headers) = parse_headers(connection)
         filename = content_headers[b'content-disposition'].split(b'filename=')[1].split(b'"')[1]
@@ -309,7 +326,7 @@ class DownloadController:
     def route(self, method, path):
         return method == b'POST' and path == b'/download'
     
-    def serve(self, headers, connection):        
+    def serve(self, method, path, headers, connection):        
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(connection.read(content_length))
         filename = form[b'filename']
@@ -327,7 +344,7 @@ class RebootController:
     def route(self, method, path):
         return method == b'POST' and path == b'/reboot'
     
-    def serve(self, headers, connection):
+    def serve(self, method, path, headers, connection):
         connection.write(OK_STATUS)
         connection.write(HTML_HEADER)
         connection.write(HEADER_TERMINATOR)
@@ -348,7 +365,7 @@ class ManagementServer:
         self.socket.listen(5)
         self.controllers = [IndexController(), DownloadController(), UploadController(),
                             DeleteController(), RebootController(), TimeController(),
-                            ShellController()]
+                            ShellController(), GPIOController()]
         self.authorization_header = None
     
     def set_credentials(self, username, password):
@@ -398,7 +415,7 @@ class ManagementServer:
     def __route(self, method, path, headers, connection):
         for controller in self.controllers:
             if controller.route(method, path):
-                controller.serve(headers, connection)
+                controller.serve(method, path, headers, connection)
                 return
         
         connection.write(NOT_FOUND_STATUS)
