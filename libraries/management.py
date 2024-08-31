@@ -144,7 +144,7 @@ class IndexController:
         connection.write(b'</p>')
         connection.write(b'<p><b>CPU:</b> %.0f MHz <b>ID:</b> %s <b>Mac:</b> %s <b>IP:</b> %s</p>' % (machine.freq() / 1_000_000, unique_id().encode('utf-8'), mac, ip))
         connection.write(b'<h2>System</h2>')
-        connection.write(b'<form action="reboot" method="post"><button>Reboot Now</button></form>')
+        connection.write(b'<form action="reset" method="post"><button>Reset</button></form>')
         connection.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
         connection.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
         connection.write(b'<h2>Filesystem</h2>')
@@ -340,20 +340,40 @@ class DownloadController:
             connection.write(HEADER_TERMINATOR)
             connection.write(f.read())
             
-class RebootController:
+class ResetController:
     def route(self, method, path):
-        return method == b'POST' and path == b'/reboot'
+        return method == b'POST' and path == b'/reset'
     
     def serve(self, method, path, headers, connection):
+        content_length = int(headers.get(b'content-length', '0'))
+        form = parse_form(connection.read(content_length))
+        
         connection.write(OK_STATUS)
         connection.write(HTML_HEADER)
         connection.write(HEADER_TERMINATOR)
         connection.write(MINIMAL_CSS)
-        connection.write(b'<p>System will reboot in 5 seconds.</p>')
-        connection.write(BACK_LINK)
-        connection.close()
-        utime.sleep(5)
-        machine.reset()
+        
+        if b'type' in form:
+            is_hard = form[b'type'] == b'hard'
+            connection.write(b'<h1>%s Reset</h1>' % (b'Hard' if is_hard else b'Soft'))
+            connection.write(b'<p>System will reset in 5 seconds.</p>')
+            connection.write(BACK_LINK)
+            connection.close()
+            utime.sleep(5)
+            if is_hard:
+                machine.reset()
+            else:
+                machine.soft_reset()
+        else:
+            connection.write(b'<h1>Reset</h1>')
+            connection.write(b'<form action="reset" method="post">')
+            connection.write(b'<label for="type">Reset type:</label>')
+            connection.write(b'<select name="type" id="type">')
+            connection.write(b'<option value="soft">Soft</option>')
+            connection.write(b'<option value="hard">Hard</option>')
+            connection.write(b'</select>')
+            connection.write(b'<input type="submit"/>')
+            connection.write(b'</form>')
 
 class ManagementServer:   
     def __init__(self, port = 80):
@@ -364,7 +384,7 @@ class ManagementServer:
         self.socket.bind(addr)
         self.socket.listen(5)
         self.controllers = [IndexController(), DownloadController(), UploadController(),
-                            DeleteController(), RebootController(), TimeController(),
+                            DeleteController(), ResetController(), TimeController(),
                             ShellController(), GPIOController()]
         self.authorization_header = None
     
