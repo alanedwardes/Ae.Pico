@@ -1,3 +1,4 @@
+import gc
 import management
 import machine
 import network
@@ -19,7 +20,6 @@ server = management.ManagementServer()
 clock = clock.Clock(display)
 
 last_updated_time = None
-
 def update_time():
     global last_updated_time
     
@@ -30,6 +30,8 @@ def update_time():
             print('Time updated')
         except Exception as e:
             print('Error refreshing the time', e)
+        finally:
+            gc.collect()
 
 while True:
     clock.update()
