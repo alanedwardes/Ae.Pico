@@ -33,12 +33,20 @@ def update_time():
         finally:
             gc.collect()
 
-while True:
+def main_loop():
     clock.update()
     wifi.update()
     
     if wifi.is_connected():
         update_time()
         server.update()
+
+wd = machine.WDT(timeout=8388)
+while True:
+    wd.feed()
+    try:
+        main_loop()
+    except Exception as e:
+        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
     
     machine.idle()
