@@ -121,14 +121,6 @@ def update_geiger_sensor():
         send_update(geiger.datapoint.get_value(), "μSv/h", None, config.geiger_sensor['geiger_friendly_name'], "sensor." + config.geiger_sensor['geiger_name'])
         geiger.datapoint.set_value_updated()
 
-wifi_sensor = DataPoint(5)
-def update_wifi_sensor():
-    wifi_sensor.set_value(wifi.get_signal())
-    
-    if wifi_sensor.get_needs_update():
-        send_update(wifi_sensor.get_value(), "dBm", "signal_strength", config.wifi['rssi_friendly_name'], "sensor." + config.wifi['rssi_name'])
-        wifi_sensor.set_value_updated()
-    
 server = ManagementServer()
 def main_loop():
     wifi.update()
@@ -138,7 +130,6 @@ def main_loop():
         update_bme280_sensor()
         update_scd4x_sensor()
         update_geiger_sensor()
-        update_wifi_sensor()
         server.update()
 
 wd = machine.WDT(timeout=8388)

@@ -1,9 +1,7 @@
 wifi = dict(
     ssid = "ssid",
     key = "key",
-    host = "hostname",
-    rssi_friendly_name = "Signal Strength",
-    rssi_name = "test_rssi"
+    host = "hostname"
 )
 
 hass = dict(
