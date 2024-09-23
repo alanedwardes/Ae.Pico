@@ -38,20 +38,10 @@ wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 
 # Init Home Assistant
 hass = Hass(config.hass['url'], config.hass['token'])
-
-def flash_led(flashes):
-    duration = 0.2
-    utime.sleep(duration)
-    for flash in range(0, flashes):
-        led.on()
-        utime.sleep(duration)
-        led.off()
-        utime.sleep(duration)
    
 def send_update(state, unit, device_class, friendly_name, sensor):
     hass.send_update(state, unit, device_class, friendly_name, sensor)
     gc.collect()
-    flash_led(1)
 
 motion_state = DataPoint()
 def update_motion_sensor():
@@ -126,11 +116,14 @@ def main_loop():
     wifi.update()
 
     if wifi.is_connected():
+        led.on()
         update_motion_sensor()
         update_bme280_sensor()
         update_scd4x_sensor()
         update_geiger_sensor()
         server.update()
+    else:
+        led.toggle()
 
 wd = machine.WDT(timeout=8388)
 while True:
@@ -138,6 +131,6 @@ while True:
     try:
         main_loop()
     except Exception as e:
-        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
+        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6], e)
     
-    machine.idle()
+    utime.sleep(0.1)
