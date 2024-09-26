@@ -60,17 +60,10 @@ def urlparse(uri):
 
 
 class Websocket:
-    """
-    Basis of the Websocket protocol.
-
-    This can probably be replaced with the C-based websocket module, but
-    this one currently supports more options.
-    """
     is_client = False
 
     def __init__(self, sock):
         self.sock = sock
-        #self.open = True
 
     def __enter__(self):
         return self
