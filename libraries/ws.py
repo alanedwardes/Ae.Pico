@@ -1,10 +1,3 @@
-"""
-Websockets client for micropython
-
-Based very heavily off
-https://github.com/aaugustin/websockets/blob/master/websockets/client.py
-"""
-
 import ubinascii as binascii
 import urandom as random
 import ssl
@@ -38,10 +31,12 @@ URL_RE = re.compile(r'(wss|ws)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(/.+)?')
 URI = namedtuple('URI', ('protocol', 'hostname', 'port', 'path'))
 
 class NoDataException(Exception):
-    pass
+    def __init__(self):
+        super().__init__("No data")
 
 class ConnectionClosed(Exception):
-    pass
+    def __init__(self):
+        super().__init__("Connection closed")
 
 def urlparse(uri):
     """Parse ws:// URLs"""
@@ -75,7 +70,7 @@ class Websocket:
 
     def __init__(self, sock):
         self.sock = sock
-        self.open = True
+        #self.open = True
 
     def __enter__(self):
         return self
@@ -152,17 +147,14 @@ class Websocket:
         if length < 126:  # 126 is magic value to use 2-byte length header
             byte2 |= length
             self.sock.write(struct.pack('!BB', byte1, byte2))
-
         elif length < (1 << 16):  # Length fits in 2-bytes
             byte2 |= 126  # Magic code
             self.sock.write(struct.pack('!BBH', byte1, byte2, length))
-
         elif length < (1 << 64):
             byte2 |= 127  # Magic code
             self.sock.write(struct.pack('!BBQ', byte1, byte2, length))
-
         else:
-            raise ValueError()
+            raise ValueError("Length could not be encoded")
 
         if mask:  # Mask is 4 bytes
             mask_bits = struct.pack('!I', random.getrandbits(32))
@@ -174,82 +166,57 @@ class Websocket:
         self.sock.write(data)
 
     def recv(self):
-        """
-        Receive data from the websocket.
+        try:
+            fin, opcode, data = self.read_frame()
+        except ValueError:
+            print("Failed to read frame. Socket dead.")
+            self.sock.close()
+            raise ConnectionClosed()
 
-        This is slightly different from 'websockets' in that it doesn't
-        fire off a routine to process frames and put the data in a queue.
-        If you don't call recv() sufficiently often you won't process control
-        frames.
-        """
-        assert self.open
+        if not fin:
+            raise NotImplementedError("Not fin")
 
-        while self.open:
-            try:
-                fin, opcode, data = self.read_frame()
-            except ValueError:
-                print("Failed to read frame. Socket dead.")
-                self._close()
-                raise ConnectionClosed()
-
-            if not fin:
-                raise NotImplementedError()
-
-            if opcode == OP_TEXT:
-                return data.decode('utf-8')
-            elif opcode == OP_BYTES:
-                return data
-            elif opcode == OP_CLOSE:
-                self._close()
-                return
-            elif opcode == OP_PONG:
-                continue
-            elif opcode == OP_PING:
-                self.write_frame(OP_PONG, data)
-                continue
-            elif opcode == OP_CONT:
-                raise NotImplementedError(opcode)
-            else:
-                raise ValueError(opcode)
+        if opcode == OP_TEXT:
+            return data.decode('utf-8')
+        elif opcode == OP_BYTES:
+            return data
+        elif opcode == OP_CLOSE:
+            self.sock.close()
+            raise ConnectionClosed()
+        elif opcode == OP_PONG:
+            raise NoDataException
+        elif opcode == OP_PING:
+            self.write_frame(OP_PONG, data)
+            raise NoDataException
+        elif opcode == OP_CONT:
+            raise NotImplementedError(opcode)
+        else:
+            raise ValueError(opcode)
 
     def send(self, buf):
-        """Send data to the websocket."""
-
-        assert self.open
-
         if isinstance(buf, str):
             opcode = OP_TEXT
             buf = buf.encode('utf-8')
         elif isinstance(buf, bytes):
             opcode = OP_BYTES
         else:
-            raise TypeError()
+            raise TypeError("Unknown data type")
 
         self.write_frame(opcode, buf)
 
     def close(self, code=CLOSE_OK, reason=''):
-        """Close the websocket."""
         if not self.open:
             return
 
         buf = struct.pack('!H', code) + reason.encode('utf-8')
 
         self.write_frame(OP_CLOSE, buf)
-        self._close()
-
-    def _close(self):
-        print("Connection closed")
-        self.open = False
         self.sock.close()
         
 class WebsocketClient(Websocket):
     is_client = True
 
 def connect(uri):
-    """
-    Connect a websocket.
-    """
-
     uri = urlparse(uri)
     assert uri
 
@@ -268,8 +235,9 @@ def connect(uri):
         sock = ssl.wrap_socket(sock, server_hostname=uri.hostname)
 
     def send_header(header, *args):
-        #print(str(header), *args)
-        sock.write(header % args + '\r\n')
+        header_value = header % args + '\r\n'
+        print(header_value)
+        sock.write(header_value)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
