@@ -16,7 +16,7 @@ class HassWs:
     def update(self):
         try:
             if self.socket is None:
-                self.socket = ws.connect(self.url)
+                self.socket = ws.connect(self.url + '/api/websocket')
             self._process_message(self.socket.recv())
         except ws.NoDataException:
             return
@@ -63,7 +63,10 @@ class HassWs:
                 self.entities[entity_id] = event['a'][entity_id]
         elif 'c' in event:
             for entity_id in event['c']:
-                self.entities[entity_id] |= event['c'][entity_id]['+']
+                change = event['c'][entity_id]['+']
+                if 's' in change:
+                    self.entities[entity_id]['s'] = change['s']
+                self.entities[entity_id]['a'] |= change['a']
         else:
             print('Unrecognised event structure: %s', event)
         if self.entities_updated is not None:
