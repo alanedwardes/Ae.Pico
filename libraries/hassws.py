@@ -12,6 +12,8 @@ class HassWs:
         self.entities_updated = None
         self.authenticated = False
         self.entities = {}
+        self.message_id = 1
+        self.send_queue = []
     
     def update(self):
         try:
@@ -19,11 +21,18 @@ class HassWs:
                 self.socket = ws.connect(self.url + '/api/websocket')
             self._process_message(self.socket.recv())
         except ws.NoDataException:
-            return
+            if self.authenticated:
+                self._pump_queue()
         except Exception as e:
             print(e)
             self._reset()
-            
+    
+    def _pump_queue(self):
+        while len(self.send_queue) > 0:
+            message = self.send_queue.pop()
+            self.message_id += 1
+            self.socket.send(message % self.message_id)
+    
     def _process_message(self, message):
         message = json.loads(message)
         message_type = message.get('type')
@@ -48,14 +57,17 @@ class HassWs:
     
     def _authenticate(self):
         self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
-            
+        
+    def action(self, domain, service, data, entity_id):
+        self.send_queue.append('{"id":%%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (domain, service, json.dumps(data), entity_id))
+
     def subscribe(self, entity_id):
         self.subscribed_entities.append(entity_id)
         self._subscribe([entity_id])
         
     def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
-            self.socket.send('{"id": %i,"type":"subscribe_entities","entity_ids":["%s"]}' % (random.getrandbits(4), '","'.join(entity_ids)))
+            self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
 
     def process_event(self, event):
         if 'a' in event:
