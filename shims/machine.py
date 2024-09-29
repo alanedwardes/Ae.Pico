@@ -17,5 +17,10 @@ class ADC():
         return 0
 
 class RTC:
-    def datetime(self):
+    ts = None
+
+    def datetime(self, *args):
+        if len(args) == 1:
+            RTC.ts = args[0]
+
         return datetime.datetime.now()
