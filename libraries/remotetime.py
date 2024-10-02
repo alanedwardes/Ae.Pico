@@ -6,8 +6,8 @@ except ModuleNotFoundError:
 import utime
 
 class RemoteTime:
-    def __init__(self, tz, update_time_ms):
-        self.tz = tz
+    def __init__(self, endpoint, update_time_ms):
+        self.endpoint = endpoint
         self.update_time_ms = update_time_ms
         self.last_updated_time = None
     
@@ -20,7 +20,7 @@ class RemoteTime:
                 print(e)
 
     def get_time(self):
-        response = urequests.get("http://time.alanedwardes.com/?tz=%s&fmt=%%Y,%%m,%%d,%%w,%%H,%%M,%%S,%%f" % self.tz)
+        response = urequests.get(self.endpoint)
 
         if not response.status_code == 200:
             raise Exception("Status " + str(response.status_code) + ": " + response.text)

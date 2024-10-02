@@ -1,13 +1,10 @@
-import gc
 import management
 import machine
-import network
 import thermostat
 import picographics
 from pimoroni import RGBLED
 import utime
 import config
-import ujson
 import remotetime
 from wifi import WiFi
 from hassws import HassWs
@@ -28,12 +25,12 @@ swy.irq(lambda p: input_events.append('down'), trigger=machine.Pin.IRQ_FALLING)
 
 led = RGBLED(6, 7, 8)
 
-display = picographics.PicoGraphics(display=picographics.DISPLAY_PICO_DISPLAY_2, pen_type=picographics.PEN_P4, rotate=config.clock['rotate'])
+display = picographics.PicoGraphics(display=picographics.DISPLAY_PICO_DISPLAY_2, pen_type=picographics.PEN_P4, rotate=config.thermostat['rotate'])
 display.set_backlight(1)
 
 wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 hass = HassWs(config.hass['ws'], config.hass['token'])
-time = remotetime.RemoteTime('Europe/London', 300_000)
+time = remotetime.RemoteTime(config.clock['endpoint'], config.clock['update_time_ms'])
 
 server = management.ManagementServer()
 
