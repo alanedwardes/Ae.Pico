@@ -1,6 +1,7 @@
 import ws
 import json
 import random
+import time
 
 class HassWs:
     def __init__(self, url, token):
@@ -10,10 +11,7 @@ class HassWs:
         self.socket = None
         self.subscribed_entities = []
         self.entities_updated = None
-        self.authenticated = False
-        self.entities = {}
-        self.message_id = 1
-        self.send_queue = []
+        self._reset()
     
     def update(self):
         try:
@@ -26,6 +24,7 @@ class HassWs:
         except Exception as e:
             print(e)
             self._reset()
+            time.sleep(1)
     
     def _pump_queue(self):
         while len(self.send_queue) > 0:
@@ -54,6 +53,9 @@ class HassWs:
     def _reset(self):
         self.socket = None
         self.authenticated = False
+        self.message_id = 1
+        self.send_queue = []
+        self.entities = {}
     
     def _authenticate(self):
         self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
@@ -82,4 +84,7 @@ class HassWs:
         else:
             print('Unrecognised event structure: %s', event)
         if self.entities_updated is not None:
-            self.entities_updated(self.entities)
+            try:
+                self.entities_updated(self.entities)
+            except Exception as e:
+                print('Error calling update event listener', e)

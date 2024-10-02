@@ -15,8 +15,7 @@ class Thermostat:
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
 
-        self.display.set_font("sans")
-        self.entity = {'s': 0, 'a': {'min_temp': 0, 'max_temp': 0, 'current_temperature': 0, 'temperature': 0, 'target_temp_step': 0, 'hvac_action': 'idle'}}
+        self.entity = {'min_temp': 0, 'max_temp': 0, 'current_temperature': 0, 'temperature': 0, 'target_temp_step': 0, 'hvac_action': 'idle'}
     
     def draw_text(self, text, scale, y):
         width = self.display.measure_text(text, scale)
@@ -39,29 +38,44 @@ class Thermostat:
         return height
 
     def update(self):
+        self.display.set_font("sans")
         self.display.set_pen(self.black)
         self.display.clear()
 
         now = utime.localtime()
         
-        y = 64
+        spacer = 18
+        
+        y = spacer
         
         self.display.set_pen(self.white)
-        y += self.draw_text("%.1fC" % (self.entity['a']['temperature']), 2, y)
-    
-        y += 16
+        y += self.draw_text("%02i:%02i:%02i" % (now[3], now[4], now[5]), 2, y)
+        
+        y += spacer
         
         self.display.set_pen(self.orange)
         y += self.draw_rectangle(280, 8, y)
         
-        y += 16
+        y += spacer
+        
+        self.display.set_pen(self.white)
+        y += self.draw_text("%.1fC" % (self.entity['temperature']), 2, y)
+    
+        y += spacer
+        
+        self.display.set_pen(self.orange)
+        y += self.draw_rectangle(280, 8, y)
+        
+        y += spacer
         
         self.display.set_pen(self.grey)
-        y += self.draw_text("%.1fC" % (self.entity['a']['current_temperature']), 2, y)
+        y += self.draw_text("%.1fC" % (self.entity['current_temperature']), 2, y)
         
-        y += 16
+        y += spacer
         
+        self.display.set_font("bitmap8")
         self.display.set_pen(self.hidden)
-        y += self.draw_text("%i dB" % (self.wlan.status('rssi')), 1, y)
+        self.display.set_thickness(1)
+        self.display.text("%i dB" % (self.wlan.status('rssi')), 10, 220, scale=1)
         
         self.display.update()

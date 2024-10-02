@@ -8,6 +8,7 @@ from pimoroni import RGBLED
 import utime
 import config
 import ujson
+import remotetime
 from wifi import WiFi
 from hassws import HassWs
 
@@ -32,19 +33,28 @@ display.set_backlight(1)
 
 wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
 hass = HassWs(config.hass['ws'], config.hass['token'])
+time = remotetime.RemoteTime('Europe/London', 300_000)
 
 server = management.ManagementServer()
 
 thermostat = thermostat.Thermostat(display)
 
 def entities_updated(entities):
-    thermostat.entity = entities[config.thermostat['entity_id']]
+    entity = entities[config.thermostat['entity_id']]['a']
+    thermostat.entity = {
+        'min_temp': float(entity.get('min_temp')),
+        'max_temp': float(entity.get('max_temp')),
+        'current_temperature': float(entity.get('current_temperature')),
+        'temperature': float(entity.get('temperature')),
+        'target_temp_step': float(entity.get('target_temp_step')),
+        'hvac_action': entity.get('hvac_action')
+   }
 
 hass.entities_updated = entities_updated
 hass.subscribe(config.thermostat['entity_id'])
 
 def update_led():
-    hvac_action = thermostat.entity['a']['hvac_action']
+    hvac_action = thermostat.entity['hvac_action']
     if hvac_action == "idle":
         led.set_rgb(0, 0, 0)
     elif hvac_action == "heating":
@@ -56,7 +66,7 @@ def main_loop():
     
     if wifi.is_connected():
         if len(input_events):
-            attr = thermostat.entity['a']
+            attr = thermostat.entity
             min_temp = attr['min_temp']
             max_temp = attr['max_temp']
             target_temp = attr['temperature']
@@ -76,6 +86,7 @@ def main_loop():
         server.update()
         hass.update()
         update_led()
+        time.update()
 
 #wd = machine.WDT(timeout=8388)
 while True:
@@ -83,6 +94,7 @@ while True:
     try:
         main_loop()
     except Exception as e:
+        raise e
         print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
     
     machine.idle()
