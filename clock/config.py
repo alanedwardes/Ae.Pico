@@ -4,12 +4,8 @@ wifi = dict(
     host = "hostname"
 )
 
-hass = dict(
-    url = "http://localhost",
-    token = "<token>"
-)
-
 clock = dict(
     rotate = 0,
+    endpoint = "<time http endpoint>",
     update_time_ms = 300_000
 )
