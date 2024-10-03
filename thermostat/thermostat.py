@@ -11,6 +11,8 @@ class Thermostat:
         self.hidden = self.display.create_pen(32, 32, 32)
         self.black = self.display.create_pen(0, 0, 0)
         self.orange = self.display.create_pen(255, 165, 0)
+        self.green = self.display.create_pen(0, 255, 0)
+        self.red = self.display.create_pen(255, 0, 0)
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -72,6 +74,9 @@ class Thermostat:
         y += self.draw_text("%.1fC" % (self.entity['current_temperature']), 2, y)
         
         y += spacer
+        
+        self.display.set_pen(self.green if self.wlan.isconnected() else self.red)
+        self.display.circle(300, 220, 5)
         
         self.display.set_font("bitmap8")
         self.display.set_pen(self.hidden)

@@ -67,18 +67,22 @@ def main_loop():
             min_temp = attr['min_temp']
             max_temp = attr['max_temp']
             target_temp = attr['temperature']
-            step = attr['target_temp_step']
+            step = 0.5
             current_temp = attr['current_temperature']
             
             event = input_events.pop()
+            new_temp = target_temp
             if event == "off":
-                hass.action("climate", "set_temperature", {"temperature":min_temp}, config.thermostat['entity_id'])
+                new_temp = min_temp
             elif event == "on":
-                hass.action("climate", "set_temperature", {"temperature":current_temp}, config.thermostat['entity_id'])
+                new_temp = current_temp
             elif event == "up":
-                hass.action("climate", "set_temperature", {"temperature":min(max_temp, target_temp + step)}, config.thermostat['entity_id'])
+                new_temp += step
             elif event == "down":
-                hass.action("climate", "set_temperature", {"temperature":max(min_temp, target_temp - step)}, config.thermostat['entity_id'])
+                new_temp -= step
+                
+            hass.action("climate", "set_temperature", {"temperature":min(max(round(new_temp * 2) / 2, min_temp), max_temp)}, config.thermostat['entity_id'])
+            
         
         server.update()
         hass.update()
@@ -91,7 +95,6 @@ while True:
     try:
         main_loop()
     except Exception as e:
-        raise e
         print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
     
     machine.idle()
