@@ -20,7 +20,7 @@ class RemoteTime:
                 print(e)
 
     def get_time(self):
-        response = urequests.get(self.endpoint)
+        response = urequests.get(self.endpoint, timeout=1)
 
         if not response.status_code == 200:
             raise Exception("Status " + str(response.status_code) + ": " + response.text)
