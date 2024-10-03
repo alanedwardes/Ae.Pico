@@ -9,16 +9,18 @@ import machine
 
 class TestRemoteTime(unittest.TestCase):
 
+    ENDPOINT = 'http://time.alanedwardes.com/?tz=Europe/London&fmt=%Y,%m,%d,%w,%H,%M,%S,%f'
+
     def test_get_time(self):
-        rt = remotetime.RemoteTime('Europe/London', 300_000)
+        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
         ts = rt.get_time()
-        self.assertEqual('Europe/London', rt.tz)
+        self.assertEqual(self.ENDPOINT, rt.endpoint)
         self.assertEqual(300_000, rt.update_time_ms)
         self.assertEqual(8, len(ts))
 
     def test_update(self):
         machine.RTC.ts = None
-        rt = remotetime.RemoteTime('Europe/London', 300_000)
+        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
         self.assertIsNone(machine.RTC.ts)
         rt.update()
         self.assertEqual(8, len(machine.RTC.ts))
@@ -26,7 +28,7 @@ class TestRemoteTime(unittest.TestCase):
     def test_subsequent_update(self):
         machine.RTC.ts = None
         # Initial update
-        rt = remotetime.RemoteTime('Europe/London', 300_000)
+        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
         rt.update()
         self.assertIsNotNone(machine.RTC.ts)
         
