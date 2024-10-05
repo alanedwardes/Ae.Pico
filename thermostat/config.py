@@ -11,7 +11,8 @@ hass = dict(
 
 thermostat = dict(
     rotate = 0,
-    entity_id = "<entity id>"
+    entity_id = "<entity id>",
+    occupancy_entity_id = "<optional entity id>"
 )
 
 clock = dict(

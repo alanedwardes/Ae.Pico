@@ -30,6 +30,7 @@ class HassWs:
         while len(self.send_queue) > 0:
             message = self.send_queue.pop()
             self.message_id += 1
+            print(message)
             self.socket.send(message % self.message_id)
     
     def _process_message(self, message):
@@ -64,9 +65,10 @@ class HassWs:
         self.send_queue.append('{"id":%%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (domain, service, json.dumps(data), entity_id))
 
     def subscribe(self, entity_id):
-        self.subscribed_entities.append(entity_id)
-        self._subscribe([entity_id])
-        
+        if entity_id is not None:
+            self.subscribed_entities.append(entity_id)
+            self._subscribe([entity_id])
+            
     def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
             self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
