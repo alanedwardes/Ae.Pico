@@ -1,12 +1,23 @@
-import ubinascii as binascii
-import urandom as random
 import ssl
 
-import ure as re
-import ustruct as struct
-import urandom as random
-import usocket as socket
-from ucollections import namedtuple
+is_micropython = False
+
+try:
+    import ubinascii as binascii
+    import urandom as random
+    import ure as re
+    import ustruct as struct
+    import usocket as socket
+    from ucollections import namedtuple
+    is_micropython = True
+except ModuleNotFoundError:
+    import binascii
+    import random
+    import re
+    import struct
+    import socket
+    from collections import namedtuple
+    const = lambda x: x
 
 # Opcodes
 OP_CONT = const(0x0)
@@ -81,7 +92,11 @@ class Websocket:
         """
 
         # Frame header
-        two_bytes = self.sock.read(2)
+        two_bytes = None
+        try:
+            two_bytes = self.sock.read(2)
+        except ssl.SSLWantReadError:
+            raise NoDataException
 
         if not two_bytes:
             raise NoDataException
@@ -198,12 +213,14 @@ class Websocket:
         self.write_frame(opcode, buf)
 
     def close(self, code=CLOSE_OK, reason=''):
-        if not self.open:
-            return
-
         buf = struct.pack('!H', code) + reason.encode('utf-8')
 
-        self.write_frame(OP_CLOSE, buf)
+        try:
+            # This could fail if the socket is broken
+            self.write_frame(OP_CLOSE, buf)
+        except:
+            pass
+
         self.sock.close()
         
 class WebsocketClient(Websocket):
@@ -216,49 +233,45 @@ def connect(uri):
     print("open connection %s:%s" % (uri.hostname, uri.port))
 
     sock = socket.socket()
-    sock.setblocking(False)
     addr = socket.getaddrinfo(uri.hostname, uri.port)
+    sock.connect(addr[0][4])
     
-    try:
-        sock.connect(addr[0][4])
-    except OSError:
-        pass
-    
-    if uri.protocol == 'wss':
-        sock = ssl.wrap_socket(sock, server_hostname=uri.hostname)
+    if is_micropython:
+        secure = ssl
+    else:
+        secure = ssl.create_default_context()
 
-    def send_header(header, *args):
-        header_value = header % args + '\r\n'
-        print(header_value)
-        sock.write(header_value)
+    if uri.protocol == 'wss':
+        sock = secure.wrap_socket(sock, server_hostname=uri.hostname)#,  do_handshake_on_connect=False)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
                                     for _ in range(16)))[:-1]
 
-    send_header(b'GET %s HTTP/1.1', uri.path or '/')
-    send_header(b'Host: %s:%s', uri.hostname, uri.port)
-    send_header(b'Connection: Upgrade')
-    send_header(b'Upgrade: websocket')
-    send_header(b'Sec-WebSocket-Key: %s', key)
-    send_header(b'Sec-WebSocket-Version: 13')
-    send_header(b'Origin: http://{hostname}:{port}'.format(
-        hostname=uri.hostname,
-        port=uri.port)
-    )
-    send_header(b'')
+    sock.write(b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
+    sock.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
+    sock.write(b'Connection: Upgrade\r\n')
+    sock.write(b'Upgrade: websocket\r\n')
+    sock.write(b'Sec-WebSocket-Key: %s\r\n' % key)
+    sock.write(b'Sec-WebSocket-Version: 13\r\n')
+    sock.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
+    sock.write(b'\r\n')
+    
+    if is_micropython:
+       file = sock 
+    else:
+        file = sock.makefile()
     
     line = None    
     while line is None:
-        line = sock.readline()    
+        line = file.readline()
 
     header = line[:-2]
-    assert header.startswith(b'HTTP/1.1 101 '), header
+    assert header.startswith('HTTP/1.1 101 '), header
 
-    # We don't (currently) need these headers
-    # FIXME: should we check the return key?
     while header:
-        print(str(header))
-        header = sock.readline()[:-2]
+        header = file.readline()[:-2]
+
+    sock.setblocking(False)
 
     return WebsocketClient(sock)
