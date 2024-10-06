@@ -11,6 +11,9 @@ class HassWs:
         self.subscribed_entities = []
         self.entities_updated = None
         self._reset()
+
+    def is_active(self):
+        return self.socket is not None and self.authenticated and self.message_id > 1
     
     def update(self):
         try:

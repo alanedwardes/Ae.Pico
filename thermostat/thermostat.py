@@ -76,9 +76,6 @@ class Thermostat:
         
         y += spacer
         
-        self.display.set_pen(self.green if self.wlan.isconnected() else self.red)
-        self.display.circle(300, 220, 5)
-        
         self.display.set_font("bitmap8")
         self.display.set_pen(self.hidden)
         self.display.set_thickness(1)

@@ -66,7 +66,9 @@ hass.subscribe(config.thermostat.get('occupancy_entity_id', None))
 
 def update_led():
     hvac_action = thermostat.entity['hvac_action']
-    if hvac_action == "idle":
+    if not hass.is_active() or not wifi.is_connected():
+        led.set_rgb(255, 0, 0)
+    elif hvac_action == "idle":
         led.set_rgb(0, 0, 0)
     elif hvac_action == "heating":
         led.set_rgb(255, 69, 0)
