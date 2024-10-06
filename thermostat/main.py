@@ -74,7 +74,7 @@ def update_led():
         led.set_rgb(255, 69, 0)
 
 def update_input():
-    if len(input_events) == 0:
+    if len(input_events) == 0 or not hass.is_active():
         return
     
     global last_activity_time
