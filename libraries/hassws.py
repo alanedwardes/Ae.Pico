@@ -8,7 +8,6 @@ class HassWs:
         self.url = url
         self.token = token
         
-        self.socket = None
         self.subscribed_entities = []
         self.entities_updated = None
         self._reset()
@@ -23,8 +22,16 @@ class HassWs:
                 self._pump_queue()
         except Exception as e:
             print(e)
-            self._reset()
+            self.close()
             time.sleep(1)
+
+    def close(self):
+        if self.socket is not None:
+            try:
+                self.socket.close()
+            except:
+                pass # The socket might be broken
+        self._reset()
     
     def _pump_queue(self):
         while len(self.send_queue) > 0:
