@@ -46,8 +46,6 @@ def entities_updated(entities):
     
     thermostat_entity = entities.get(config.thermostat['entity_id'], {})
     if thermostat_entity is not None:
-        global last_activity_time
-        last_activity_time = utime.ticks_ms()
         attrs = thermostat_entity['a']
         thermostat.entity = {
             'min_temp': float(attrs.get('min_temp')),
