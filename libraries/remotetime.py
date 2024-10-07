@@ -1,7 +1,9 @@
 try:
     import urequests
+    from sys import print_exception
 except ModuleNotFoundError:
     import requests as urequests
+    from traceback import print_exception
 
 import utime
 
@@ -17,7 +19,7 @@ class RemoteTime:
                 self.update_time()
                 self.last_updated_time = utime.ticks_ms()
             except Exception as e:
-                print(e)
+                print_exception(e)
 
     def get_time(self):
         response = urequests.get(self.endpoint, timeout=1)

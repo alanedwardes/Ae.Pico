@@ -8,6 +8,7 @@ import config
 import remotetime
 from wifi import WiFi
 from hassws import HassWs
+from sys import print_exception
 
 input_events = []
 
@@ -51,7 +52,7 @@ def thermostat_updated(entity):
 
 def occupancy_updated(entity):
     global occupancy_detected
-    occupancy_detected = entity.get('s', None) == 'on'
+    occupancy_detected = entity['s'] == 'on'
 
 def current_temperature_updated(entity):
     thermostat.weather['current_temperature'] = float(entity['s'])
@@ -125,6 +126,6 @@ while True:
     try:
         main_loop()
     except Exception as e:
-        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6],  e)
+        print_exception(e)
     
     machine.idle()

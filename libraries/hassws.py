@@ -3,6 +3,11 @@ import json
 import random
 import time
 
+try:
+    from traceback import print_exception
+except ImportError:
+    from sys import print_exception
+
 class HassWs:
     def __init__(self, url, token):
         self.url = url
@@ -25,7 +30,7 @@ class HassWs:
             if self.authenticated:
                 self._pump_queue()
         except Exception as e:
-            print('Critical exception, resetting socket', e)
+            print_exception(e)
             self.close()
             time.sleep(1)
 
