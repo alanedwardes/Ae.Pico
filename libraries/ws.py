@@ -223,13 +223,14 @@ class Websocket:
 class WebsocketClient(Websocket):
     is_client = True
 
-def connect(uri):
+def connect(uri, timeout_seconds = 2):
     uri = urlparse(uri)
     assert uri
 
     print("open connection %s:%s" % (uri.hostname, uri.port))
 
     sock = socket.socket()
+    sock.settimeout(timeout_seconds)
     addr = socket.getaddrinfo(uri.hostname, uri.port)
     sock.connect(addr[0][4])
     
