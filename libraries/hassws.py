@@ -8,6 +8,7 @@ class HassWs:
         self.url = url
         self.token = token
         
+        self.entity_callbacks = {}
         self.subscribed_entities = []
         self.entities_updated = None
         self._reset()
@@ -74,19 +75,31 @@ class HassWs:
     def action(self, domain, service, data, entity_id):
         self.send_queue.append('{"id":%%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (domain, service, json.dumps(data), entity_id))
 
-    def subscribe(self, entity_id):
+    def subscribe(self, entity_id, callback = None):
         if entity_id is not None:
+            if callback is not None:
+                self.entity_callbacks[entity_id] = callback
             self.subscribed_entities.append(entity_id)
             self._subscribe([entity_id])
             
     def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
             self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
+            
+    def _execute_callback(self, callback, args):
+        if callback is None:
+            return
+        
+        try:
+            callback(args)
+        except Exception as e:
+            print('Error executing callback', e)
 
     def process_event(self, event):
         if 'a' in event:
             for entity_id in event['a']:
                 self.entities[entity_id] = event['a'][entity_id]
+                self._execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
         elif 'c' in event:
             for entity_id in event['c']:
                 change = event['c'][entity_id]['+']
@@ -94,10 +107,7 @@ class HassWs:
                     self.entities[entity_id]['s'] = change['s']
                 if 'a' in change:
                     self.entities[entity_id]['a'] |= change['a']
+                self.execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
         else:
             print('Unrecognised event structure: %s', event)
-        if self.entities_updated is not None:
-            try:
-                self.entities_updated(self.entities)
-            except Exception as e:
-                print('Error calling update event listener', e)
+        self._execute_callback(self.entities_updated, self.entities)
