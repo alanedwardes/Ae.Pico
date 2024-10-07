@@ -38,58 +38,39 @@ thermostat = thermostat.Thermostat(display)
 occupancy_detected = False
 last_activity_time = utime.ticks_ms()
 
-def entities_updated(entities):    
-    occupancy_state = entities.get(config.thermostat.get('occupancy_entity_id', None), {}).get('s', None)
-    if occupancy_state is not None:
-        global occupancy_detected
-        occupancy_detected = occupancy_state == 'on'
-    
-    thermostat_entity = entities.get(config.thermostat['entity_id'], {})
-    if thermostat_entity is not None:
-        try:
-            attrs = thermostat_entity['a']
-            thermostat.entity = {
-                'min_temp': float(attrs.get('min_temp')),
-                'max_temp': float(attrs.get('max_temp')),
-                'current_temperature': float(attrs.get('current_temperature')),
-                'temperature': float(attrs.get('temperature')),
-                'target_temp_step': float(attrs.get('target_temp_step')),
-                'hvac_action': attrs.get('hvac_action')
-            }
-        except:
-            pass # Invalid state
-    
-    current_temperature_entity = entities.get(config.thermostat['current_temperature_entity_id'], {})
-    if current_temperature_entity is not None:
-        try:
-            thermostat.weather['current_temperature'] = float(current_temperature_entity['s'])
-        except:
-            pass # Invalid state
+def thermostat_updated(entity):
+    attrs = entity['a']
+    thermostat.entity = {
+        'min_temp': float(attrs.get('min_temp')),
+        'max_temp': float(attrs.get('max_temp')),
+        'current_temperature': float(attrs.get('current_temperature')),
+        'temperature': float(attrs.get('temperature')),
+        'target_temp_step': float(attrs.get('target_temp_step')),
+        'hvac_action': attrs.get('hvac_action')
+    }
 
-    maximum_temperature_entity = entities.get(config.thermostat['maximum_temperature_entity_id'], {})
-    if maximum_temperature_entity is not None:
-        try:
-            thermostat.weather['maximum_temperature'] = float(maximum_temperature_entity['s'])
-        except:
-            pass # Invalid state
+def occupancy_updated(entity):
+    global occupancy_detected
+    occupancy_detected = entity.get('s', None) == 'on'
 
-    current_precipitation_entity = entities.get(config.thermostat['current_precipitation_entity_id'], {})
-    if current_precipitation_entity is not None:
-        try:
-            thermostat.weather['current_precipitation'] = float(current_precipitation_entity['s'])
-        except:
-            pass # Invalid state
+def current_temperature_updated(entity):
+    thermostat.weather['current_temperature'] = float(entity['s'])
+    
+def maximum_temperature_updated(entity):
+    thermostat.weather['maximum_temperature'] = float(entity['s'])
+
+def current_precipitation_updated(entity):
+    thermostat.weather['current_precipitation'] = float(entity['s'])
 
 def update_backlight():
     ms_since_last_activity = utime.ticks_diff(utime.ticks_ms(), last_activity_time)
     display.set_backlight(1 if occupancy_detected or ms_since_last_activity < 60_000 else 0)
 
-hass.entities_updated = entities_updated
-hass.subscribe(config.thermostat['entity_id'])
-hass.subscribe(config.thermostat.get('occupancy_entity_id', None))
-hass.subscribe(config.thermostat.get('current_temperature_entity_id', None))
-hass.subscribe(config.thermostat.get('maximum_temperature_entity_id', None))
-hass.subscribe(config.thermostat.get('current_precipitation_entity_id', None))
+hass.subscribe(config.thermostat['entity_id'], thermostat_updated)
+hass.subscribe(config.thermostat.get('occupancy_entity_id', None), occupancy_updated)
+hass.subscribe(config.thermostat.get('current_temperature_entity_id', None), current_temperature_updated)
+hass.subscribe(config.thermostat.get('maximum_temperature_entity_id', None), maximum_temperature_updated)
+hass.subscribe(config.thermostat.get('current_precipitation_entity_id', None), current_precipitation_updated)
 
 def update_led():
     hvac_action = thermostat.entity['hvac_action']
