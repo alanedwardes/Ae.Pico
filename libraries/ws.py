@@ -1,23 +1,20 @@
 import ssl
-
-is_micropython = False
+import binascii
+import random
+import re
+import struct
+import socket
+from collections import namedtuple
 
 try:
-    import ubinascii as binascii
-    import urandom as random
-    import ure as re
-    import ustruct as struct
-    import usocket as socket
-    from ucollections import namedtuple
-    is_micropython = True
-except ModuleNotFoundError:
-    import binascii
-    import random
-    import re
-    import struct
-    import socket
-    from collections import namedtuple
+    from ssl import SSLWantReadError as PlatformWantsReadError
     const = lambda x: x
+    socket_makefile = lambda x: x.makefile()
+    ssl_context = ssl.create_default_context()
+except ImportError:
+    PlatformWantsReadError = OSError
+    socket_makefile = lambda x: x
+    ssl_context = ssl
 
 # Opcodes
 OP_CONT = const(0x0)
@@ -95,7 +92,7 @@ class Websocket:
         two_bytes = None
         try:
             two_bytes = self.sock.read(2)
-        except ssl.SSLWantReadError:
+        except PlatformWantsReadError:
             raise NoDataException
 
         if not two_bytes:
@@ -236,13 +233,8 @@ def connect(uri):
     addr = socket.getaddrinfo(uri.hostname, uri.port)
     sock.connect(addr[0][4])
     
-    if is_micropython:
-        secure = ssl
-    else:
-        secure = ssl.create_default_context()
-
     if uri.protocol == 'wss':
-        sock = secure.wrap_socket(sock, server_hostname=uri.hostname)#,  do_handshake_on_connect=False)
+        sock = ssl_context.wrap_socket(sock, server_hostname=uri.hostname)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
@@ -257,10 +249,7 @@ def connect(uri):
     sock.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
     sock.write(b'\r\n')
     
-    if is_micropython:
-       file = sock 
-    else:
-        file = sock.makefile()
+    file = socket_makefile(sock)
     
     line = None    
     while line is None:
