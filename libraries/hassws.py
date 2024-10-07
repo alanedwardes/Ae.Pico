@@ -87,7 +87,7 @@ class HassWs:
             self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
             
     def _execute_callback(self, callback, args):
-        if callback is None:
+        if callback is None or args is None:
             return
         
         try:
@@ -107,7 +107,7 @@ class HassWs:
                     self.entities[entity_id]['s'] = change['s']
                 if 'a' in change:
                     self.entities[entity_id]['a'] |= change['a']
-                self.execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
+                self._execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
         else:
             print('Unrecognised event structure: %s', event)
         self._execute_callback(self.entities_updated, self.entities)
