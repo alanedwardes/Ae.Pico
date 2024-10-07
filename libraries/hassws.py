@@ -24,7 +24,7 @@ class HassWs:
             if self.authenticated:
                 self._pump_queue()
         except Exception as e:
-            print(e)
+            print('Critical exception, resetting socket', e)
             self.close()
             time.sleep(1)
 
@@ -92,7 +92,8 @@ class HassWs:
                 change = event['c'][entity_id]['+']
                 if 's' in change:
                     self.entities[entity_id]['s'] = change['s']
-                self.entities[entity_id]['a'] |= change['a']
+                if 'a' in change:
+                    self.entities[entity_id]['a'] |= change['a']
         else:
             print('Unrecognised event structure: %s', event)
         if self.entities_updated is not None:
