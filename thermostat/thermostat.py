@@ -19,6 +19,7 @@ class Thermostat:
         self.display_half_width = self.display_width * 0.5
 
         self.entity = {'min_temp': 0, 'max_temp': 0, 'current_temperature': 0, 'temperature': 0, 'target_temp_step': 0, 'hvac_action': 'idle'}
+        self.weather = {'current_temperature': 0, 'maximum_temperature': 0, 'current_precipitation': 0}
     
     def draw_text(self, text, scale, y):
         width = self.display.measure_text(text, scale)
@@ -56,13 +57,20 @@ class Thermostat:
         
         y += spacer
         
-        self.display.set_pen(self.turquoise)
+        self.display.set_pen(self.orange)
         y += self.draw_rectangle(320, 8, y)
         
         y += spacer
         
         self.display.set_pen(self.white)
-        y += self.draw_text("%.1fC" % (self.entity['temperature']), 2.25, y)
+        y += self.draw_text("%.1fC %.1fC" % (self.entity['temperature'], self.entity['current_temperature']), 1.5, y)
+        
+        y += 5
+
+        self.display.set_pen(self.grey)
+        self.draw_text("target     now", 1, y)
+        
+        y += 12
     
         y += spacer
         
@@ -71,8 +79,13 @@ class Thermostat:
         
         y += spacer
         
+        self.display.set_pen(self.white)
+        y += self.draw_text("%.0fC %.0fC %.0f%%" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
+        
+        y += 5
+        
         self.display.set_pen(self.grey)
-        y += self.draw_text("%.1fC" % (self.entity['current_temperature']), 2.25, y)
+        y += self.draw_text("now  max  rain", 1, y)
         
         y += spacer
         

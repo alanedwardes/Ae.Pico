@@ -12,7 +12,10 @@ hass = dict(
 thermostat = dict(
     rotate = 0,
     entity_id = "<entity id>",
-    occupancy_entity_id = "<optional entity id>"
+    occupancy_entity_id = "<optional entity id>",
+    current_temperature_entity_id = "<optional entity id>",
+    maximum_temperature_entity_id = "<optional entity id>",
+    current_precipitation_entity_id = "<optional entity id>"
 )
 
 clock = dict(

@@ -55,6 +55,18 @@ def entities_updated(entities):
             'target_temp_step': float(attrs.get('target_temp_step')),
             'hvac_action': attrs.get('hvac_action')
         }
+    
+    current_temperature_entity = entities.get(config.thermostat['current_temperature_entity_id'], {})
+    if current_temperature_entity is not None:
+        thermostat.weather['current_temperature'] = float(current_temperature_entity['s'])
+
+    maximum_temperature_entity = entities.get(config.thermostat['maximum_temperature_entity_id'], {})
+    if maximum_temperature_entity is not None:
+        thermostat.weather['maximum_temperature'] = float(maximum_temperature_entity['s'])
+
+    current_precipitation_entity = entities.get(config.thermostat['current_precipitation_entity_id'], {})
+    if current_precipitation_entity is not None:
+        thermostat.weather['current_precipitation'] = float(current_precipitation_entity['s'])
 
 def update_backlight():
     ms_since_last_activity = utime.ticks_diff(utime.ticks_ms(), last_activity_time)
@@ -63,6 +75,9 @@ def update_backlight():
 hass.entities_updated = entities_updated
 hass.subscribe(config.thermostat['entity_id'])
 hass.subscribe(config.thermostat.get('occupancy_entity_id', None))
+hass.subscribe(config.thermostat.get('current_temperature_entity_id', None))
+hass.subscribe(config.thermostat.get('maximum_temperature_entity_id', None))
+hass.subscribe(config.thermostat.get('current_precipitation_entity_id', None))
 
 def update_led():
     hvac_action = thermostat.entity['hvac_action']
