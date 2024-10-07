@@ -1,3 +1,4 @@
+import gc
 import management
 import machine
 import thermostat
@@ -127,5 +128,6 @@ while True:
         main_loop()
     except Exception as e:
         print_exception(e)
+        gc.collect()
     
     machine.idle()

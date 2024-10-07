@@ -99,7 +99,7 @@ class Thermostat:
         
         y += spacer
         
-        y += self.draw_text("%.1fC %.1fC" % (self.entity['temperature'], self.entity['current_temperature']), 1.5, y)
+        y += self.draw_text("%.1fc %.1fc" % (self.entity['temperature'], self.entity['current_temperature']), 1.5, y)
         
         y += 5
 
@@ -115,18 +115,16 @@ class Thermostat:
         
         y += spacer
         
-        y += self.draw_text("%.0fC %.0fC %.0f%%" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
+        y += self.draw_text("%.0fc %.0fc %.1f" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
         
         y += 5
         
         self.display.set_pen(self.grey)
-        y += self.draw_text("now  max  rain", 1, y)
-        
-        y += spacer
-        
+        self.draw_text("now  max  mm", 1, y)
+               
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
         self.display.set_thickness(1)
-        self.display.text("%idB" % (self.wlan.status('rssi')), 10, 230, scale=1)
+        self.display.text("%idB" % (self.wlan.status('rssi')), 0, 233, scale=1)
         
         self.display.update()
