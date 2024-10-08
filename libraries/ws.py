@@ -2,17 +2,16 @@ import ssl
 import binascii
 import random
 import re
+import errno
 import struct
 import socket
 from collections import namedtuple
 
 try:
-    from ssl import SSLWantReadError as PlatformWantsReadError
+    ssl_context = ssl.create_default_context()
     const = lambda x: x
     socket_makefile = lambda x: x.makefile()
-    ssl_context = ssl.create_default_context()
-except ImportError:
-    PlatformWantsReadError = OSError
+except AttributeError:
     socket_makefile = lambda x: x
     ssl_context = ssl
 
@@ -66,6 +65,25 @@ def urlparse(uri):
 
         return URI(protocol, host, int(port), path)
 
+def _send(sock, msg):
+    totalsent = 0
+    length = len(msg)
+    while totalsent < length:
+        sent = sock.send(msg[totalsent:])
+        if sent == 0:
+            raise RuntimeError("socket connection broken")
+        totalsent = totalsent + sent
+
+def _recv(sock, length):
+    chunks = []
+    bytes_recd = 0
+    while bytes_recd < length:
+        chunk = sock.recv(min(length - bytes_recd, 2048))
+        if chunk == b'':
+            raise RuntimeError("socket connection broken")
+        chunks.append(chunk)
+        bytes_recd = bytes_recd + len(chunk)
+    return b''.join(chunks)
 
 class Websocket:
     is_client = False
@@ -91,12 +109,14 @@ class Websocket:
         # Frame header
         two_bytes = None
         try:
-            two_bytes = self.sock.read(2)
-        except PlatformWantsReadError:
-            raise NoDataException
-
-        if not two_bytes:
-            raise NoDataException
+            two_bytes = _recv(self.sock, 2)
+        except OSError as e:
+            if e.errno is errno.EAGAIN or \
+                e.__class__.__name__ == 'SSLWantReadError' or \
+                e.__class__.__name__ == 'BlockingIOError':
+                raise NoDataException
+            else:
+                raise
 
         byte1, byte2 = struct.unpack('!BB', two_bytes)
 
@@ -109,15 +129,15 @@ class Websocket:
         length = byte2 & 0x7f
 
         if length == 126:  # Magic number, length header is 2 bytes
-            length, = struct.unpack('!H', self.sock.read(2))
+            length, = struct.unpack('!H', _recv(self.sock, 2))
         elif length == 127:  # Magic number, length header is 8 bytes
-            length, = struct.unpack('!Q', self.sock.read(8))
+            length, = struct.unpack('!Q', _recv(self.sock, 8))
 
         if mask:  # Mask is 4 bytes
-            mask_bits = self.sock.read(4)
+            mask_bits = _recv(self.sock, 4)
 
         try:
-            data = self.sock.read(length)
+            data = _recv(self.sock, length)
         except MemoryError:
             # We can't receive this many bytes, close the socket
             print("Frame of length %s too big. Closing" % length)
@@ -151,24 +171,24 @@ class Websocket:
 
         if length < 126:  # 126 is magic value to use 2-byte length header
             byte2 |= length
-            self.sock.write(struct.pack('!BB', byte1, byte2))
+            _send(self.sock, struct.pack('!BB', byte1, byte2))
         elif length < (1 << 16):  # Length fits in 2-bytes
             byte2 |= 126  # Magic code
-            self.sock.write(struct.pack('!BBH', byte1, byte2, length))
+            _send(self.sock, struct.pack('!BBH', byte1, byte2, length))
         elif length < (1 << 64):
             byte2 |= 127  # Magic code
-            self.sock.write(struct.pack('!BBQ', byte1, byte2, length))
+            _send(self.sock, struct.pack('!BBQ', byte1, byte2, length))
         else:
             raise ValueError("Length could not be encoded")
 
         if mask:  # Mask is 4 bytes
             mask_bits = struct.pack('!I', random.getrandbits(32))
-            self.sock.write(mask_bits)
+            _send(self.sock, mask_bits)
 
             data = bytes(b ^ mask_bits[i % 4]
                          for i, b in enumerate(data))
 
-        self.sock.write(data)
+        _send(self.sock, data)
 
     def recv(self):
         try:
@@ -241,14 +261,14 @@ def connect(uri, timeout_seconds = 2):
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
                                     for _ in range(16)))[:-1]
 
-    sock.write(b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
-    sock.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
-    sock.write(b'Connection: Upgrade\r\n')
-    sock.write(b'Upgrade: websocket\r\n')
-    sock.write(b'Sec-WebSocket-Key: %s\r\n' % key)
-    sock.write(b'Sec-WebSocket-Version: 13\r\n')
-    sock.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
-    sock.write(b'\r\n')
+    _send(sock, b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
+    _send(sock, b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
+    _send(sock, b'Connection: Upgrade\r\n')
+    _send(sock, b'Upgrade: websocket\r\n')
+    _send(sock, b'Sec-WebSocket-Key: %s\r\n' % key)
+    _send(sock, b'Sec-WebSocket-Version: 13\r\n')
+    _send(sock, b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
+    _send(sock, b'\r\n')
     
     file = socket_makefile(sock)
     
