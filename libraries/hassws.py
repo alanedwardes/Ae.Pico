@@ -1,6 +1,6 @@
 import ws
 import json
-import random
+import gc
 import time
 
 try:
@@ -22,18 +22,27 @@ class HassWs:
         return self.socket is not None and self.authenticated and self.message_id > 1
     
     def update(self):
+        def unhandled_socket_exception(e):
+            print_exception(e)
+            self.close()
+            gc.collect()
+            time.sleep(1)
+
         try:
             if self.socket is None:
                 self.socket = ws.connect(self.url + '/api/websocket')
             self._process_message(self.socket.recv())
         except ws.NoDataException:
-            if self.authenticated:
-                self._pump_queue()
+            pass
         except Exception as e:
-            print_exception(e)
-            self.close()
-            time.sleep(1)
+            return unhandled_socket_exception(e)
 
+        if self.authenticated:
+            try:
+                self._pump_queue()
+            except Exception as e:
+                return unhandled_socket_exception(e)
+    
     def close(self):
         if self.socket is not None:
             try:
