@@ -11,24 +11,24 @@ from management import ManagementServer
 led = machine.Pin("LED", machine.Pin.OUT)
 
 # Init motion sensor
-if config.motion_sensor.get('enabled', False):
+if hasattr(config, 'motion_sensor'):
     motion = machine.Pin(config.motion_sensor['pin'], machine.Pin.IN)
 
 # Init BME280
-if config.bme280_sensor.get('enabled', False):
+if hasattr(config, 'bme280_sensor'):
     import bme280
     i2c_bme = machine.I2C(0, scl=config.bme280_sensor['scl_pin'], sda=config.bme280_sensor['sda_pin'])
     bme = bme280.BME280(i2c=i2c_bme)
 
 # Init SCD4X
-if config.scd4x_sensor.get('enabled', False):
+if hasattr(config, 'scd4x_sensor'):
     import scd4x
     i2c_scd4x = machine.I2C(0, scl=config.scd4x_sensor['scl_pin'], sda=config.scd4x_sensor['sda_pin'], freq=100000)
     scd = scd4x.SCD4X(i2c_scd4x)
     scd.start_periodic_measurement()
 
 # Init Geiger
-if config.geiger_sensor.get('enabled', False):
+if hasattr(config, 'geiger_sensor'):
     from geiger import Geiger
     geiger_pin = machine.Pin(config.geiger_sensor['pin'], machine.Pin.IN)
     geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'], 0.01)
@@ -45,7 +45,7 @@ def send_update(state, unit, device_class, friendly_name, sensor):
 
 motion_state = DataPoint()
 def update_motion_sensor():
-    if not config.motion_sensor.get('enabled', False):
+    if not hasattr(config, 'motion_sensor'):
         return
     
     motion_state.set_value(motion.value() == 1)
@@ -59,7 +59,7 @@ humidity = DataPoint(0.5)
 
 pressure = DataPoint(0.25)
 def update_bme280_sensor():
-    if not config.bme280_sensor.get('enabled', False):
+    if not hasattr(config, 'bme280_sensor'):
         return
     
     current_temp, current_pressure, current_humidity = bme.float_values()
@@ -82,7 +82,7 @@ def update_bme280_sensor():
 
 co2 = DataPoint(20)
 def update_scd4x_sensor():
-    if not config.scd4x_sensor.get('enabled', False):
+    if not hasattr(config, 'scd4x_sensor'):
         return
     
     temperature.set_value(scd.temperature)
@@ -102,7 +102,7 @@ def update_scd4x_sensor():
         humidity.set_value_updated()
 
 def update_geiger_sensor():
-    if not config.geiger_sensor.get('enabled', False):
+    if not hasattr(config, 'geiger_sensor'):
         return
     
     geiger.update()

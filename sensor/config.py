@@ -10,14 +10,12 @@ hass = dict(
 )
 
 motion_sensor = dict(
-    enabled = True,
     friendly_name = "Test Motion",
     name = "test_motion",
     pin = 22
 )
 
 bme280_sensor = dict(
-    enabled = True,
     scl_pin = 1,
     sda_pin = 0,
     temp_friendly_name = "Test Temperature",
@@ -29,7 +27,6 @@ bme280_sensor = dict(
 )
 
 scd4x_sensor = dict(
-    enabled = True,
     sda_pin = 0,
     scl_pin = 1,
     temp_friendly_name = "Test Temperature",
@@ -41,7 +38,6 @@ scd4x_sensor = dict(
 )
 
 geiger_sensor = dict(
-    enabled = True,
     geiger_friendly_name = "Test Geiger",
     geiger_name = "test_geiger",
     pin = 2,
