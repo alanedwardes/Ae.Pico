@@ -115,12 +115,12 @@ class Thermostat:
         
         y += spacer
         
-        y += self.draw_text("%.0fc %.0fc %.1f" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
+        y += self.draw_text("%.0fc %.0fc %.0f%%" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
         
         y += 5
         
         self.display.set_pen(self.grey)
-        self.draw_text("now  max  mm", 1, y)
+        self.draw_text("now  max  rain", 1, y)
                
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
