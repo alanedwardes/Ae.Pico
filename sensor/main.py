@@ -60,7 +60,7 @@ def update_motion_sensor():
         send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
         motion_state.set_value_updated()
 
-temperature = DataPoint(0.1)
+temperature = DataPoint(0.25)
 humidity = DataPoint(0.5)
 
 pressure = DataPoint(0.25)
