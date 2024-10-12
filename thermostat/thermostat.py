@@ -2,7 +2,7 @@ import utime
 import network
 
 class Thermostat:
-    def __init__(self, display):
+    def __init__(self, display, middle_row, bottom_row):
         self.display = display
         self.wlan = network.WLAN(network.STA_IF)
         
@@ -26,9 +26,10 @@ class Thermostat:
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
-
-        self.entity = {'min_temp': 0, 'max_temp': 0, 'current_temperature': 0, 'temperature': 0, 'target_temp_step': 0, 'hvac_action': 'idle'}
-        self.weather = {'current_temperature': 0, 'maximum_temperature': 0, 'current_precipitation': 0}
+        
+        self.entities = {}
+        self.middle_row = middle_row
+        self.bottom_row = bottom_row
     
     def pen_for_temp(self, temp):
         if temp >= 41:
@@ -58,18 +59,18 @@ class Thermostat:
         else:
             return self.cold
     
-    def draw_text(self, text, scale, y):
-        width = self.display.measure_text(text, scale)
-        height = scale * 20
+    def draw_text(self, text, scale, x, y, width):
+        text_width = self.display.measure_text(text, scale)
+        text_height = scale * 20
         self.display.set_thickness(int(scale * 3))
 
-        x = int(self.display_half_width - width * 0.5)
+        text_x = int(width * 0.5 - text_width * 0.5)
         
-        half_height = height * 0.5
+        half_height = text_height * 0.5
         
-        self.display.text(text, x, int(y + half_height), scale=scale)
+        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
         
-        return int(height)
+        return int(text_height)
 
     def draw_rectangle(self, width, height, y):
         x = int(self.display_half_width - width * 0.5)
@@ -77,6 +78,30 @@ class Thermostat:
         self.display.rectangle(x, y, width, height)
         
         return height
+    
+    def _get_entity_value(self, subscription):
+        entity = self.entities.get(subscription['entity_id'], {})
+        
+        value = None
+        attribute_name = subscription.get('attribute', None)
+        if attribute_name is not None:
+            return entity.get('a', {}).get(attribute_name, None)
+        else:
+            return entity.get('s', None)
+        
+    def _format_entity_value(self, subscription, value):
+        try:
+            return subscription['format'](value)
+        except:
+            return '?'
+        
+    def _get_pen_color(self, subscription, value):
+        if subscription.get('temperature', False):
+            try:
+                return self.pen_for_temp(float(value))
+            except:
+                pass
+        return self.white
 
     def update(self):
         self.display.set_font("sans")
@@ -90,38 +115,38 @@ class Thermostat:
         y = spacer
         
         self.display.set_pen(self.white)
-        y += self.draw_text("%02i:%02i:%02i" % (now[3], now[4], now[5]), 2.25, y)
+        y += self.draw_text("%02i:%02i:%02i" % (now[3], now[4], now[5]), 2.25, 0, y, self.display_width)
         
         y += spacer
         
-        self.display.set_pen(self.pen_for_temp(self.entity['current_temperature']))
-        y += self.draw_rectangle(320, 8, y)
+        x = 0
+        middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0
+        for i, subscription in enumerate(self.middle_row):
+            value = self._get_entity_value(subscription)
+            self.display.set_pen(self._get_pen_color(subscription, value))
+            if i == 0:
+                y += self.draw_rectangle(320, 8, y) + spacer
+            
+            top_text_height = self.draw_text(self._format_entity_value(subscription, value), 1.5, x, y, middle_row_item_width)
+            self.display.set_pen(self.grey)
+            self.draw_text(subscription.get('label', '?'), 1, x, y + top_text_height, middle_row_item_width)
+            x += middle_row_item_width
         
-        y += spacer
-        
-        y += self.draw_text("%.1fc %.1fc" % (self.entity['temperature'], self.entity['current_temperature']), 1.5, y)
-        
-        y += 5
+        x = 0
+        y += 60
+            
+        bottom_row_item_width = len(self.bottom_row) and self.display_width / len(self.bottom_row) or 0
+        for i, subscription in enumerate(self.bottom_row):
+            value = self._get_entity_value(subscription)
+            self.display.set_pen(self._get_pen_color(subscription, value))
+            if i == 0:
+                y += self.draw_rectangle(320, 8, y) + spacer
+            
+            top_text_height = self.draw_text(self._format_entity_value(subscription, value), 1.5, x, y, bottom_row_item_width)
+            self.display.set_pen(self.grey)
+            self.draw_text(subscription.get('label', '?'), 1, x, y + top_text_height, bottom_row_item_width)
+            x += bottom_row_item_width
 
-        self.display.set_pen(self.grey)
-        self.draw_text("target     now", 1, y)
-        
-        y += 12
-    
-        y += spacer
-        
-        self.display.set_pen(self.pen_for_temp(self.weather['current_temperature']))
-        y += self.draw_rectangle(320, 8, y)
-        
-        y += spacer
-        
-        y += self.draw_text("%.0fc %.0fc %.0f%%" % (self.weather['current_temperature'], self.weather['maximum_temperature'], self.weather['current_precipitation']), 1.25, y)
-        
-        y += 5
-        
-        self.display.set_pen(self.grey)
-        self.draw_text("now  max  rain", 1, y)
-               
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
         self.display.set_thickness(1)

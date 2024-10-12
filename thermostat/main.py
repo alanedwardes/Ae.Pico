@@ -35,47 +35,29 @@ time = remotetime.RemoteTime(config.clock['endpoint'], config.clock['update_time
 
 server = management.ManagementServer()
 
-thermostat = thermostat.Thermostat(display)
+thermostat = thermostat.Thermostat(display, config.thermostat.get('middle_row', []), config.thermostat.get('bottom_row', []))
 
 occupancy_detected = False
 last_activity_time = utime.ticks_ms()
 
-def thermostat_updated(entity):
-    attrs = entity['a']
-    thermostat.entity = {
-        'min_temp': float(attrs.get('min_temp')),
-        'max_temp': float(attrs.get('max_temp')),
-        'current_temperature': float(attrs.get('current_temperature')),
-        'temperature': float(attrs.get('temperature')),
-        'target_temp_step': float(attrs.get('target_temp_step')),
-        'hvac_action': attrs.get('hvac_action')
-    }
-
-def occupancy_updated(entity):
+def occupancy_updated(entity_id, entity):
     global occupancy_detected
     occupancy_detected = entity['s'] == 'on'
-
-def current_temperature_updated(entity):
-    thermostat.weather['current_temperature'] = float(entity['s'])
-    
-def maximum_temperature_updated(entity):
-    thermostat.weather['maximum_temperature'] = float(entity['s'])
-
-def current_precipitation_updated(entity):
-    thermostat.weather['current_precipitation'] = float(entity['s'])
 
 def update_backlight():
     ms_since_last_activity = utime.ticks_diff(utime.ticks_ms(), last_activity_time)
     display.set_backlight(1 if occupancy_detected or ms_since_last_activity < 60_000 else 0)
 
-hass.subscribe(config.thermostat['entity_id'], thermostat_updated)
 hass.subscribe(config.thermostat.get('occupancy_entity_id', None), occupancy_updated)
-hass.subscribe(config.thermostat.get('current_temperature_entity_id', None), current_temperature_updated)
-hass.subscribe(config.thermostat.get('maximum_temperature_entity_id', None), maximum_temperature_updated)
-hass.subscribe(config.thermostat.get('current_precipitation_entity_id', None), current_precipitation_updated)
+
+def entity_updated(entity_id, entity):
+    thermostat.entities[entity_id] = entity
+
+for subscription in config.thermostat.get('middle_row', []) + config.thermostat.get('bottom_row', []):
+    hass.subscribe(subscription['entity_id'], entity_updated)
 
 def update_led():
-    hvac_action = thermostat.entity['hvac_action']
+    hvac_action = hass.entities.get(config.thermostat['entity_id'], {}).get('a', {}).get('hvac_action', 'idle')
     if not hass.is_active() or not wifi.is_connected():
         led.set_rgb(255, 0, 0)
     elif hvac_action == "idle":
@@ -89,12 +71,12 @@ def update_input():
     
     global last_activity_time
     last_activity_time = utime.ticks_ms()  
-    attr = thermostat.entity
-    min_temp = attr['min_temp']
-    max_temp = attr['max_temp']
-    target_temp = attr['temperature']
+    attr = hass.entities.get(config.thermostat['entity_id'], {}).get('a', {})
+    min_temp = float(attr.get('min_temp', 7))
+    max_temp = float(attr.get('max_temp', 35))
+    target_temp = float(attr.get('temperature', 7))
     step = 0.5
-    current_temp = attr['current_temperature']
+    current_temp = float(attr.get('current_temperature', 0))
     
     event = input_events.pop()
     new_temp = target_temp
