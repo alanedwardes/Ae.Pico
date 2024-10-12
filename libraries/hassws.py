@@ -90,22 +90,27 @@ class HassWs:
         self.send_queue.append('{"id":%%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (domain, service, json.dumps(data), entity_id))
 
     def subscribe(self, entity_id, callback = None):
-        if entity_id is not None:
-            if callback is not None:
-                self.entity_callbacks[entity_id] = callback
-            self.subscribed_entities.append(entity_id)
-            self._subscribe([entity_id])
+        if entity_id is None:
+            return
+        
+        if entity_id in self.subscribed_entities:
+            return
+        
+        if callback is not None:
+            self.entity_callbacks[entity_id] = callback
+        self.subscribed_entities.append(entity_id)
+        self._subscribe([entity_id])
             
     def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
             self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
             
-    def _execute_callback(self, callback, args):
+    def _execute_callback(self, callback, *args):
         if callback is None or args is None:
             return
         
         try:
-            callback(args)
+            callback(*args)
         except Exception as e:
             print('Error executing callback', e)
 
@@ -113,7 +118,7 @@ class HassWs:
         if 'a' in event:
             for entity_id in event['a']:
                 self.entities[entity_id] = event['a'][entity_id]
-                self._execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
+                self._execute_callback(self.entity_callbacks.get(entity_id, None), entity_id, self.entities[entity_id])
         elif 'c' in event:
             for entity_id in event['c']:
                 change = event['c'][entity_id]['+']
@@ -121,7 +126,7 @@ class HassWs:
                     self.entities[entity_id]['s'] = change['s']
                 if 'a' in change:
                     self.entities[entity_id]['a'] |= change['a']
-                self._execute_callback(self.entity_callbacks.get(entity_id, None), self.entities[entity_id])
+                self._execute_callback(self.entity_callbacks.get(entity_id, None), entity_id, self.entities[entity_id])
         else:
             print('Unrecognised event structure: %s', event)
         self._execute_callback(self.entities_updated, self.entities)
