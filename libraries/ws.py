@@ -11,9 +11,7 @@ from collections import namedtuple
 try:
     ssl_context = ssl.create_default_context()
     const = lambda x: x
-    socket_makefile = lambda x: x.makefile()
 except AttributeError:
-    socket_makefile = lambda x: x
     ssl_context = ssl
 
 # Opcodes

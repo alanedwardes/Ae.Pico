@@ -21,54 +21,43 @@ class HassWs:
     def is_active(self):
         return self.socket is not None and self.authenticated and self.message_id > 1
     
-    def update(self):
-        def unhandled_socket_exception(e):
+    async def run_forever(self):
+        async def unhandled_socket_exception(e):
             print_exception(e)
-            self.close()
+            await self.close()
             gc.collect()
             time.sleep(1)
 
-        try:
-            if self.socket is None:
-                self.socket = ws.connect(self.url + '/api/websocket')
-            self._process_message(self.socket.recv())
-        except ws.NoDataException:
-            pass
-        except Exception as e:
-            return unhandled_socket_exception(e)
-
-        if self.authenticated:
+        while True:
             try:
-                self._pump_queue()
+                if self.socket is None:
+                    self.socket = await ws.connect(self.url + '/api/websocket')
+                await self._process_message(await self.socket.recv())
+            except ws.NoDataException:
+                pass
             except Exception as e:
-                return unhandled_socket_exception(e)
+                await unhandled_socket_exception(e)
     
-    def close(self):
+    async def close(self):
         if self.socket is not None:
             try:
-                self.socket.close()
+                await self.socket.close()
             except:
                 pass # The socket might be broken
         self._reset()
     
-    def _pump_queue(self):
-        while len(self.send_queue) > 0:
-            message = self.send_queue.pop()
-            self.message_id += 1
-            print(message)
-            self.socket.send(message % self.message_id)
-    
-    def _process_message(self, message):
+    async def _process_message(self, message):
+        print(message)
         message = json.loads(message)
         message_type = message.get('type')
         
         if message_type == 'auth_required':
-            self._authenticate()
+            await self._authenticate()
         elif message_type == 'auth_invalid':
             raise Exception('Invalid authentication')
         elif message_type == 'auth_ok':
             self.authenticated = True
-            self._subscribe(self.subscribed_entities)
+            await self._subscribe(self.subscribed_entities)
         elif message_type == 'event':
             self.process_event(message['event'])
         elif message_type == 'result':
@@ -80,16 +69,19 @@ class HassWs:
         self.socket = None
         self.authenticated = False
         self.message_id = 1
-        self.send_queue = []
         self.entities = {}
     
-    def _authenticate(self):
-        self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
+    async def _authenticate(self):
+        await self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
         
-    def action(self, domain, service, data, entity_id):
-        self.send_queue.append('{"id":%%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (domain, service, json.dumps(data), entity_id))
+    async def action(self, domain, service, data, entity_id):
+        self.message_id += 1
+        await self.socket.send('{"id":%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (self.message_id, domain, service, json.dumps(data), entity_id))
 
     def subscribe(self, entity_id, callback = None):
+        if self.authenticated:
+            raise Exception('Subscribe after authentication is not yet supported')
+        
         if entity_id is None:
             return
         
@@ -98,12 +90,13 @@ class HassWs:
         
         if callback is not None:
             self.entity_callbacks[entity_id] = callback
+        
         self.subscribed_entities.append(entity_id)
-        self._subscribe([entity_id])
             
-    def _subscribe(self, entity_ids):
+    async def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
-            self.send_queue.append('{"id":%%i,"type":"subscribe_entities","entity_ids":["%s"]}' % ('","'.join(entity_ids)))
+            self.message_id += 1
+            await self.socket.send('{"id":%i,"type":"subscribe_entities","entity_ids":["%s"]}' % (self.message_id, '","'.join(entity_ids)))
             
     def _execute_callback(self, callback, *args):
         if callback is None or args is None:
