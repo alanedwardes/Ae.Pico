@@ -89,8 +89,8 @@ def update_input():
         new_temp += step
     elif event == "down":
         new_temp -= step
-        
-    hass.action("climate", "set_temperature", {"temperature":min(max(round(new_temp * 2) / 2, min_temp), max_temp)}, config.thermostat['entity_id'])
+    
+    asyncio.create_task(hass.action("climate", "set_temperature", {"temperature":min(max(round(new_temp * 2) / 2, min_temp), max_temp)}, config.thermostat['entity_id'])())
 
 async def main_loop():
     update_backlight()
@@ -101,7 +101,6 @@ async def main_loop():
     
     if wifi.is_connected():
         server.update()
-        hass.update()
         await asyncio.gather(time.update())
 
 def set_global_exception():
@@ -120,7 +119,11 @@ async def main():
         except Exception as e:
             print_exception(e)
             gc.collect()
+            
+async def run():
+    await asyncio.gather(main(), hass.run_forever())
+    
 try:
-    asyncio.run(main())
+    asyncio.run(run())
 finally:
     asyncio.new_event_loop()
