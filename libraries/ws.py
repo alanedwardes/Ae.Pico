@@ -5,6 +5,7 @@ import re
 import errno
 import struct
 import socket
+import asyncio
 from collections import namedtuple
 
 try:
@@ -46,7 +47,6 @@ class ConnectionClosed(Exception):
         super().__init__("Connection closed")
 
 def urlparse(uri):
-    """Parse ws:// URLs"""
     match = URL_RE.match(uri)
     if match:
         protocol = match.group(1)
@@ -65,58 +65,24 @@ def urlparse(uri):
 
         return URI(protocol, host, int(port), path)
 
-def _send(sock, msg):
-    totalsent = 0
-    length = len(msg)
-    while totalsent < length:
-        sent = sock.send(msg[totalsent:])
-        if sent == 0:
-            raise RuntimeError("socket connection broken")
-        totalsent = totalsent + sent
-
-def _recv(sock, length):
-    chunks = []
-    bytes_recd = 0
-    while bytes_recd < length:
-        chunk = sock.recv(min(length - bytes_recd, 2048))
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        chunks.append(chunk)
-        bytes_recd = bytes_recd + len(chunk)
-    return b''.join(chunks)
-
 class Websocket:
     is_client = False
 
-    def __init__(self, sock):
-        self.sock = sock
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc, tb):
-        self.close()
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     def settimeout(self, timeout):
         self.sock.settimeout(timeout)
 
-    def read_frame(self, max_size=None):
-        """
-        Read a frame from the socket.
-        See https://tools.ietf.org/html/rfc6455#section-5.2 for the details.
-        """
-
-        # Frame header
-        two_bytes = None
-        try:
-            two_bytes = _recv(self.sock, 2)
-        except OSError as e:
-            if e.errno is errno.EAGAIN or \
-                e.__class__.__name__ == 'SSLWantReadError' or \
-                e.__class__.__name__ == 'BlockingIOError':
-                raise NoDataException
-            else:
-                raise
+    async def read_frame(self, max_size=None):
+        two_bytes = await self.reader.read(2)
 
         byte1, byte2 = struct.unpack('!BB', two_bytes)
 
@@ -129,19 +95,19 @@ class Websocket:
         length = byte2 & 0x7f
 
         if length == 126:  # Magic number, length header is 2 bytes
-            length, = struct.unpack('!H', _recv(self.sock, 2))
+            length, = struct.unpack('!H', await self.reader.read(2))
         elif length == 127:  # Magic number, length header is 8 bytes
-            length, = struct.unpack('!Q', _recv(self.sock, 8))
+            length, = struct.unpack('!Q', await self.reader.read(8))
 
         if mask:  # Mask is 4 bytes
-            mask_bits = _recv(self.sock, 4)
+            mask_bits = await self.reader.read(4)
 
         try:
-            data = _recv(self.sock, length)
+            data = await self.reader.read(length)
         except MemoryError:
             # We can't receive this many bytes, close the socket
             print("Frame of length %s too big. Closing" % length)
-            self.close(code=CLOSE_TOO_BIG)
+            await self.close(code=CLOSE_TOO_BIG)
             print(fin, opcode, data)
             return True, OP_CLOSE, None
 
@@ -151,11 +117,7 @@ class Websocket:
 
         return fin, opcode, data
 
-    def write_frame(self, opcode, data=b''):
-        """
-        Write a frame to the socket.
-        See https://tools.ietf.org/html/rfc6455#section-5.2 for the details.
-        """
+    async def write_frame(self, opcode, data=b''):
         fin = True
         mask = self.is_client  # messages sent by client are masked
 
@@ -171,32 +133,28 @@ class Websocket:
 
         if length < 126:  # 126 is magic value to use 2-byte length header
             byte2 |= length
-            _send(self.sock, struct.pack('!BB', byte1, byte2))
+            self.writer.write(struct.pack('!BB', byte1, byte2))
         elif length < (1 << 16):  # Length fits in 2-bytes
             byte2 |= 126  # Magic code
-            _send(self.sock, struct.pack('!BBH', byte1, byte2, length))
+            self.writer.write(struct.pack('!BBH', byte1, byte2, length))
         elif length < (1 << 64):
             byte2 |= 127  # Magic code
-            _send(self.sock, struct.pack('!BBQ', byte1, byte2, length))
+            self.writer.write(struct.pack('!BBQ', byte1, byte2, length))
         else:
             raise ValueError("Length could not be encoded")
 
         if mask:  # Mask is 4 bytes
             mask_bits = struct.pack('!I', random.getrandbits(32))
-            _send(self.sock, mask_bits)
+            self.writer.write(mask_bits)
 
             data = bytes(b ^ mask_bits[i % 4]
                          for i, b in enumerate(data))
 
-        _send(self.sock, data)
+        self.writer.write(data)
+        await self.writer.drain()
 
-    def recv(self):
-        try:
-            fin, opcode, data = self.read_frame()
-        except ValueError:
-            print("Failed to read frame. Socket dead.")
-            self.sock.close()
-            raise ConnectionClosed()
+    async def recv(self):
+        fin, opcode, data = await self.read_frame()
 
         if not fin:
             raise NotImplementedError("Not fin")
@@ -206,19 +164,19 @@ class Websocket:
         elif opcode == OP_BYTES:
             return data
         elif opcode == OP_CLOSE:
-            self.sock.close()
+            self.writer.close()
             raise ConnectionClosed()
         elif opcode == OP_PONG:
             raise NoDataException
         elif opcode == OP_PING:
-            self.write_frame(OP_PONG, data)
+            await self.write_frame(OP_PONG, data)
             raise NoDataException
         elif opcode == OP_CONT:
             raise NotImplementedError(opcode)
         else:
             raise ValueError(opcode)
 
-    def send(self, buf):
+    async def send(self, buf):
         if isinstance(buf, str):
             opcode = OP_TEXT
             buf = buf.encode('utf-8')
@@ -227,61 +185,52 @@ class Websocket:
         else:
             raise TypeError("Unknown data type")
 
-        self.write_frame(opcode, buf)
+        await self.write_frame(opcode, buf)
 
-    def close(self, code=CLOSE_OK, reason=''):
+    async def close(self, code=CLOSE_OK, reason=''):
         buf = struct.pack('!H', code) + reason.encode('utf-8')
 
         try:
             # This could fail if the socket is broken
-            self.write_frame(OP_CLOSE, buf)
+            await self.write_frame(OP_CLOSE, buf)
         except:
             pass
 
-        self.sock.close()
+        self.writer.close()
         
 class WebsocketClient(Websocket):
     is_client = True
 
-def connect(uri, timeout_seconds = 2):
+async def connect(uri, timeout_seconds = 2):
     uri = urlparse(uri)
     assert uri
 
     print("open connection %s:%s" % (uri.hostname, uri.port))
-
-    sock = socket.socket()
-    sock.settimeout(timeout_seconds)
-    addr = socket.getaddrinfo(uri.hostname, uri.port)
-    sock.connect(addr[0][4])
     
-    if uri.protocol == 'wss':
-        sock = ssl_context.wrap_socket(sock, server_hostname=uri.hostname)
+    reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = ssl_context if uri.protocol == 'wss' else None)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
                                     for _ in range(16)))[:-1]
 
-    _send(sock, b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
-    _send(sock, b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
-    _send(sock, b'Connection: Upgrade\r\n')
-    _send(sock, b'Upgrade: websocket\r\n')
-    _send(sock, b'Sec-WebSocket-Key: %s\r\n' % key)
-    _send(sock, b'Sec-WebSocket-Version: 13\r\n')
-    _send(sock, b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
-    _send(sock, b'\r\n')
+    writer.write(b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
+    writer.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
+    writer.write(b'Connection: Upgrade\r\n')
+    writer.write(b'Upgrade: websocket\r\n')
+    writer.write(b'Sec-WebSocket-Key: %s\r\n' % key)
+    writer.write(b'Sec-WebSocket-Version: 13\r\n')
+    writer.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
+    writer.write(b'\r\n')
+    await writer.drain()
     
-    file = socket_makefile(sock)
-    
-    line = None    
-    while line is None:
-        line = file.readline()
+    line = await reader.readline()
 
     header = line[:-2]
-    assert header.startswith('HTTP/1.1 101 '), header
+    assert header.startswith(b'HTTP/1.1 101 '), header
 
-    while header:
-        header = file.readline()[:-2]
+    while header is not None:
+        header = await reader.readline()
+        if header == b'\r\n':
+            break
 
-    sock.setblocking(False)
-
-    return WebsocketClient(sock)
+    return WebsocketClient(reader, writer)
