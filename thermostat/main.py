@@ -1,4 +1,5 @@
 import gc
+import asyncio
 import management
 import machine
 import thermostat
@@ -91,7 +92,7 @@ def update_input():
         
     hass.action("climate", "set_temperature", {"temperature":min(max(round(new_temp * 2) / 2, min_temp), max_temp)}, config.thermostat['entity_id'])
 
-def main_loop():
+async def main_loop():
     update_backlight()
     update_led()
     update_input()
@@ -101,15 +102,25 @@ def main_loop():
     if wifi.is_connected():
         server.update()
         hass.update()
-        time.update()
+        await asyncio.gather(time.update())
 
-#wd = machine.WDT(timeout=8388)
-while True:
-    #wd.feed()
-    try:
-        main_loop()
-    except Exception as e:
-        print_exception(e)
-        gc.collect()
-    
-    machine.idle()
+def set_global_exception():
+    def handle_exception(loop, context):
+        import sys
+        sys.print_exception(context["exception"])
+        sys.exit()
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(handle_exception)
+
+async def main():
+    set_global_exception()
+    while True:
+        try:
+            await main_loop()
+        except Exception as e:
+            print_exception(e)
+            gc.collect()
+try:
+    asyncio.run(main())
+finally:
+    asyncio.new_event_loop()
