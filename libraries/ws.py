@@ -188,7 +188,7 @@ class Websocket:
         except:
             pass
 
-        await self.writer.wait_close()
+        await self.writer.wait_closed()
         
 class WebsocketClient(Websocket):
     is_client = True
