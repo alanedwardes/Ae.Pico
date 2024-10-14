@@ -2,11 +2,13 @@ import sys
 sys.path.insert(0,'../libraries')
 sys.path.insert(0,'../shims')
 
-import time
+import asyncio
 import management
 
 server = management.ManagementServer()
 
-while True:
-    server.update()
-    time.sleep(0.01)
+async def main():
+    await server.start()
+    await asyncio.Future()
+
+asyncio.run(main())

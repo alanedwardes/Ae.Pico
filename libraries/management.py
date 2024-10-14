@@ -186,7 +186,7 @@ class DeleteController:
     def route(self, method, path):
         return method == b'POST' and path == b'/delete'
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
@@ -204,7 +204,7 @@ class TimeController:
     def route(self, method, path):
         return method == b'POST' and path == b'/time'
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
         form_datetime = form[b'datetime']
@@ -238,7 +238,7 @@ class ShellController:
     def route(self, method, path):
         return path == b'/shell'
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
         command = form.get(b'command', '')
@@ -284,7 +284,7 @@ class GPIOController:
     def route(self, method, path):
         return path.startswith(b'/gpio')
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         body = await reader.readexactly(content_length)
         pin_number = int(path.split(b'/gpio/out/')[1])
@@ -302,7 +302,7 @@ class UploadController:
     def route(self, method, path):
         return method == b'POST' and path == b'/upload'
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))   
         boundary = await reader.readline()        
         (headers_offset, content_headers) = await parse_headers(reader)
@@ -333,7 +333,7 @@ class DownloadController:
     def route(self, method, path):
         return method == b'POST' and path == b'/download'
     
-    def serve(self, method, path, headers, reader, writer):        
+    async def serve(self, method, path, headers, reader, writer):        
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
@@ -352,7 +352,7 @@ class ResetController:
     def route(self, method, path):
         return method == b'POST' and path == b'/reset'
     
-    def serve(self, method, path, headers, reader, writer):
+    async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
         
