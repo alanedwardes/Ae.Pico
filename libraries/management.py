@@ -366,6 +366,7 @@ class ResetController:
             writer.write(b'<h1>%s Reset</h1>' % (b'Hard' if is_hard else b'Soft'))
             writer.write(b'<p>System will reset in 5 seconds.</p>')
             writer.write(BACK_LINK)
+            writer.close()
             await writer.wait_closed()
             await asyncio.sleep(5)
             if is_hard:
@@ -402,6 +403,7 @@ class ManagementServer:
         
     async def stop(self):
         if self.server is not None:
+            self.server.close()
             await self.server.wait_closed()
         
     async def __serve(self, reader, writer):
@@ -435,6 +437,7 @@ class ManagementServer:
             raise e
         
         finally:
+            writer.close()
             await writer.wait_closed()
             gc.collect()
         

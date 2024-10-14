@@ -188,6 +188,7 @@ class Websocket:
         except:
             pass
 
+        writer.close()
         await self.writer.wait_closed()
         
 class WebsocketClient(Websocket):
