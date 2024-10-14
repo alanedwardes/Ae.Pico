@@ -391,13 +391,18 @@ class ManagementServer:
                             DeleteController(), ResetController(), TimeController(),
                             ShellController(), GPIOController()]
         self.authorization_header = None
+        self.server = None
     
     def set_credentials(self, username, password):
         encoded = binascii.b2a_base64(('%s:%s' % (username, password)).encode('utf-8'))
         self.authorization_header = b'Basic ' + encoded[:-1]
     
-    async def run(self):
-        await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
+    async def start(self):
+        self.server = await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
+        
+    async def stop(self):
+        if self.server is not None:
+            await self.server.wait_closed()
         
     async def __serve(self, reader, writer):
         gc.collect()
