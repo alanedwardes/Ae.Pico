@@ -165,10 +165,10 @@ class Websocket:
             self.writer.close()
             raise ConnectionClosed()
         elif opcode == OP_PONG:
-            raise NoDataException
+            return None
         elif opcode == OP_PING:
             await self.write_frame(OP_PONG, data)
-            raise NoDataException
+            return None
         elif opcode == OP_CONT:
             raise NotImplementedError(opcode)
         else:
@@ -194,7 +194,7 @@ class Websocket:
         except:
             pass
 
-        self.writer.close()
+        await self.writer.wait_close()
         
 class WebsocketClient(Websocket):
     is_client = True

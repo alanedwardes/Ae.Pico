@@ -21,24 +21,12 @@ class HassWs:
     def is_active(self):
         return self.socket is not None and self.authenticated and self.message_id > 1
     
-    async def run_forever(self):
-        async def unhandled_socket_exception(e):
-            print_exception(e)
-            await self.close()
-            gc.collect()
-            time.sleep(1)
-
+    async def start(self):
+        self.socket = await ws.connect(self.url + '/api/websocket')
         while True:
-            try:
-                if self.socket is None:
-                    self.socket = await ws.connect(self.url + '/api/websocket')
-                await self._process_message(await self.socket.recv())
-            except ws.NoDataException:
-                pass
-            except Exception as e:
-                await unhandled_socket_exception(e)
+            await self._process_message(await self.socket.recv())
     
-    async def close(self):
+    async def stop(self):
         if self.socket is not None:
             try:
                 await self.socket.close()
@@ -47,7 +35,9 @@ class HassWs:
         self._reset()
     
     async def _process_message(self, message):
-        print(message)
+        if message is None:
+            return
+        
         message = json.loads(message)
         message_type = message.get('type')
         

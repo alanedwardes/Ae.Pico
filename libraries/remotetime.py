@@ -34,15 +34,14 @@ class RemoteTime:
     def __init__(self, endpoint, update_time_ms):
         self.uri = urlparse(endpoint)
         self.update_time_ms = update_time_ms
-        self.last_updated_time = None
     
-    async def update(self):
-        if self.last_updated_time is None or utime.ticks_diff(utime.ticks_ms(), self.last_updated_time) > self.update_time_ms:
-            try:
-                await self.update_time()
-                self.last_updated_time = utime.ticks_ms()
-            except Exception as e:
-                print_exception(e)
+    async def start(self):
+        while True:
+            await self.update_time()
+            await asyncio.sleep_ms(self.update_time_ms)
+    
+    async def stop(self):
+        pass
 
     async def get_time(self):
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port)        

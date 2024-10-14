@@ -1,5 +1,6 @@
 import network
 import utime
+import asyncio
 
 class WiFi:
     
@@ -37,6 +38,14 @@ class WiFi:
         while not self.is_connected():
             self.update()
             utime.sleep(1)
+            
+    async def start(self):
+        while True:
+            self.update()
+            await asyncio.sleep(1)
+            
+    async def stop(self):
+        pass
     
     def update(self):
         # No action if connected

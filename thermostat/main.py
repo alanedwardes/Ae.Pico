@@ -92,16 +92,15 @@ def update_input():
     
     asyncio.create_task(hass.action("climate", "set_temperature", {"temperature":min(max(round(new_temp * 2) / 2, min_temp), max_temp)}, config.thermostat['entity_id'])())
 
-async def main_loop():
-    update_backlight()
-    update_led()
-    update_input()
-    thermostat.update()
-    wifi.update()
-    
-    if wifi.is_connected():
-        server.update()
-        await asyncio.gather(time.update())
+class Main:
+    async def start(self):
+        while True:
+            update_backlight()
+            update_led()
+            update_input()
+            await asyncio.sleep_ms(100)
+    async def stop(self):
+        pass
 
 def set_global_exception():
     def handle_exception(loop, context):
@@ -111,18 +110,25 @@ def set_global_exception():
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(handle_exception)
 
-async def main():
-    set_global_exception()
+async def start_component(component):
     while True:
         try:
-            await main_loop()
+            await component.start()
         except Exception as e:
-            print_exception(e)
             gc.collect()
-            
+            import sys
+            sys.print_exception(e)
+            await asyncio.sleep(1)
+        finally:
+            await component.stop()
+
+main = Main()
+
 async def run():
-    await asyncio.gather(main(), hass.run_forever())
-    
+    set_global_exception()
+    await asyncio.gather(start_component(thermostat), start_component(wifi), start_component(server), start_component(main), start_component(hass), start_component(time))
+
+wifi.disconnect()
 try:
     asyncio.run(run())
 finally:

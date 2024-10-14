@@ -1,4 +1,5 @@
 import utime
+import asyncio
 import network
 
 class Thermostat:
@@ -102,6 +103,14 @@ class Thermostat:
             except:
                 pass
         return self.white
+    
+    async def start(self):
+        while True:
+            self.update()
+            await asyncio.sleep_ms(100)
+            
+    async def stop(self):
+        pass
 
     def update(self):
         self.display.set_font("sans")
