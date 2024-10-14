@@ -1,6 +1,10 @@
 STA_IF = 1
 
-class WLAN:
+class AbstractNIC:
+    def isconnected(self):
+        return True
+
+class WLAN(AbstractNIC):
     def __init__(self, type):
         pass
     

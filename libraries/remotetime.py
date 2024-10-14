@@ -53,6 +53,7 @@ class RemoteTime:
                 break
             lastline = line
         
+        writer.close()
         await writer.wait_closed()
         return tuple(map(int, lastline.split(b',')))
     

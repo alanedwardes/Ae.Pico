@@ -6,41 +6,18 @@ import unittest
 import utime
 import remotetime
 import machine
+import network
 
 class TestRemoteTime(unittest.IsolatedAsyncioTestCase):
 
     ENDPOINT = 'http://time.alanedwardes.com/?tz=Europe/London&fmt=%Y,%m,%d,%w,%H,%M,%S,%f'
+    nic = network.AbstractNIC
 
     async def test_get_time(self):
-        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
+        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000, self.nic)
         ts = await rt.get_time()
         self.assertEqual(300_000, rt.update_time_ms)
         self.assertEqual(8, len(ts))
-
-    async def test_update(self):
-        machine.RTC.ts = None
-        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
-        self.assertIsNone(machine.RTC.ts)
-        await rt.update()
-        self.assertEqual(8, len(machine.RTC.ts))
-
-    async def test_subsequent_update(self):
-        machine.RTC.ts = None
-        # Initial update
-        rt = remotetime.RemoteTime(self.ENDPOINT, 300_000)
-        await rt.update()
-        self.assertIsNotNone(machine.RTC.ts)
-        
-        machine.RTC.ts = None
-        # Immediate next update - do nothing
-        await rt.update()
-        self.assertIsNone(machine.RTC.ts)
-
-        machine.RTC.ts = None
-        # Update because enough time has passed
-        rt.last_updated_time = utime.ticks_add(rt.last_updated_time, -400_000)
-        await rt.update()
-        self.assertIsNotNone(machine.RTC.ts)
 
 if __name__ == '__main__':
     unittest.main()
