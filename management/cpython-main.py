@@ -7,8 +7,4 @@ import management
 
 server = management.ManagementServer()
 
-async def main():
-    await server.start()
-    await asyncio.Future()
-
-asyncio.run(main())
+asyncio.run(server.start())

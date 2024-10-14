@@ -400,6 +400,7 @@ class ManagementServer:
     
     async def start(self):
         self.server = await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
+        await asyncio.Event().wait() # Wait forever
         
     async def stop(self):
         if self.server is not None:
