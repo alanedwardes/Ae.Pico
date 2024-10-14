@@ -1,10 +1,4 @@
-try:
-    from sys import print_exception
-except ImportError:
-    from traceback import print_exception
-
 import re
-import utime
 import asyncio
 from collections import namedtuple
 
@@ -31,11 +25,15 @@ def urlparse(uri):
         return URI(host.encode('ascii'), int(port), path.encode('ascii'))
 
 class RemoteTime:
-    def __init__(self, endpoint, update_time_ms):
+    def __init__(self, endpoint, update_time_ms, nic):
         self.uri = urlparse(endpoint)
         self.update_time_ms = update_time_ms
+        self.nic = nic
     
     async def start(self):
+        while not self.nic.isconnected():
+            await asyncio.sleep_ms(100)
+        
         while True:
             await self.update_time()
             await asyncio.sleep_ms(self.update_time_ms)
@@ -55,7 +53,7 @@ class RemoteTime:
                 break
             lastline = line
         
-        writer.close()        
+        await writer.wait_closed()
         return tuple(map(int, lastline.split(b',')))
     
     async def update_time(self):

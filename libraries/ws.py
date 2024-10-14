@@ -2,9 +2,7 @@ import ssl
 import binascii
 import random
 import re
-import errno
 import struct
-import socket
 import asyncio
 from collections import namedtuple
 
@@ -35,10 +33,6 @@ CLOSE_BAD_CONDITION = const(1011)
 
 URL_RE = re.compile(r'(wss|ws)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(/.+)?')
 URI = namedtuple('URI', ('protocol', 'hostname', 'port', 'path'))
-
-class NoDataException(Exception):
-    def __init__(self):
-        super().__init__("No data")
 
 class ConnectionClosed(Exception):
     def __init__(self):
@@ -80,7 +74,7 @@ class Websocket:
         self.sock.settimeout(timeout)
 
     async def read_frame(self, max_size=None):
-        two_bytes = await self.reader.read(2)
+        two_bytes = await self.reader.readexactly(2)
 
         byte1, byte2 = struct.unpack('!BB', two_bytes)
 
@@ -93,15 +87,15 @@ class Websocket:
         length = byte2 & 0x7f
 
         if length == 126:  # Magic number, length header is 2 bytes
-            length, = struct.unpack('!H', await self.reader.read(2))
+            length, = struct.unpack('!H', await self.reader.readexactly(2))
         elif length == 127:  # Magic number, length header is 8 bytes
-            length, = struct.unpack('!Q', await self.reader.read(8))
+            length, = struct.unpack('!Q', await self.reader.readexactly(8))
 
         if mask:  # Mask is 4 bytes
-            mask_bits = await self.reader.read(4)
+            mask_bits = await self.reader.readexactly(4)
 
         try:
-            data = await self.reader.read(length)
+            data = await self.reader.readexactly(length)
         except MemoryError:
             # We can't receive this many bytes, close the socket
             print("Frame of length %s too big. Closing" % length)

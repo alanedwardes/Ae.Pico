@@ -1,7 +1,6 @@
 import ws
 import json
-import gc
-import time
+import asyncio
 
 try:
     from traceback import print_exception
@@ -9,9 +8,10 @@ except ImportError:
     from sys import print_exception
 
 class HassWs:
-    def __init__(self, url, token):
+    def __init__(self, url, token, nic):
         self.url = url
         self.token = token
+        self.nic = nic
         
         self.entity_callbacks = {}
         self.subscribed_entities = []
@@ -22,6 +22,9 @@ class HassWs:
         return self.socket is not None and self.authenticated and self.message_id > 1
     
     async def start(self):
+        while not self.nic.isconnected():
+            await asyncio.sleep_ms(100)
+        
         self.socket = await ws.connect(self.url + '/api/websocket')
         while True:
             await self._process_message(await self.socket.recv())

@@ -4,12 +4,11 @@ import asyncio
 
 class WiFi:
     
-    def __init__(self, host, ssid, key):
+    def __init__(self, host, ssid, key, nic):
         self.ssid = ssid
         self.key = key
         self.started_connect_time = utime.ticks_ms()
-        
-        self.wlan = network.WLAN(network.STA_IF)
+        self.wlan = nic
         self.wlan.config(hostname = host)
         
     def get_signal(self):
