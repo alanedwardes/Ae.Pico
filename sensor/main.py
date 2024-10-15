@@ -1,5 +1,6 @@
+import network
 import machine
-import utime
+import asyncio
 import gc
 import config
 from datapoint import DataPoint
@@ -40,7 +41,8 @@ if hasattr(config, 'geiger_sensor'):
     geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'], 0.01)
     
 # Init WiFi
-wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'])
+nic = network.WLAN(network.STA_IF)
+wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'], nic)
 
 # Init Home Assistant
 hass = Hass(config.hass['url'], config.hass['token'])
@@ -128,26 +130,49 @@ def update_geiger_sensor():
         geiger.datapoint.set_value_updated()
 
 server = ManagementServer()
-def main_loop():
-    wifi.update()
-
-    if wifi.is_connected():
-        led.on()
-        update_motion_sensor()
-        update_bme280_sensor()
-        update_scd4x_sensor()
-        update_mcp9808_sensor()
-        update_geiger_sensor()
-        server.update()
-    else:
-        led.toggle()
-
-wd = machine.WDT(timeout=8388)
-while True:
-    wd.feed()
-    try:
-        main_loop()
-    except Exception as e:
-        print("%04u-%02u-%02uT%02u:%02u:%02u" % utime.localtime()[0:6], e)
     
-    utime.sleep(0.1)
+class Sensor:
+    async def start(self):
+        while not nic.isconnected():
+            await asyncio.sleep_ms(100)
+        
+        while True:
+            update_motion_sensor()
+            update_bme280_sensor()
+            update_scd4x_sensor()
+            update_mcp9808_sensor()
+            update_geiger_sensor()
+            await asyncio.sleep_ms(100)
+    async def stop(self):
+        pass
+    
+sensor = Sensor()
+
+def set_global_exception():
+    def handle_exception(loop, context):
+        import sys
+        sys.print_exception(context["exception"])
+        sys.exit()
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(handle_exception)
+
+async def start_component(component):
+    while True:
+        try:
+            await component.start()
+        except Exception as e:
+            gc.collect()
+            import sys
+            sys.print_exception(e)
+            await asyncio.sleep(1)
+        finally:
+            await component.stop()
+
+async def run():
+    set_global_exception()
+    await asyncio.gather(start_component(sensor), start_component(wifi), start_component(server))
+
+try:
+    asyncio.run(run())
+finally:
+    asyncio.new_event_loop()
