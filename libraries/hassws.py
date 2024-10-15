@@ -2,11 +2,6 @@ import ws
 import json
 import asyncio
 
-try:
-    from traceback import print_exception
-except ImportError:
-    from sys import print_exception
-
 class HassWs:
     def __init__(self, url, token, nic):
         self.url = url
