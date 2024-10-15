@@ -3,6 +3,7 @@ import machine
 import asyncio
 import gc
 import config
+import runner
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
@@ -148,31 +149,4 @@ class Sensor:
     
 sensor = Sensor()
 
-def set_global_exception():
-    def handle_exception(loop, context):
-        import sys
-        sys.print_exception(context["exception"])
-        sys.exit()
-    loop = asyncio.get_event_loop()
-    loop.set_exception_handler(handle_exception)
-
-async def start_component(component):
-    while True:
-        try:
-            await component.start()
-        except Exception as e:
-            gc.collect()
-            import sys
-            sys.print_exception(e)
-            await asyncio.sleep(1)
-        finally:
-            await component.stop()
-
-async def run():
-    set_global_exception()
-    await asyncio.gather(start_component(sensor), start_component(wifi), start_component(server))
-
-try:
-    asyncio.run(run())
-finally:
-    asyncio.new_event_loop()
+runner.start(sensor, wifi, server)
