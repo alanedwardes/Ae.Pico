@@ -9,6 +9,7 @@ import picographics
 from pimoroni import RGBLED
 import config
 import remotetime
+import runner
 from wifi import WiFi
 from hassws import HassWs
 
@@ -82,31 +83,4 @@ def entity_updated(entity_id, entity):
 for subscription in config.thermostat.get('middle_row', []) + config.thermostat.get('bottom_row', []):
     hass.subscribe(subscription['entity_id'], entity_updated)
 
-def set_global_exception():
-    def handle_exception(loop, context):
-        import sys
-        sys.print_exception(context["exception"])
-        sys.exit()
-    loop = asyncio.get_event_loop()
-    loop.set_exception_handler(handle_exception)
-
-async def start_component(component):
-    while True:
-        try:
-            await component.start()
-        except Exception as e:
-            gc.collect()
-            import sys
-            sys.print_exception(e)
-            await asyncio.sleep(1)
-        finally:
-            await component.stop()
-
-async def run():
-    set_global_exception()
-    await asyncio.gather(start_component(buttons), start_component(thermostat), start_component(wifi), start_component(server), start_component(hass), start_component(time))
-
-try:
-    asyncio.run(run())
-finally:
-    asyncio.new_event_loop()
+runner.start(buttons, thermostat, wifi, server, hass, time)
