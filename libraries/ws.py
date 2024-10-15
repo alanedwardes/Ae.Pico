@@ -1,4 +1,3 @@
-import ssl
 import binascii
 import random
 import re
@@ -7,10 +6,9 @@ import asyncio
 from collections import namedtuple
 
 try:
-    ssl_context = ssl.create_default_context()
-    const = lambda x: x
-except AttributeError:
-    ssl_context = ssl
+    from micropython import const
+except ImportError:
+    const = lambda x : x
 
 # Opcodes
 OP_CONT = const(0x0)
@@ -188,7 +186,7 @@ class Websocket:
         except:
             pass
 
-        writer.close()
+        self.writer.close()
         await self.writer.wait_closed()
         
 class WebsocketClient(Websocket):
@@ -200,7 +198,7 @@ async def connect(uri, timeout_seconds = 2):
 
     print("open connection %s:%s" % (uri.hostname, uri.port))
     
-    reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = ssl_context if uri.protocol == 'wss' else None)
+    reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = True if uri.protocol == 'wss' else None)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
