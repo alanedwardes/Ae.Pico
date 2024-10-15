@@ -22,7 +22,7 @@ def urlparse(uri):
         else:
             raise ValueError('Scheme {} is invalid'.format(protocol))
 
-        return URI(host.encode('ascii'), int(port), path.encode('utf-8'))
+        return URI(host.encode('ascii'), int(port), b'/' if path is None else path.encode('utf-8'))
 
 class RemoteTime:
     def __init__(self, endpoint, update_time_ms, nic):
