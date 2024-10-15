@@ -2,7 +2,7 @@ import re
 import asyncio
 from collections import namedtuple
 
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(/.+)?')
+URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 URI = namedtuple('URI', ('hostname', 'port', 'path'))
 
 def urlparse(uri):
@@ -22,7 +22,7 @@ def urlparse(uri):
         else:
             raise ValueError('Scheme {} is invalid'.format(protocol))
 
-        return URI(host.encode('ascii'), int(port), path.encode('ascii'))
+        return URI(host.encode('ascii'), int(port), path.encode('utf-8'))
 
 class RemoteTime:
     def __init__(self, endpoint, update_time_ms, nic):
@@ -42,7 +42,7 @@ class RemoteTime:
         pass
 
     async def get_time(self):
-        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port)        
+        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
         writer.write(b'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (self.uri.path, self.uri.hostname))
         await writer.drain()
         

@@ -29,8 +29,8 @@ CLOSE_TOO_BIG = const(1009)
 CLOSE_MISSING_EXTN = const(1010)
 CLOSE_BAD_CONDITION = const(1011)
 
-URL_RE = re.compile(r'(wss|ws)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(/.+)?')
-URI = namedtuple('URI', ('protocol', 'hostname', 'port', 'path'))
+URL_RE = re.compile(r'(wss|ws)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
+URI = namedtuple('URI', ('hostname', 'port', 'path'))
 
 class ConnectionClosed(Exception):
     def __init__(self):
@@ -53,7 +53,7 @@ def urlparse(uri):
         else:
             raise ValueError('Scheme {} is invalid'.format(protocol))
 
-        return URI(protocol, host, int(port), path)
+        return URI(host.encode('ascii'), int(port), path.encode('utf-8'))
 
 class Websocket:
     is_client = False
@@ -192,25 +192,25 @@ class Websocket:
 class WebsocketClient(Websocket):
     is_client = True
 
-async def connect(uri, timeout_seconds = 2):
+async def connect(uri):
     uri = urlparse(uri)
     assert uri
 
     print("open connection %s:%s" % (uri.hostname, uri.port))
     
-    reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = True if uri.protocol == 'wss' else None)
+    reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = uri.port == 443)
     
     # Sec-WebSocket-Key is 16 bytes of random base64 encoded
     key = binascii.b2a_base64(bytes(random.getrandbits(8)
                                     for _ in range(16)))[:-1]
 
-    writer.write(b'GET %s HTTP/1.1\r\n' % (uri.path.encode('utf-8') or b'/'))
-    writer.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
+    writer.write(b'GET %s HTTP/1.1\r\n' % (uri.path or b'/'))
+    writer.write(b'Host: %s:%i\r\n' % (uri.hostname, uri.port))
     writer.write(b'Connection: Upgrade\r\n')
     writer.write(b'Upgrade: websocket\r\n')
     writer.write(b'Sec-WebSocket-Key: %s\r\n' % key)
     writer.write(b'Sec-WebSocket-Version: 13\r\n')
-    writer.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
+    writer.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname, uri.port))
     writer.write(b'\r\n')
     await writer.drain()
     
