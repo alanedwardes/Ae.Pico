@@ -1,3 +1,4 @@
+import machine
 import network
 import utime
 import asyncio
@@ -7,7 +8,6 @@ class WiFi:
     def __init__(self, host, ssid, key, nic):
         self.ssid = ssid
         self.key = key
-        self.started_connect_time = utime.ticks_ms()
         self.wlan = nic
         self.wlan.config(hostname = host)
         
@@ -32,38 +32,34 @@ class WiFi:
                self.wlan.status() == network.STAT_NO_AP_FOUND or \
                self.wlan.status() == network.STAT_IDLE or \
                self.wlan.status() == network.STAT_WRONG_PASSWORD
-    
-    def ensure_connected(self):      
-        while not self.is_connected():
-            self.update()
-            utime.sleep(1)
-            
+              
     async def start(self):
+        if not self.is_connected():
+            self.connect()
+        
         while True:
-            self.update()
+            await self.update()
             await asyncio.sleep(1)
             
     async def stop(self):
         pass
     
-    def update(self):
-        # No action if connected
-        if self.is_connected():
-            return
-        
-        self.__log(self.get_status())
-        
-        # If connecting, monitor for timeout
-        if self.is_connecting():
-            if self.time_since_started_connecting() < 30_000:
-                # Still connecting
+    async def update(self):        
+        for i in range(0, 5):
+            if self.is_connected():
                 return
-            else:
-                self.__log('TIMEOUT')
+            
+            self.__log(self.get_status())
         
-        # If not connecting, connect
-        self.disconnect()
-        self.connect()
+            #if self.is_connecting():
+            await asyncio.sleep(30)                
+            if not self.is_connected():
+                self.__log('SOFT TIMEOUT')
+                self.disconnect()
+                self.connect()
+        
+        self.__log('HARD TIMEOUT')
+        machine.reset()
         
     def get_status(self):
         status_map = {
@@ -81,9 +77,6 @@ class WiFi:
         
     def disconnect(self):
         self.wlan.disconnect()
-        
-    def time_since_started_connecting(self):
-        return utime.ticks_diff(utime.ticks_ms(), self.started_connect_time)
 
     def __log(self, message):
         print('WiFi', message)
@@ -92,4 +85,3 @@ class WiFi:
         self.__log('CONNECT')
         self.wlan.active(True)
         self.wlan.connect(self.ssid, self.key)
-        self.started_connect_time = utime.ticks_ms()
