@@ -16,17 +16,20 @@ class WiFi:
             self.wlan.connect(self.ssid, self.key)
         
         while True:
-            for i in range(0, 5):
-                if self.wlan.isconnected():
-                    break
-            
-                await asyncio.sleep(30)                
-                if not self.wlan.isconnected():
-                    self.wlan.disconnect()
-                    self.wlan.connect(self.ssid, self.key)
-            
-                machine.reset()
+            await self.__update()
             await asyncio.sleep(1)
+
+    async def __update(self):        
+        for i in range(0, 5):
+            if self.wlan.isconnected():
+                return
             
+            await asyncio.sleep(30)                
+            if not self.wlan.isconnected():
+                self.disconnect()
+                self.connect()
+        
+        machine.reset()
+
     async def stop(self):
         pass
