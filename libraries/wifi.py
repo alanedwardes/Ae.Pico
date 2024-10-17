@@ -1,5 +1,4 @@
 import machine
-import network
 import asyncio
 
 class WiFi:
@@ -26,8 +25,8 @@ class WiFi:
             
             await asyncio.sleep(30)                
             if not self.wlan.isconnected():
-                self.disconnect()
-                self.connect()
+                self.wlan.disconnect()
+                self.wlan.connect(self.ssid, self.key)
         
         machine.reset()
 
