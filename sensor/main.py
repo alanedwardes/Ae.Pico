@@ -48,26 +48,26 @@ wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'], nic)
 # Init Home Assistant
 hass = Hass(config.hass['url'], config.hass['token'])
    
-def send_update(state, unit, device_class, friendly_name, sensor):
-    hass.send_update(state, unit, device_class, friendly_name, sensor)
+async def send_update(state, unit, device_class, friendly_name, sensor):
+    await hass.send_update(state, unit, device_class, friendly_name, sensor)
     gc.collect()
 
 motion_state = DataPoint()
-def update_motion_sensor():
+async def update_motion_sensor():
     if not hasattr(config, 'motion_sensor'):
         return
     
     motion_state.set_value(motion.value() == 1)
 
     if motion_state.get_needs_update():
-        send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
+        await send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
         motion_state.set_value_updated()
 
 temperature = DataPoint(0.25)
 humidity = DataPoint(0.5)
 
 pressure = DataPoint(0.25)
-def update_bme280_sensor():
+async def update_bme280_sensor():
     if not hasattr(config, 'bme280_sensor'):
         return
     
@@ -78,19 +78,19 @@ def update_bme280_sensor():
     humidity.set_value(current_humidity)
 
     if temperature.get_needs_update():
-        send_update(temperature.get_value(), "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
+        await send_update(temperature.get_value(), "°C", "temperature", config.bme280_sensor['temp_friendly_name'], "sensor." + config.bme280_sensor['temp_name'])
         temperature.set_value_updated()
     
     if pressure.get_needs_update():
-        send_update(pressure.get_value(), "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
+        await send_update(pressure.get_value(), "hPa", "atmospheric_pressure", config.bme280_sensor['pressure_friendly_name'], "sensor." + config.bme280_sensor['pressure_name'])
         pressure.set_value_updated()
         
     if humidity.get_needs_update():
-        send_update(humidity.get_value(), "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
+        await send_update(humidity.get_value(), "%", "humidity", config.bme280_sensor['humidity_friendly_name'], "sensor." + config.bme280_sensor['humidity_name'])
         humidity.set_value_updated()
 
 co2 = DataPoint(20)
-def update_scd4x_sensor():
+async def update_scd4x_sensor():
     if not hasattr(config, 'scd4x_sensor'):
         return
     
@@ -99,35 +99,35 @@ def update_scd4x_sensor():
     co2.set_value(scd.co2)
     
     if temperature.get_needs_update():
-        send_update(temperature.get_value(), "°C", "temperature", config.scd4x_sensor['temp_friendly_name'], "sensor." + config.scd4x_sensor['temp_name'])
+        await send_update(temperature.get_value(), "°C", "temperature", config.scd4x_sensor['temp_friendly_name'], "sensor." + config.scd4x_sensor['temp_name'])
         temperature.set_value_updated()
     
     if co2.get_needs_update():
-        send_update(co2.get_value(), "ppm", "carbon_dioxide", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
+        await send_update(co2.get_value(), "ppm", "carbon_dioxide", config.scd4x_sensor['co2_friendly_name'], "sensor." + config.scd4x_sensor['co2_name'])
         co2.set_value_updated()
         
     if humidity.get_needs_update():
-        send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
+        await send_update(humidity.get_value(), "%", "humidity", config.scd4x_sensor['humidity_friendly_name'], "sensor." + config.scd4x_sensor['humidity_name'])
         humidity.set_value_updated()
 
-def update_mcp9808_sensor():
+async def update_mcp9808_sensor():
     if not hasattr(config, 'mcp9808_sensor'):
         return
     
     temperature.set_value(mcp.get_temp())
 
     if temperature.get_needs_update():
-        send_update(temperature.get_value(), "°C", "temperature", config.mcp9808_sensor['temp_friendly_name'], "sensor." + config.mcp9808_sensor['temp_name'])
+        await send_update(temperature.get_value(), "°C", "temperature", config.mcp9808_sensor['temp_friendly_name'], "sensor." + config.mcp9808_sensor['temp_name'])
         temperature.set_value_updated()
 
-def update_geiger_sensor():
+async def update_geiger_sensor():
     if not hasattr(config, 'geiger_sensor'):
         return
     
     geiger.update()
 
     if geiger.datapoint.get_needs_update():
-        send_update(geiger.datapoint.get_value(), "μSv/h", None, config.geiger_sensor['geiger_friendly_name'], "sensor." + config.geiger_sensor['geiger_name'])
+        await send_update(geiger.datapoint.get_value(), "μSv/h", None, config.geiger_sensor['geiger_friendly_name'], "sensor." + config.geiger_sensor['geiger_name'])
         geiger.datapoint.set_value_updated()
 
 server = ManagementServer()
@@ -138,11 +138,11 @@ class Sensor:
             await asyncio.sleep_ms(100)
         
         while True:
-            update_motion_sensor()
-            update_bme280_sensor()
-            update_scd4x_sensor()
-            update_mcp9808_sensor()
-            update_geiger_sensor()
+            await update_motion_sensor()
+            await update_bme280_sensor()
+            await update_scd4x_sensor()
+            await update_mcp9808_sensor()
+            await update_geiger_sensor()
             await asyncio.sleep_ms(100)
     async def stop(self):
         pass
