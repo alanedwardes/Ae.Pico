@@ -1,6 +1,5 @@
 import machine
 import network
-import utime
 import asyncio
 
 class WiFi:
@@ -10,16 +9,6 @@ class WiFi:
         self.key = key
         self.wlan = nic
         self.wlan.config(hostname = host)
-        
-    def get_signal(self):
-        return self.wlan.status('rssi')
-    
-    def get_mac_address(self):
-        mac = self.wlan.config('mac')
-        return ':'.join([f"{b:02x}" for b in mac])
-    
-    def get_ip_address(self):
-        return self.wlan.ifconfig()[0]
        
     def is_connected(self):
         return self.wlan.status() == network.STAT_GOT_IP
