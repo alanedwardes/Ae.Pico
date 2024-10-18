@@ -4,10 +4,10 @@ import asyncio
 import gc
 import config
 import runner
+import management
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
-from management import ManagementServer
 
 # Init LED
 led = machine.Pin("LED", machine.Pin.OUT)
@@ -129,9 +129,7 @@ async def update_geiger_sensor():
     if geiger.datapoint.get_needs_update():
         await send_update(geiger.datapoint.get_value(), "μSv/h", None, config.geiger_sensor['geiger_friendly_name'], "sensor." + config.geiger_sensor['geiger_name'])
         geiger.datapoint.set_value_updated()
-
-server = ManagementServer()
-    
+   
 class Sensor:
     async def start(self):
         while not nic.isconnected():
@@ -149,4 +147,18 @@ class Sensor:
     
 sensor = Sensor()
 
-runner.start(sensor, wifi, server)
+server = management.ManagementServer()
+
+exception_controller = runner.ExceptionController()
+server.controllers.append(exception_controller)
+
+loop = asyncio.get_event_loop()
+loop.set_exception_handler(exception_controller.loop_handle_exception)
+
+run = runner.Runner()
+run.set_exception_controller(exception_controller)
+
+try:
+    asyncio.run(run.run_components(sensor, wifi, server))
+finally:
+    asyncio.new_event_loop()
