@@ -60,8 +60,6 @@ buttons.bind(swy, button_callback)
 
 time = remotetime.RemoteTime(config.clock['endpoint'], config.clock['update_time_ms'], nic)
 
-server = management.ManagementServer()
-
 thermostat = thermostat.Thermostat(display, config.thermostat.get('middle_row', []), config.thermostat.get('bottom_row', []))
 
 display.set_backlight(1)
@@ -83,4 +81,18 @@ def entity_updated(entity_id, entity):
 for subscription in config.thermostat.get('middle_row', []) + config.thermostat.get('bottom_row', []):
     hass.subscribe(subscription['entity_id'], entity_updated)
 
-runner.start(buttons, thermostat, wifi, server, hass, time)
+server = management.ManagementServer()
+
+exception_controller = runner.ExceptionController()
+server.controllers.append(exception_controller)
+
+loop = asyncio.get_event_loop()
+loop.set_exception_handler(exception_controller.loop_handle_exception)
+
+run = runner.Runner()
+run.set_exception_controller(exception_controller)
+
+try:
+    asyncio.run(run.run_components(buttons, thermostat, wifi, server, hass, time))
+finally:
+    asyncio.new_event_loop()
