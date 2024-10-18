@@ -2,7 +2,6 @@ import binascii
 import network
 import machine
 import asyncio
-import socket
 import utime
 import uos
 import gc
@@ -225,7 +224,7 @@ class TimeController:
         writer.write(MINIMAL_CSS)
         writer.write(b'<p>Time set %s</p>' % (str(machine.RTC().datetime())))
         writer.write(BACK_LINK)
-        await write.drain()
+        await writer.drain()
 
 class ShellController:
     def __init__(self):
