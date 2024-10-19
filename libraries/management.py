@@ -411,6 +411,9 @@ class ManagementServer:
         
         try:
             command = (await reader.readline()).split(b' ')
+            if len(command) != 3:
+                raise Exception('Expected 2 parts, but got %s' % b' '.join(command))
+
             (offset, headers) = await parse_headers(reader)
             
             # HTTP Basic Authentication
@@ -434,7 +437,7 @@ class ManagementServer:
             writer.write(b'<pre>%s</pre>' % str(e).encode('utf-8'))
             writer.write(BACK_LINK)
             await writer.drain()
-            raise e
+            raise
         
         finally:
             writer.close()
