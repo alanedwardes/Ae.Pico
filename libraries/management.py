@@ -98,6 +98,21 @@ async def parse_headers(reader):
         
     return (offset, headers)
 
+async def writechunks(reader, length, destination, chunksize = 512):
+    remaining = length
+    while remaining > 0:
+        chunk = await reader.readexactly(min(chunksize, remaining))
+        remaining -= chunksize
+        destination.write(chunk)
+
+async def readchunks(writer, length, source, chunksize = 512):
+    remaining = length
+    while remaining > 0:
+        chunk = source.read(min(chunksize, remaining))
+        remaining -= chunksize
+        writer.write(chunk)
+        await writer.drain()
+
 class IndexController:
     def route(self, method, path):
         return method == b'GET' and path == b'/'
@@ -310,7 +325,7 @@ class UploadController:
         content_size = content_length - offset - len(boundary) - len(HEADER_TERMINATOR) * 2
         
         with open(filename, 'wb') as f:
-            f.write(await reader.readexactly(content_size))
+            await writechunks(reader, content_size, f)
         
         # After the content there should always be a terminator
         if (await reader.readline()) != HEADER_TERMINATOR:
@@ -339,12 +354,13 @@ class DownloadController:
         
         with open(filename, 'rb') as f:
             stat = uos.stat(filename)
+            content_size = stat[6]
             writer.write(OK_STATUS)
-            writer.write(b'Content-Length: %i' % (stat[6]) + HEADER_TERMINATOR)
+            writer.write(b'Content-Length: %i' % (content_size) + HEADER_TERMINATOR)
             writer.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
             writer.write(b'Content-Disposition: attachment; filename="%s"' % (filename) + HEADER_TERMINATOR)
             writer.write(HEADER_TERMINATOR)
-            writer.write(f.read())
+            await readchunks(writer, content_size, f)
         await writer.drain()
             
 class ResetController:
