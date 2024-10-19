@@ -16,6 +16,9 @@ class ExceptionController:
         return method == b'GET' and path == b'/exceptions'
     
     async def serve(self, method, path, headers, reader, writer):
+        writer.write(b'HTTP/1.0 200 OK\r\n')
+        writer.write(b'Content-Type: text/html; charset=utf-8\r\n')
+        writer.write(b'\r\n')
         writer.write(b'<h1>Exceptions</h1>')
         writer.write(b'<p>System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % utime.localtime()[:6])
         for timestamp, name, exception in self.exceptions:
