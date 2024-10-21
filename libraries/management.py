@@ -194,7 +194,6 @@ class IndexController:
         writer.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
         
         writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
-        await writer.drain()
 
 class DeleteController:
     def route(self, method, path):
@@ -212,7 +211,6 @@ class DeleteController:
         writer.write(MINIMAL_CSS)
         writer.write(b'<p>Deleted %s</p>' % (filename))            
         writer.write(BACK_LINK)
-        await writer.drain()
         
 class TimeController:
     def route(self, method, path):
@@ -239,7 +237,6 @@ class TimeController:
         writer.write(MINIMAL_CSS)
         writer.write(b'<p>Time set %s</p>' % (str(machine.RTC().datetime())))
         writer.write(BACK_LINK)
-        await writer.drain()
 
 class ShellController:
     def __init__(self):
@@ -292,7 +289,6 @@ class ShellController:
         writer.write(b'</p>')
         writer.write(b'</form>')
         writer.write(BACK_LINK)
-        await writer.drain()
 
 class GPIOController:
     def route(self, method, path):
@@ -310,7 +306,6 @@ class GPIOController:
         writer.write(OK_STATUS)
         writer.write(HEADER_TERMINATOR)
         writer.write('ON' if pin.value() else 'OFF')
-        await writer.drain()
 
 class UploadController:    
     def route(self, method, path):
@@ -341,7 +336,6 @@ class UploadController:
         writer.write(MINIMAL_CSS)
         writer.write(b'<p>%s uploaded (%i bytes)' % (filename, content_size))
         writer.write(BACK_LINK)
-        await writer.drain()
 
 class DownloadController:
     def route(self, method, path):
@@ -361,7 +355,6 @@ class DownloadController:
             writer.write(b'Content-Disposition: attachment; filename="%s"' % (filename) + HEADER_TERMINATOR)
             writer.write(HEADER_TERMINATOR)
             await readchunks(writer, content_size, f)
-        await writer.drain()
             
 class ResetController:
     def route(self, method, path):
@@ -398,7 +391,6 @@ class ResetController:
             writer.write(b'</select>')
             writer.write(b'<input type="submit"/>')
             writer.write(b'</form>')
-        await writer.drain()
 
 class ManagementServer:   
     def __init__(self, port = 80):
@@ -423,13 +415,12 @@ class ManagementServer:
             await self.server.wait_closed()
         
     async def __serve(self, reader, writer):
-        gc.collect()
-        
         try:
-            command = (await reader.readline()).split(b' ')
-            if len(command) != 3:
-                raise Exception('Expected 2 parts, but got %s' % b' '.join(command))
-
+            requestline = (await reader.readline()).split(b' ')
+            if len(requestline) != 3:
+                # Malformed request line
+                return
+            
             (offset, headers) = await parse_headers(reader)
             
             # HTTP Basic Authentication
@@ -440,10 +431,8 @@ class ManagementServer:
                 writer.write(HEADER_TERMINATOR)
                 writer.write(MINIMAL_CSS)
                 writer.write(b'<p>Unauthorized</p>' + HEADER_TERMINATOR)
-                await writer.drain()
             else:
-                await self.__route(command[0], command[1], headers, reader, writer)
-            
+                await self.__route(requestline[0], requestline[1], headers, reader, writer)
         except Exception as e:
             writer.write(ERROR_STATUS)
             writer.write(HTML_HEADER)
@@ -452,10 +441,9 @@ class ManagementServer:
             writer.write(b'<p>Unhandled Exception: %s</p>' % type(e).__name__.encode('utf-8'))
             writer.write(b'<pre>%s</pre>' % str(e).encode('utf-8'))
             writer.write(BACK_LINK)
-            await writer.drain()
             raise
-        
         finally:
+            await writer.drain()
             writer.close()
             await writer.wait_closed()
             gc.collect()
@@ -472,4 +460,3 @@ class ManagementServer:
         writer.write(MINIMAL_CSS)
         writer.write(b'<p>Not found</p>')
         writer.write(BACK_LINK)
-        await writer.drain()
