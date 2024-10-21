@@ -21,8 +21,17 @@ class HassWs:
             await asyncio.sleep_ms(100)
         
         self.socket = await ws.connect(self.url + '/api/websocket')
+        await asyncio.gather(self.__listen(), self.__keepalive())
+    
+    async def __listen(self):
         while True:
-            await self._process_message(await self.socket.recv())
+            await self._process_message()
+            
+    async def __keepalive(self):
+        while True:
+            await asyncio.sleep(60)
+            self.message_id += 1
+            await self.socket.send('{"id":%i,"type":"ping"}' % self.message_id)
     
     async def stop(self):
         if self.socket is not None:
@@ -32,7 +41,8 @@ class HassWs:
                 pass # The socket might be broken
         self._reset()
     
-    async def _process_message(self, message):
+    async def _process_message(self):
+        message = await self.socket.recv()        
         if message is None:
             return
         
@@ -50,8 +60,10 @@ class HassWs:
             self.process_event(message['event'])
         elif message_type == 'result':
             print("Result: %s" % message)
+        elif message_type == 'pong':
+            pass
         else:
-            print("Unknown message: %s" % message)
+            raise Exception("Unknown message: %s" % message)
     
     def _reset(self):
         self.socket = None
