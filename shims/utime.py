@@ -30,4 +30,7 @@ def ticks_add(t, delta):
 def ticks_diff(a, b):
     return ((a - b + MICROPY_PY_UTIME_TICKS_PERIOD // 2) & (MICROPY_PY_UTIME_TICKS_PERIOD - 1)) - MICROPY_PY_UTIME_TICKS_PERIOD // 2
 
+def gmtime(secs):
+    return _time.gmtime(secs)
+
 del f

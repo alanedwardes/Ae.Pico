@@ -1,4 +1,5 @@
 import re
+import utime
 import asyncio
 from collections import namedtuple
 
@@ -41,23 +42,37 @@ class RemoteTime:
     async def stop(self):
         pass
 
-    async def get_time(self):
+    async def update_time(self):
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
+
+        # Request the time
         writer.write(b'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (self.uri.path, self.uri.hostname))
         await writer.drain()
+
+        # Now we sent the request, start the clock
+        started_time = utime.ticks_ms()
+
+        # Grab the entire response
+        buffer = await reader.read(2048)
+
+        # Parse the epoch header out e.g. "e: 1729723167.03642"
+        time_seconds = float(buffer.split(b'\r\ne: ', 1)[1].split(b'\r\n', 1)[0])
+
+        # Stop the clock
+        time_taken_seconds = float(utime.ticks_diff(utime.ticks_ms(), started_time)) / 1000
+
+        # Adjust the epoch and process it
+        tm = utime.gmtime(int(time_seconds - time_taken_seconds))
+
+        # Create the tuple to pass to the RTC
+        tp = (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0)
         
-        lastline = None
-        while True:
-            line = await reader.readline()
-            if not line:
-                break
-            lastline = line
-        
+        # Set the time
+        import machine
+        machine.RTC().datetime(tp)
+
+        # Clean up
         writer.close()
         await writer.wait_closed()
-        return tuple(map(int, lastline.split(b',')))
-    
-    async def update_time(self):
-        ts = await self.get_time()
-        import machine
-        machine.RTC().datetime(ts)
+
+        return tp

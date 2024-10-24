@@ -15,7 +15,7 @@ class TestRemoteTime(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_time(self):
         rt = remotetime.RemoteTime(self.ENDPOINT, 300_000, self.nic)
-        ts = await rt.get_time()
+        ts = await rt.update_time()
         self.assertEqual(300_000, rt.update_time_ms)
         self.assertEqual(8, len(ts))
 
