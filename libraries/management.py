@@ -98,18 +98,22 @@ async def parse_headers(reader):
         
     return (offset, headers)
 
-async def writechunks(reader, length, destination, chunksize = 512):
+async def writechunks(reader, length, destination, chunk_processor = None, chunksize = 512):
     remaining = length
     while remaining > 0:
         chunk = await reader.readexactly(min(chunksize, remaining))
         remaining -= chunksize
+        if chunk_processor is not None:
+            chunk = chunk_processor(chunk)
         destination.write(chunk)
 
-async def readchunks(writer, length, source, chunksize = 512):
+async def readchunks(writer, length, source, chunk_processor = None, chunksize = 512):
     remaining = length
     while remaining > 0:
         chunk = source.read(min(chunksize, remaining))
         remaining -= chunksize
+        if chunk_processor is not None:
+            chunk = chunk_processor(chunk)
         writer.write(chunk)
         await writer.drain()
 
@@ -175,6 +179,7 @@ class IndexController:
             writer.write(b'<td>')
             writer.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
+                writer.write(b' <form action="edit" method="post"><input type="hidden" name="filename" value="%s"/><button>Edit</button></form>' % (path))
                 writer.write(b' <form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
             writer.write(b'</td>')
             writer.write(b'</tr>')
@@ -194,6 +199,56 @@ class IndexController:
         writer.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
         
         writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
+
+class EditController:
+    def route(self, method, path):
+        return path == b'/edit'
+    
+    async def serve(self, method, path, headers, reader, writer):
+        content_length = int(headers.get(b'content-length', '0'))
+        
+        async def readuntil(until, buffer, remaining):
+            while remaining > 0:
+                byte = await reader.readexactly(1)
+                remaining -= 1
+                if byte == b'&':
+                    return remaining
+                buffer.append(byte)
+            return remaining
+        
+        if content_length > 0:
+            remaining = content_length
+            filename_field = b'filename='
+            assert await reader.readexactly(len(filename_field)) == filename_field
+            remaining -= len(filename_field)
+            filename_buffer = []
+            remaining = await readuntil(b'&', filename_buffer, remaining)
+            filename = b''.join(filename_buffer)
+            
+            if remaining > 0:
+                body_field = b'body='
+                assert await reader.readexactly(len(body_field)) == body_field
+                remaining -= len(body_field)
+                
+                with open(filename + '2', 'wb') as f:
+                    await writechunks(reader, remaining, f)
+        
+        with open(filename, 'rb') as f:
+            stat = uos.stat(filename)
+            content_size = stat[6]
+            writer.write(OK_STATUS)
+            writer.write(HTML_HEADER)
+            writer.write(HEADER_TERMINATOR)
+            writer.write(MINIMAL_CSS)
+            writer.write(b'<h1>Edit</h1>')
+            writer.write(b'<form action="edit" method="post">')
+            writer.write(b'<input name="filename" value="%s"/>' % filename)
+            writer.write(b'<textarea rows="16" cols="128" name="body">')
+            await readchunks(writer, content_size, f, escape)
+        writer.write(b'</textarea>')
+        writer.write(b'<p><input type="submit" value="Submit"/></p>')
+        writer.write(b'</form>')
+        writer.write(BACK_LINK)
 
 class DeleteController:
     def route(self, method, path):
@@ -395,9 +450,9 @@ class ResetController:
 class ManagementServer:   
     def __init__(self, port = 80):
         self.port = port
-        self.controllers = [IndexController(), DownloadController(), UploadController(),
-                            DeleteController(), ResetController(), TimeController(),
-                            ShellController(), GPIOController()]
+        self.controllers = [IndexController(), EditController(), DownloadController(),
+                            UploadController(), DeleteController(), ResetController(),
+                            TimeController(), ShellController(), GPIOController()]
         self.authorization_header = None
         self.server = None
     
