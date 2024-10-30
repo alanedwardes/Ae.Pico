@@ -192,7 +192,7 @@ class IndexController:
             writer.write(b'<td>')
             writer.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
-                writer.write(b' <form action="edit" method="post"><input type="hidden" name="filename" value="%s"/><button>Edit</button></form>' % (path))
+                writer.write(b' <form action="edit" enctype="multipart/form-data" method="post"><input type="hidden" name="filename" value="%s"/><button>Edit</button></form>' % (path))
                 writer.write(b' <form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
             writer.write(b'</td>')
             writer.write(b'</tr>')
@@ -218,33 +218,49 @@ class EditController:
         return path == b'/edit'
     
     async def serve(self, method, path, headers, reader, writer):
-        content_length = int(headers.get(b'content-length', '0'))
+        content_length = int(headers.get(b'content-length', '0'))  
+        boundary = await reader.readline()        
+        (headers_offset, content_headers) = await parse_headers(reader)
+        print(content_headers)
+        #filename = content_headers[b'content-disposition'].split(b'filename=')[1].split(b'"')[1]
+        offset = headers_offset + len(boundary)
+        content_size = content_length - offset - len(boundary) - len(HEADER_TERMINATOR) * 2        
+        filename = await reader.readexactly(content_size)
+        print(filename)
         
-        async def readuntil(until, buffer, remaining):
-            while remaining > 0:
-                byte = await reader.readexactly(1)
-                remaining -= 1
-                if byte == b'&':
-                    return remaining
-                buffer.append(byte)
-            return remaining
+        if (await reader.readline()) != HEADER_TERMINATOR:
+            raise Exception('Expected newline')
         
-        if content_length > 0:
-            remaining = content_length
-            filename_field = b'filename='
-            assert await reader.readexactly(len(filename_field)) == filename_field
-            remaining -= len(filename_field)
-            filename_buffer = []
-            remaining = await readuntil(b'&', filename_buffer, remaining)
-            filename = b''.join(filename_buffer)
-            
-            if remaining > 0:
-                body_field = b'body='
-                assert await reader.readexactly(len(body_field)) == body_field
-                remaining -= len(body_field)
-                
-                with open(filename + '2', 'wb') as f:
-                    await writechunks(reader, remaining, f)
+        #while remaining > 0:
+        #    b = await reader.readexactly(1)
+        #    print(b)
+        #    remaining -= 1
+        
+        #async def readuntil(until, buffer, remaining):
+        #    while remaining > 0:
+        #        byte = await reader.readexactly(1)
+        #        remaining -= 1
+        #        if byte == b'&':
+        #            return remaining
+        #        buffer.append(byte)
+        #    return remaining
+        #
+        #if content_length > 0:
+        #    remaining = content_length
+        #    filename_field = b'filename='
+        #    assert await reader.readexactly(len(filename_field)) == filename_field
+        #    remaining -= len(filename_field)
+        #    filename_buffer = []
+        #    remaining = await readuntil(b'&', filename_buffer, remaining)
+        #    filename = b''.join(filename_buffer)
+        #
+        #    if remaining > 0:
+        #        body_field = b'body='
+        #        assert await reader.readexactly(len(body_field)) == body_field
+        #        remaining -= len(body_field)
+        #        
+        #        with open(filename + '2', 'wb') as f:
+        #            await writechunks(reader, remaining, f)
         
         with open(filename, 'rb') as f:
             stat = uos.stat(filename)
@@ -254,7 +270,7 @@ class EditController:
             writer.write(HEADER_TERMINATOR)
             writer.write(MINIMAL_CSS)
             writer.write(b'<h1>Edit</h1>')
-            writer.write(b'<form action="edit" method="post">')
+            writer.write(b'<form enctype="multipart/form-data" action="edit" method="post">')
             writer.write(b'<input name="filename" value="%s"/>' % filename)
             writer.write(b'<textarea rows="16" cols="128" name="body">')
             await readchunks(writer, content_size, f, escape)
