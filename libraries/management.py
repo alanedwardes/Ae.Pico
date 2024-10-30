@@ -2,6 +2,7 @@ import binascii
 import network
 import machine
 import asyncio
+from hashlib import sha1
 import utime
 import uos
 import gc
@@ -117,6 +118,16 @@ async def readchunks(writer, length, source, chunk_processor = None, chunksize =
         writer.write(chunk)
         await writer.drain()
 
+def hashfile(filename, length, chunksize = 512):
+    hasher = sha1()
+    with open(filename, 'rb') as reader:
+        remaining = length
+        while remaining > 0:
+            chunk = reader.read(min(chunksize, remaining))
+            remaining -= chunksize
+            hasher.update(chunk)
+    return binascii.hexlify(hasher.digest())
+
 class IndexController:
     def route(self, method, path):
         return method == b'GET' and path == b'/'
@@ -168,14 +179,16 @@ class IndexController:
         writer.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
         writer.write(b'<h2>Filesystem</h2>')
         writer.write(b'<table>')
-        writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
+        writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Hash</th><th>Actions</th></tr></thead>')
         writer.write(b'<tbody>')
         
         def write_file(parent, node):
             path = parent + node[0]
+            size = node[3]
             writer.write(b'<tr>')
             writer.write(b'<td>%s</td>' % (path))
-            writer.write(b'<td>%.2f KB</td>' % (node[3] / KB))
+            writer.write(b'<td>%.2f KB</td>' % (size / KB))
+            writer.write(b'<td><code>%s</code></td>' % hashfile(path, size) if node[1] == 0x8000 else b'n/a')
             writer.write(b'<td>')
             writer.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
