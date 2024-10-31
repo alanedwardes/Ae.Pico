@@ -256,7 +256,7 @@ class EditController:
             # b'\r\n-----------------------------333641318729372457933988938254--\r\n'
             trailer_length = len(HEADER_TERMINATOR) + len(boundary) + len(final_trailer) + len(HEADER_TERMINATOR)
             body_length = remaining - trailer_length
-            with open(filename + '2', 'wb') as f:
+            with open(filename, 'wb') as f:
                 await writechunks(reader, body_length, f)
             remaining -= body_length
             assert remaining == trailer_length
