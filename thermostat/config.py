@@ -11,6 +11,7 @@ hass = dict(
 
 thermostat = dict(
     rotate = 0,
+    leds = (6, 7, 8),
     entity_id = "<entity id>",
     occupancy_entity_id = "<optional entity id>",
     middle_row = [

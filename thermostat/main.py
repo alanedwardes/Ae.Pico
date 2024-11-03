@@ -13,7 +13,7 @@ import runner
 from wifi import WiFi
 from hassws import HassWs
 
-led = RGBLED(6, 7, 8)
+led = RGBLED(*config.thermostat['leds'])
 
 display = picographics.PicoGraphics(display=picographics.DISPLAY_PICO_DISPLAY_2, pen_type=picographics.PEN_P4, rotate=config.thermostat['rotate'])
 
