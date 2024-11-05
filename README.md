@@ -105,3 +105,33 @@ time = await hass.render_template('{{ now() }}')
 await hass.set_time()
 ```
 
+## [management.py](./libraries/management.py)
+
+Simple HTTP management server with support for editing/uploading/downloading files, and rebooting.
+
+### Installation
+
+```python
+import mip
+mip.install('github:alanedwardes/Ae.Pico/libraries/management.py')
+```
+
+### Basic Usage
+
+```python
+import management
+
+# Listen on port 80
+server = management.ManagementServer(80)
+
+# Optionally require HTTP basic auth
+server.set_credentials('username', 'password')
+
+while True:
+    try:
+        await server.start()
+    except:
+        # Do something with exception
+    finally:
+        await server.stop()
+```
