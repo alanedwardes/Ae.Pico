@@ -2,7 +2,7 @@
 
 A collection of Micropython libraries for the Raspberry Pi Pico W.
 
-## ws.py
+## [ws.py](./libraries/ws.py)
 
 Provides async WebSocket connection with SSL support.
 
@@ -33,7 +33,7 @@ while True:
     await socket.send('{"test":true}')
 ```
 
-## hassws.py
+## [hassws.py](./libraries/hassws.py)
 
 Home Assistant [WebSocket API](https://developers.home-assistant.io/docs/api/websocket/) support. Depends on [ws.py](#wspy).
 
@@ -48,7 +48,7 @@ mip.install('github:alanedwardes/Ae.Pico/libraries/hassws.py')
 ### Basic Usage
 
 ```python
-import hassws
+from hassws import HassWs
 import network
 
 nic = network.WLAN(network.STA_IF)
@@ -75,3 +75,33 @@ while True:
 # Call an action
 await hass.action('climate', 'set_temperature', {'temperature': 19}, 'climate.kitchen')
 ```
+
+## [hass.py](./libraries/hass.py)
+
+Home Assistant [REST API](https://developers.home-assistant.io/docs/api/rest/) support.
+
+### Installation
+
+```python
+import mip
+mip.install('github:alanedwardes/Ae.Pico/libraries/hass.py')
+```
+
+### Basic Usage
+
+```python
+from hass import Hass
+
+# Init Home Assistant
+hass = Hass('http://homeassistant', '<token>')
+
+# Send sensor update
+await hass.send_update(17, '°C"', 'temperature', 'Sensor Name', 'sensor.my_sensor_id')
+
+# Render template
+time = await hass.render_template('{{ now() }}')
+
+# Set the RTC from Home Assistant's clock
+await hass.set_time()
+```
+
