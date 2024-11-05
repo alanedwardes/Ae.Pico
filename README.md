@@ -135,3 +135,34 @@ while True:
     finally:
         await server.stop()
 ```
+
+## [remotetime.py](./libraries/remotetime.py)
+
+Support for NTP and HTTP(S) time sources to configure the RTC. HTTP(S) endpoints must return a tuple in the same format as the [MicroPython RTC](https://docs.micropython.org/en/latest/library/machine.RTC.html):
+```
+(year, month, day, weekday, hours, minutes, seconds, subseconds)
+```
+The Raspberry Pi Pico W doesn't support `subseconds`, so that can be zero. Unless specifically required `weekday` can also be zero.
+
+### Basic Usage
+
+```python
+from remotetime import RemoteTime
+import network
+
+nic = network.WLAN(network.STA_IF)
+
+# RemoteTime polls the nic until there is a
+# connection, before attempting to connect
+# RemoteTime(endpoint, update_time_ms, nic)
+rt = RemoteTime('ntp://pool.ntp.org', 300_000, nic)
+
+while True:
+    try:
+        await rt.start()
+    except:
+        # Do something with exception
+    finally:
+        await rt.stop()
+```
+
