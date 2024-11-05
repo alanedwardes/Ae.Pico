@@ -166,3 +166,26 @@ while True:
         await rt.stop()
 ```
 
+## [wifi.py](./libraries/wifi.py)
+
+Connects to WiFi, and attempts to re-establish the connection if it drops.
+
+### Basic Usage
+
+```python
+from wifi import WiFi
+import network
+
+nic = network.WLAN(network.STA_IF)
+
+wifi = WiFi('hostname', 'ssid', 'secret', nic)
+
+while True:
+    try:
+        await wifi.start()
+    except:
+        # Do something with exception
+    finally:
+        await wifi.stop()
+```
+

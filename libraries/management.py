@@ -188,7 +188,7 @@ class IndexController:
             writer.write(b'<tr>')
             writer.write(b'<td>%s</td>' % (path))
             writer.write(b'<td>%.2f KB</td>' % (size / KB))
-            writer.write(b'<td><code>%s</code></td>' % hashfile(path, size) if node[1] == 0x8000 else b'n/a')
+            writer.write(b'<td><code>%s</code></td>' % (hashfile(path, size) if node[1] == 0x8000 else b'n/a'))
             writer.write(b'<td>')
             writer.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
