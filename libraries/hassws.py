@@ -1,5 +1,6 @@
 import ws
 import json
+import utime
 import asyncio
 
 class HassWs:
@@ -29,9 +30,12 @@ class HassWs:
             
     async def __keepalive(self):
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
             self.message_id += 1
             await self.socket.send('{"id":%i,"type":"ping"}' % self.message_id)
+            await asyncio.sleep(10)
+            if utime.ticks_diff(utime.ticks_ms(), self.last_message_time) > 15_000:
+                raise Exception('Timeout')
     
     async def stop(self):
         if self.socket is not None:
@@ -48,6 +52,7 @@ class HassWs:
         
         message = json.loads(message)
         message_type = message.get('type')
+        self.last_message_time = utime.ticks_ms()
         
         if message_type == 'auth_required':
             await self._authenticate()
