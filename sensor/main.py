@@ -39,7 +39,7 @@ if hasattr(config, 'scd4x_sensor'):
 if hasattr(config, 'geiger_sensor'):
     from geiger import Geiger
     geiger_pin = machine.Pin(config.geiger_sensor['pin'], machine.Pin.IN)
-    geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'], 0.01)
+    geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'])
     
 # Init WiFi
 nic = network.WLAN(network.STA_IF)
