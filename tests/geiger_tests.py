@@ -25,7 +25,7 @@ class TestGeiger(unittest.TestCase):
 
     def test_init(self):
         pin = MockPin(self)
-        g = geiger.Geiger(153.8, pin, MockPin.MOCK_TRIGGER_TYPE, 60_000, 0.001)
+        g = geiger.Geiger(153.8, pin, MockPin.MOCK_TRIGGER_TYPE, 60_000)
         self.assertEqual(153.8, g.tube_cpm_ratio)
         self.assertEqual(60_000, g.time_between_updates)
 
@@ -34,7 +34,7 @@ class TestGeiger(unittest.TestCase):
         self.assertFalse(g.datapoint.get_needs_update())
         self.assertEqual(None, g.datapoint.get_value())
         self.assertLess(g.click_tracker.get_ms_since_start(), 1)
-        self.assertEqual(0.001, g.datapoint.required_change_amount)
+        self.assertEqual(3, g.decimal_places)
 
     def test_clicks(self):
         pin = MockPin(self)

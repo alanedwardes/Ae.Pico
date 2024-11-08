@@ -25,12 +25,13 @@ class Geiger:
     
     # Init: tube_cpm_ratio is specific to each geiger tube and represents the
     # value needed to convert between CPM and μSv/h (e.g. 153.8 for the tube M4011)
-    def __init__(self, tube_cpm_ratio, pin, pin_trigger, time_between_updates, required_change_amount = None):
-        self.datapoint = datapoint.DataPoint(required_change_amount)
+    def __init__(self, tube_cpm_ratio, pin, pin_trigger, time_between_updates, decimal_places = 3):
+        self.datapoint = datapoint.DataPoint()
         self.click_tracker = ClickTracker()
         pin.irq(trigger=pin_trigger, handler=self.__click, hard=True)
         self.tube_cpm_ratio = tube_cpm_ratio
         self.time_between_updates = time_between_updates
+        self.decimal_places = decimal_places
 
     # Called when the geiger tube detects ionising radiation and clicks
     # This uses a hardware interrupt so cannot do anything complex
@@ -48,7 +49,10 @@ class Geiger:
         self.click_tracker = ClickTracker()
 
         # Process the saturated click tracker to obtain μSv/h
-        self.datapoint.set_value(previous_click_tracker.get_clicks_per_minute() / self.tube_cpm_ratio)
+        value = round(previous_click_tracker.get_clicks_per_minute() / self.tube_cpm_ratio, self.decimal_places)
+
+        # Update the datapoint
+        self.datapoint.set_value(value)
         
         # Return the previous click tracker
         return previous_click_tracker
