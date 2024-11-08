@@ -5,6 +5,7 @@ import gc
 import config
 import runner
 import management
+import utime
 from datapoint import DataPoint
 from hass import Hass
 from wifi import WiFi
@@ -53,11 +54,19 @@ async def send_update(state, unit, device_class, friendly_name, sensor):
     gc.collect()
 
 motion_state = DataPoint()
+motion_last_detected = utime.ticks_add(utime.ticks_ms(), -600_000)
 async def update_motion_sensor():
     if not hasattr(config, 'motion_sensor'):
         return
-    
-    motion_state.set_value(motion.value() == 1)
+
+    global motion_last_detected
+
+    # Reset motion timer if motion detected
+    if motion.value() == 1:
+        motion_last_detected = utime.ticks_ms()
+
+    # Motion detected within the last 5m
+    motion_state.set_value(utime.ticks_diff(utime.ticks_ms(), motion_last_detected) < 300_000)
 
     if motion_state.get_needs_update():
         await send_update("on" if motion_state.get_value() else "off", None, "motion", config.motion_sensor['friendly_name'], "binary_sensor." + config.motion_sensor['name'])
