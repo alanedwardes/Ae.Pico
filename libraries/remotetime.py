@@ -3,6 +3,7 @@ import utime
 import struct
 import socket
 import asyncio
+import binascii
 from collections import namedtuple
 
 URL_RE = re.compile(r'(ntp|http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
@@ -88,17 +89,23 @@ class RemoteTime:
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
         writer.write(b'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (self.uri.path, self.uri.hostname))
         await writer.drain()
-        
+
+        ts = None
         lastline = None
+        header_prefix = b'Hora: '
+        
         while True:
             line = await reader.readline()
             if not line:
                 break
             lastline = line
-        
+
+            if line.startswith(header_prefix):
+                ts = struct.unpack('HBBBBBBH', binascii.unhexlify(line[len(header_prefix):-2]))
+            
         writer.close()
         await writer.wait_closed()
-        return tuple(map(int, lastline.split(b',')))
+        return ts if ts else tuple(map(int, lastline.split(b',')))
     
     async def update_time(self):
         ts = await self.get_time()
