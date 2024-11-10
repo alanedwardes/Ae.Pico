@@ -10,6 +10,9 @@ for f in _PASSTHRU:
 
 clock = _time.process_time()
 
+def gmtime(t):
+    return _time.gmtime(t)
+
 def sleep_ms(t):
     _time.sleep(t / 1000)
 

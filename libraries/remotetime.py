@@ -90,22 +90,17 @@ class RemoteTime:
         writer.write(b'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (self.uri.path, self.uri.hostname))
         await writer.drain()
 
-        ts = None
-        lastline = None
         header_prefix = b'Hora: '
         
         while True:
             line = await reader.readline()
             if not line:
-                break
-            lastline = line
+                raise Exception('Time header not found in response')
 
             if line.startswith(header_prefix):
-                ts = struct.unpack('HBBBBBBH', binascii.unhexlify(line[len(header_prefix):-2]))
-            
-        writer.close()
-        await writer.wait_closed()
-        return ts if ts else tuple(map(int, lastline.split(b',')))
+                writer.close()
+                await writer.wait_closed()
+                return struct.unpack('HBBBBBBH', binascii.unhexlify(line[len(header_prefix):-2]))
     
     async def update_time(self):
         ts = await self.get_time()
