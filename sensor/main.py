@@ -36,12 +36,18 @@ if hasattr(config, 'scd4x_sensor'):
     scd = scd4x.SCD4X(i2c_scd4x)
     scd.start_periodic_measurement()
 
+# Init BMP280
+if hasattr(config, 'bmp280_sensor'):
+    import bmp280
+    i2c_bmp280 = machine.I2C(0, scl=config.bmp280_sensor['scl_pin'], sda=config.bmp280_sensor['sda_pin'])
+    bmp280 = bmp280.BMP280(i2c_bmp280, config.bmp280_sensor['address'])
+
 # Init Geiger
 if hasattr(config, 'geiger_sensor'):
     from geiger import Geiger
     geiger_pin = machine.Pin(config.geiger_sensor['pin'], machine.Pin.IN)
     geiger = Geiger(config.geiger_sensor['tube_cpm_ratio'], geiger_pin, machine.Pin.IRQ_RISING, config.geiger_sensor['min_update_ms'])
-    
+
 # Init WiFi
 nic = network.WLAN(network.STA_IF)
 wifi = WiFi(config.wifi['host'], config.wifi['ssid'], config.wifi['key'], nic)
@@ -135,6 +141,16 @@ async def update_mcp9808_sensor():
     if temperature.get_needs_update():
         await send_update(temperature.get_value(), "°C", "temperature", config.mcp9808_sensor['temp_friendly_name'], "sensor." + config.mcp9808_sensor['temp_name'])
         temperature.set_value_updated()
+        
+async def update_bmp280_sensor():
+    if not hasattr(config, 'bmp280_sensor'):
+        return
+    
+    temperature.set_value(bmp280.temperature)
+
+    if temperature.get_needs_update():
+        await send_update(temperature.get_value(), "°C", "temperature", config.bmp280_sensor['temp_friendly_name'], "sensor." + config.bmp280_sensor['temp_name'])
+        temperature.set_value_updated()
 
 async def update_geiger_sensor():
     if not hasattr(config, 'geiger_sensor'):
@@ -156,6 +172,7 @@ class Sensor:
             await update_bme280_sensor()
             await update_scd4x_sensor()
             await update_mcp9808_sensor()
+            await update_bmp280_sensor()
             await update_geiger_sensor()
             await asyncio.sleep_ms(100)
     async def stop(self):
