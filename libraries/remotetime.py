@@ -25,7 +25,11 @@ class RemoteTime:
         self.uri = urlparse(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
-    
+
+    def create(provider):
+        config = provider['config'].clock
+        return RemoteTime(config['endpoint'], config['update_time_ms'], provider['nic'])
+
     async def start(self):
         while not self.nic.isconnected():
             await asyncio.sleep_ms(100)

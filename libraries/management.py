@@ -488,7 +488,10 @@ class ManagementServer:
     def set_credentials(self, username, password):
         encoded = binascii.b2a_base64(('%s:%s' % (username, password)).encode('utf-8'))
         self.authorization_header = b'Basic ' + encoded[:-1]
-    
+        
+    def create(provider):
+        return ManagementServer()
+
     async def start(self):
         self.server = await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
         await asyncio.Event().wait() # Wait forever

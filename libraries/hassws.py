@@ -10,12 +10,16 @@ class HassWs:
         self.nic = nic
         
         self.entity_callbacks = {}
-        self.subscribed_entities = []
-        self.entities_updated = None
+        self.subscribed_entities = set()
+        self.entities_updated = set()
         self._reset()
 
     def is_active(self):
         return self.socket is not None and self.authenticated and self.message_id > 1
+    
+    def create(provider):
+        config = provider['config'].hass
+        return HassWs(config['ws'], config['token'], provider['nic'])
     
     async def start(self):
         while not self.nic.isconnected():
@@ -83,34 +87,40 @@ class HassWs:
         self.message_id += 1
         await self.socket.send('{"id":%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (self.message_id, domain, service, json.dumps(data), entity_id))
 
-    def subscribe(self, entity_id, callback = None):
+    async def subscribe(self, entity_ids, callback = None):
+        if not entity_ids:
+            return
+        
+        if callback:
+            for entity_id in entity_ids:
+                if entity_id in self.entity_callbacks:
+                    self.entity_callbacks[entity_id].add(callback)
+                else:
+                    self.entity_callbacks[entity_id] = {callback}
+                    
+        entity_ids_to_subscribe = set(entity_ids) - self.subscribed_entities
+        if not entity_ids_to_subscribe:
+            return
+        
         if self.authenticated:
-            raise Exception('Subscribe after authentication is not yet supported')
+            await self._subscribe(entity_ids_to_subscribe)
         
-        if entity_id is None:
-            return
-        
-        if entity_id in self.subscribed_entities:
-            return
-        
-        if callback is not None:
-            self.entity_callbacks[entity_id] = callback
-        
-        self.subscribed_entities.append(entity_id)
-            
+        self.subscribed_entities.update(entity_ids_to_subscribe)
+    
     async def _subscribe(self, entity_ids):
         if entity_ids and self.authenticated:
             self.message_id += 1
             await self.socket.send('{"id":%i,"type":"subscribe_entities","entity_ids":["%s"]}' % (self.message_id, '","'.join(entity_ids)))
             
-    def _execute_callback(self, callback, *args):
-        if callback is None or args is None:
+    def _execute_callback(self, callbacks, *args):
+        if not callbacks or not args:
             return
         
-        try:
-            callback(*args)
-        except Exception as e:
-            print('Error executing callback', e)
+        for callback in callbacks:
+            try:
+                callback(*args)
+            except Exception as e:
+                print('Error executing callback', e)
 
     def process_event(self, event):
         if 'a' in event:
