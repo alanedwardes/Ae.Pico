@@ -10,9 +10,9 @@ class WiFi:
         self.wlan.active(True)
         
     def create(provider):
-        config = provider['config'].wifi
+        config = provider['config']['wifi']
         return WiFi(config['host'], config['ssid'], config['key'], provider['nic'])
-
+              
     async def start(self):
         if not self.wlan.isconnected():
             self.wlan.connect(self.ssid, self.key)

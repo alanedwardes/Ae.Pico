@@ -27,7 +27,7 @@ class RemoteTime:
         self.nic = nic
 
     def create(provider):
-        config = provider['config'].clock
+        config = provider['config']['remotetime']
         return RemoteTime(config['endpoint'], config['update_time_ms'], provider['nic'])
 
     async def start(self):

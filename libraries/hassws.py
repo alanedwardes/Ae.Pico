@@ -18,7 +18,7 @@ class HassWs:
         return self.socket is not None and self.authenticated and self.message_id > 1
     
     def create(provider):
-        config = provider['config'].hass
+        config = provider['config']['hass']
         return HassWs(config['ws'], config['token'], provider['nic'])
     
     async def start(self):
