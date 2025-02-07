@@ -62,7 +62,7 @@ def example_sensor_updated(entity_id, entity):
         # Do something if sensor is 'on'
 
 # Subscribe to entity to get updates
-hass.subscribe('sensor.example', example_sensor_updated)
+await hass.subscribe(['sensor.example'], example_sensor_updated)
 
 while True:
     try:
