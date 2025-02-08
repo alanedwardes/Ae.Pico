@@ -25,6 +25,7 @@ class RemoteTime:
         self.uri = urlparse(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
+        self.last_timestamp = None
 
     def create(provider):
         config = provider['config']['remotetime']
@@ -41,7 +42,7 @@ class RemoteTime:
     async def stop(self):
         pass
 
-    async def get_time(self):
+    async def acquire_time(self):
         NTP_QUERY = bytearray(48)
         NTP_QUERY[0] = 0x1B
         addr = socket.getaddrinfo(self.uri.hostname, self.uri.port)[0][-1]
@@ -53,6 +54,7 @@ class RemoteTime:
         finally:
             s.close()
         val = struct.unpack("!I", msg[40:44])[0]
+        val2 = struct.unpack("!I", msg[44:48])[0]
 
         MIN_NTP_TIMESTAMP = 3913056000
 
@@ -68,10 +70,27 @@ class RemoteTime:
             raise Exception("Unsupported epoch: {}".format(EPOCH_YEAR))
 
         t = val - NTP_DELTA
+        
+        milliseconds = (val2 * 1000) // 0x100000000
+        
         tm = utime.gmtime(t)
-        return (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0)
+        return (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], milliseconds)
+    
+    def calculate_time(self):
+        total_milliseconds = self.last_timestamp[7] + utime.ticks_diff(utime.ticks_ms(), self.last_update)       
+        total_seconds = self.last_timestamp[6] + (total_milliseconds // 1000)
+        total_minutes = self.last_timestamp[5] + (total_seconds // 60)
+        total_hours = self.last_timestamp[4] + (total_minutes // 60)
+        
+        milliseconds = total_milliseconds % 1000
+        seconds = total_seconds % 60
+        minutes = total_minutes % 60
+        hours = total_hours % 24
+        # (year, month, day, weekday, hours, minutes, seconds, subseconds)
+        return (self.last_timestamp[0], self.last_timestamp[1], self.last_timestamp[2], self.last_timestamp[3], hours, minutes, seconds, milliseconds)
     
     async def update_time(self):
-        ts = await self.get_time()
+        self.last_timestamp = await self.acquire_time()
+        self.last_update = utime.ticks_ms()
         import machine
-        machine.RTC().datetime(ts)
+        machine.RTC().datetime(self.last_timestamp)
