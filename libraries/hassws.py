@@ -87,6 +87,9 @@ class HassWs:
         await self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
         
     async def action(self, domain, service, data, entity_id):
+        if not self.authenticated:
+            raise Exception("Not authenticated")
+        
         self.message_id += 1
         await self.socket.send('{"id":%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (self.message_id, domain, service, json.dumps(data), entity_id))
 
