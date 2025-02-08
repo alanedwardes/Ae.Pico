@@ -22,11 +22,14 @@ class HassWs:
         return HassWs(config['ws'], config['token'], provider['nic'])
     
     async def start(self):
-        while not self.nic.isconnected():
-            await asyncio.sleep_ms(100)
-        
-        self.socket = await ws.connect(self.url + '/api/websocket')
-        await asyncio.gather(self.__listen(), self.__keepalive())
+        try:
+            while not self.nic.isconnected():
+                await asyncio.sleep_ms(100)
+            
+            self.socket = await ws.connect(self.url + '/api/websocket')
+            await asyncio.gather(self.__listen(), self.__keepalive())
+        finally:
+            await self.stop()
     
     async def __listen(self):
         while True:

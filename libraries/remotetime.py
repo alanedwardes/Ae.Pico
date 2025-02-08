@@ -38,9 +38,6 @@ class RemoteTime:
         while True:
             await self.update_time()
             await asyncio.sleep_ms(self.update_time_ms)
-    
-    async def stop(self):
-        pass
 
     async def acquire_time(self):
         NTP_QUERY = bytearray(48)

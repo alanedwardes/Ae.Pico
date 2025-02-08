@@ -30,6 +30,3 @@ class WiFi:
             if not self.wlan.isconnected():
                 self.wlan.disconnect()
                 self.wlan.connect(self.ssid, self.key)
-
-    async def stop(self):
-        pass

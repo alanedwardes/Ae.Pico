@@ -493,8 +493,11 @@ class ManagementServer:
         return ManagementServer()
     
     async def start(self):
-        self.server = await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
-        await asyncio.Event().wait() # Wait forever
+        try:
+            self.server = await asyncio.start_server(self.__serve, '0.0.0.0', self.port)
+            await asyncio.Event().wait()
+        finally:
+            await self.stop()
         
     async def stop(self):
         if self.server is not None:
