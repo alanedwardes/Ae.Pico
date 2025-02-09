@@ -25,7 +25,10 @@ class RemoteTime:
         self.uri = urlparse(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
-        self.last_timestamp = None
+        
+        tm = utime.gmtime(0)
+        self.last_update = utime.ticks_ms()
+        self.last_timestamp = (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0)
 
     def create(provider):
         config = provider['config']['remotetime']

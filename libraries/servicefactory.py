@@ -58,6 +58,6 @@ class ServiceFactory:
             self.tasks[componentName] = asyncio.create_task(self.components[componentName].start())
             await self.tasks[componentName]
         except Exception as e:
-            print(e)
+            print("Exception from %s: %s" % (componentName, str(e)))
         finally:
             gc.collect()
