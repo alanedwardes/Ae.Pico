@@ -34,6 +34,13 @@ class Hass:
     def __init__(self, endpoint, token):
         self.uri = urlparse(endpoint)
         self.token = token
+        
+    def create(provider):
+        config = provider['config']['hass']
+        return Hass(config['url'], config['token'])
+
+    async def start(self):
+        await asyncio.Event().wait()
 
     async def send_update(self, state, unit, device_class, friendly_name, sensor):
         data = { "state": state, "attributes": {} }
