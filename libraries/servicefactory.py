@@ -13,7 +13,8 @@ class ServiceFactory:
         self.componentTypes = list(sorted(self.__discover_components(), key=lambda component: component[2]))
         self.components = dict(self.__instantiate_components(provider))
         self.tasks = dict()
-        print("Scheduler components discovered: %s" % ', '.join([str(component) for component in self.componentTypes]))
+        #print("%i scheduler components:\n* %s" % (len(self.components), '\n* '.join(self.components)))
+        #print("%i service provider entries:\n* %s" % (len(provider), '\n* '.join(set(provider.keys()) - set(self.components.keys()))))
     
     def __discover_components(self):
         for moduleName in sys.modules:
@@ -24,6 +25,10 @@ class ServiceFactory:
     def __instantiate_components(self, provider):
         for componentName, componentType, componentPriority in self.componentTypes:
             component = componentType.create(provider)
+            
+            if not component:
+                continue
+            
             provider[componentName] = component
             yield (componentName, component)
     

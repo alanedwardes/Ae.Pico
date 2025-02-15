@@ -1,4 +1,3 @@
-import asyncio
 from management import OK_STATUS, HTML_HEADER, HEADER_TERMINATOR, MINIMAL_CSS, BACK_LINK, parse_form
 
 class ServiceFactoryController:
@@ -8,12 +7,11 @@ class ServiceFactoryController:
     CREATION_PRIORITY = 1
     def create(provider):
         server = provider['management.ManagementServer']
-        instance = ServiceFactoryController(provider['servicefactory.ServiceFactory'])
-        server.controllers.append(instance)
-        return instance
+        server.controllers.append(ServiceFactoryController(provider['servicefactory.ServiceFactory']))
+        return None
 
     async def start(self):
-        await asyncio.Event().wait()
+        raise NotImplementedError
     
     def route(self, method, path):
         return path == b'/tasks'
