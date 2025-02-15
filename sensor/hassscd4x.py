@@ -1,8 +1,7 @@
 from scd4x import SCD4X
 from machine import I2C
+from datapoint import DataPoint
 import asyncio
-import machine
-import datapoint
 
 class HassScd4x:
     def __init__(self, hass, scl, sda, temperature_config, co2_config, humidity_config):
@@ -17,9 +16,9 @@ class HassScd4x:
         
         # See https://sensirion.com/media/documents/48C4B7FB/66E05452/CD_DS_SCD4x_Datasheet_D1.pdf
         # Only report value changes outside of accuracy tolerance
-        self.temperature = datapoint.DataPoint(0.8)
-        self.co2 = datapoint.DataPoint(50)
-        self.humidity = datapoint.DataPoint(6)
+        self.temperature = DataPoint(0.8)
+        self.co2 = DataPoint(50)
+        self.humidity = DataPoint(6)
 
     CREATION_PRIORITY = 1
     def create(provider):
