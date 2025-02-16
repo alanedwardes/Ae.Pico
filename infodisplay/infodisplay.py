@@ -1,6 +1,8 @@
 import asyncio
 
 class InfoDisplay:
+    MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+    
     def __init__(self, display, middle_row, bottom_row, nic, hass, rtc):
         self.display = display
         self.wlan = nic
@@ -24,6 +26,8 @@ class InfoDisplay:
         self.over_1c = self.display.create_pen(174, 220, 216)
         self.over_n10 = self.display.create_pen(55, 137, 198)
         self.cold = self.display.create_pen(2, 98, 169)
+        
+        self.red = self.over_21c
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -136,7 +140,41 @@ class InfoDisplay:
         y = spacer
         
         self.display.set_pen(self.white)
-        y += self.draw_text("%02i:%02i:%02i" % (now[4], now[5], now[6]), 2.25, 0, y, self.display_width)
+        
+        screen_width_third = self.display_width / 5
+        
+        seconds_width = screen_width_third * 1
+        time_width = screen_width_third * 3
+        
+        # Hours and minutes
+        y += self.draw_text("%02i:%02i" % (now[4] % 12, now[5]), 2.25, 4, y, time_width)
+        
+        # Seconds and AM/PM
+        self.draw_text("%s" % "PM" if now[4] >= 12 else "AM", 1, time_width, 10, seconds_width)
+        self.draw_text("%02i" % now[6], 1.2, time_width, 40, seconds_width)
+        
+        calendar_outline_x = int(time_width + seconds_width)
+        calendar_outline_y = 0
+        calendar_outline_w = int(seconds_width)
+        calendar_outline_h = y + spacer
+        
+        # Calendar outline
+        self.display.set_pen(self.red)
+        self.display.rectangle(calendar_outline_x, calendar_outline_y, calendar_outline_w, calendar_outline_h)
+        
+        date_outline_x = calendar_outline_x
+        date_outline_y = 36
+        date_outline_w = calendar_outline_w
+        date_outline_h = 36
+        
+        # Date outline
+        self.display.set_pen(self.white)
+        self.display.rectangle(date_outline_x, date_outline_y, date_outline_w, date_outline_h)
+        
+        # Date and month
+        self.draw_text("%s" % self.MONTHS[now[1]-1], 1, time_width + seconds_width, 10, seconds_width)
+        self.display.set_pen(self.black)
+        self.draw_text("%02i" % now[2], 1.2, date_outline_x, date_outline_y + 8, date_outline_w)
         
         y += spacer
         
