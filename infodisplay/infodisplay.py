@@ -147,7 +147,7 @@ class InfoDisplay:
         time_width = screen_width_third * 3
         
         # Hours and minutes
-        y += self.draw_text("%02i:%02i" % (now[4] - 12 if now[4] > 12 else now[4], now[5]), 2.25, 4, y, time_width)
+        y += self.draw_text("%i:%02i" % (now[4] - 12 if now[4] > 12 else now[4], now[5]), 2.25, 4, y, time_width)
         
         # Seconds and AM/PM
         self.draw_text("%s" % "PM" if now[4] >= 12 else "AM", 1, time_width, 10, seconds_width)
