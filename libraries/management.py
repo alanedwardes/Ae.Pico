@@ -366,7 +366,7 @@ class ShellController:
         writer.write(b'<form action="shell" method="post">')
         writer.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % escape(self.history))
         writer.write(b'<p>')
-        writer.write(b'<input type="text" id="command" name="command"/> <input type="checkbox" id="eval" name="eval" %s/>' % (b'checked' if is_eval else b''))
+        writer.write(b'<input type="text" id="command" name="command" size="64"/> <input type="checkbox" id="eval" name="eval" %s/>' % (b'checked' if is_eval else b''))
         writer.write(b' <label for="eval">Statement</label>')
         writer.write(b' <input type="submit" value="Execute"/>')
         writer.write(b' <input type="submit" name="clear" value="Reset"/>')
