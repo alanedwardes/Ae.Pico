@@ -2,6 +2,7 @@ import asyncio
 
 class InfoDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+    DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
     
     def __init__(self, display, middle_row, bottom_row, nic, hass, rtc):
         self.display = display
@@ -147,10 +148,10 @@ class InfoDisplay:
         time_width = screen_width_third * 3
         
         # Hours and minutes
-        y += self.draw_text("%i:%02i" % (now[4] - 12 if now[4] > 12 else now[4], now[5]), 2.25, 4, y, time_width)
+        y += self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 4, y, time_width)
         
-        # Seconds and AM/PM
-        self.draw_text("%s" % "PM" if now[4] >= 12 else "AM", 1, time_width, 10, seconds_width)
+        # Seconds and day
+        self.draw_text("%s" % self.DAYS[now[3]-1], 1, time_width, 10, seconds_width)
         self.draw_text("%02i" % now[6], 1.2, time_width, 40, seconds_width)
         
         calendar_outline_x = int(time_width + seconds_width)
