@@ -8,7 +8,6 @@ class ServiceFactoryController:
     def create(provider):
         server = provider['management.ManagementServer']
         server.controllers.append(ServiceFactoryController(provider['servicefactory.ServiceFactory']))
-        return None
 
     async def start(self):
         raise NotImplementedError
