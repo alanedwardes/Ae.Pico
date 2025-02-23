@@ -31,16 +31,35 @@ def urlparse(uri):
 
 class Hass:
     
-    def __init__(self, endpoint, token):
+    def __init__(self, endpoint, token, keep_alive = False):
         self.uri = urlparse(endpoint)
         self.token = token
+        self.keep_alive = keep_alive
         
     def create(provider):
         config = provider['config']['hass']
-        return Hass(config['url'], config['token'])
+        return Hass(config['url'], config['token'], config.get('keep_alive', False))
 
     async def start(self):
+        # If enabled, send an HTTP request every 5 minutes
+        # Ensures WiFi kept alive, DNS up to date, etc
+        while self.keep_alive:
+            await asyncio.sleep(300)
+            await self.ensure_api_reachable()
+        
         await asyncio.Event().wait()
+            
+    async def ensure_api_reachable(self):
+        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
+        self.write_protocol(writer, b'GET', b'/')
+        self.write_auth_header(writer)
+        writer.write('\r\n')
+        await writer.drain()
+        await self.ensure_success_status_code(reader)
+        content_length = await self.get_content_length(reader)
+        print(await reader.readexactly(content_length))
+        writer.close()
+        await writer.wait_closed()
 
     async def send_update(self, state, unit, device_class, friendly_name, sensor):
         data = { "state": state, "attributes": {} }
@@ -56,8 +75,7 @@ class Hass:
             data['attributes']['state_class'] = "measurement"
 
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        writer.write(b'POST %s%s%s HTTP/1.0\r\n' % (self.uri.path, b'api/states/', sensor.encode('utf-8')))
-        writer.write(b'Host: %s\r\n' % self.uri.hostname)
+        self.write_protocol(writer, b'POST', b'/states/%s' % sensor.encode('utf-8'))
         self.write_auth_header(writer)
         self.write_json_content_type_header(writer)
         self.write_content(writer, ujson.dumps(data).encode('utf-8'))
@@ -70,6 +88,10 @@ class Hass:
         await writer.wait_closed()
         
         return content
+    
+    def write_protocol(self, writer, method, path):
+        writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self.uri.path, path))
+        writer.write(b'Host: %s\r\n' % self.uri.hostname)
 
     def write_auth_header(self, writer):
         writer.write(b'Authorization: Bearer %s\r\n' % self.token.encode('utf-8'))
@@ -104,8 +126,7 @@ class Hass:
         data = { "template": template }
 
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        writer.write(b'POST %s%s HTTP/1.0\r\n' % (self.uri.path, b'api/template'))
-        writer.write(b'Host: %s\r\n' % self.uri.hostname)
+        self.write_protocol(writer, b'POST', b'/template')
         self.write_auth_header(writer)
         self.write_json_content_type_header(writer)
         self.write_content(writer, ujson.dumps(data).encode('utf-8'))
