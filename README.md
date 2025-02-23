@@ -149,16 +149,14 @@ async def start(self):
     await asyncio.Event().wait()
 ```
 
-This allows manipulation of the dependency injection container prior to construction of the module. If the start method doesn't ever need to be run, the `create` method can simply return `None`:
+This allows manipulation of the dependency injection container prior to construction of the module. If the start method doesn't ever need to be run, the `create` method can simply not return:
 
 ```python
 def create(provider):
     provider['myservice'] = new MyService()
-    return None
 
 async def start(self):
-    # Will never be called
-    pass
+    raise NotImplementedError
 ```
 
 In the above example, `start` will never be called, and `myservice` will be added to the dependency injection container. This allows async modules to manipulate the service container without changing the dependency injection container in `main.py`.
