@@ -27,6 +27,7 @@ class ServiceFactory:
             component = componentType.create(provider)
             
             if not component:
+                #print("Component %s has no default export" % componentName)
                 continue
             
             provider[componentName] = component
