@@ -1,3 +1,4 @@
+import utime
 import asyncio
 
 class InfoDisplay:
@@ -36,6 +37,8 @@ class InfoDisplay:
         self.entities = {}
         self.middle_row = middle_row
         self.bottom_row = bottom_row
+        
+        self.last_update_time_ms = 0
     
     def pen_for_temp(self, temp):
         if temp >= 41:
@@ -130,6 +133,11 @@ class InfoDisplay:
             await asyncio.sleep_ms(max(min(1000 - self.rtc.datetime()[7], 1000), 0))
 
     def update(self):
+        start_update_ms = utime.ticks_ms()
+        self.__update()
+        self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+
+    def __update(self):
         self.display.set_font("sans")
         self.display.set_pen(self.black)
         self.display.clear()
@@ -210,6 +218,6 @@ class InfoDisplay:
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
         self.display.set_thickness(1)
-        self.display.text("%idB" % (self.wlan.status('rssi')), 0, 233, scale=1)
+        self.display.text("%idB %ims" % (self.wlan.status('rssi'), self.last_update_time_ms), 0, 240, scale=1, angle=270)
         
         self.display.update()
