@@ -3,7 +3,6 @@ from picoscroll import PicoScroll
 
 class PicoScrollPack:
     def create(provider):
-        config = provider['config'].get('display', {})
         provider['graphics'] = PicoGraphics(DISPLAY_SCROLL_PACK, pen_type=PEN_P8)
         provider['scroll'] = PicoScroll()
               
