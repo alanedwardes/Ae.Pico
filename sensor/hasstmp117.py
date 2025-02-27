@@ -24,7 +24,7 @@ class HassTmp117:
     
     async def start(self):
         while True:
-            self.temperature.set_value(self.mcp.temperature)
+            self.temperature.set_value(self.tmp.temperature)
             
             if self.temperature.get_needs_update():
                 await self.hass.send_update(self.temperature.get_value(), "°C", "temperature", **self.temperature_config)
