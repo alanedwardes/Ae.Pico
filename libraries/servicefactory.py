@@ -24,7 +24,10 @@ class ServiceFactory:
     
     def __instantiate_components(self, provider):
         for componentName, componentType, componentPriority in self.componentTypes:
-            component = componentType.create(provider)
+            try:
+                component = componentType.create(provider)
+            except Exception as e:
+                print("Fatal error instantiating %s: %s" % (componentName, str(e)))
             
             if not component:
                 #print("Component %s has no default export" % componentName)
