@@ -13,9 +13,7 @@ class HassTmp117:
         
         # See https://www.ti.com/lit/ds/symlink/tmp117.pdf
         # Only report value changes outside of accuracy tolerance
-        # Use 0.2 instead of 0.1 to avoid constant updates
-        # E.g. when oscilating between 19.19 and 19.20
-        self.temperature = DataPoint(0.2)
+        self.temperature = DataPoint(0.1)
 
     CREATION_PRIORITY = 1
     def create(provider):
