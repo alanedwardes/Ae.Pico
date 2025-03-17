@@ -1,7 +1,7 @@
 from smbus2 import SMBus
 
 class I2C:
-    def __init__(self, id, sda, scl):
+    def __init__(self, id, **kwargs):
         self.bus = SMBus(id)
 
     def readfrom_mem(self, addr, memaddr, nbytes):
