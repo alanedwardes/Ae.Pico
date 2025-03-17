@@ -5,7 +5,7 @@ import datapoint
 
 class HassBme280:
     def __init__(self, hass, i2c, temperature_config, pressure_config, humidity_config):
-        self.i2c = machine.I2C(i2c['bus'], **i2c['options'])
+        self.i2c = machine.I2C(i2c['bus'], **i2c.get('options', {}))
         self.bme = bme280.BME280(i2c=self.i2c)
         self.hass = hass
         
