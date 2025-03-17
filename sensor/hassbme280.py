@@ -26,7 +26,7 @@ class HassBme280:
     
     async def start(self):
         while True:
-            current_temp, current_pressure, current_humidity = self.bme.float_values()
+            current_temp, current_pressure, current_humidity = self.bme.values()
             
             self.temperature.set_value(current_temp)
             self.pressure.set_value(current_pressure)

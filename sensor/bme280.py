@@ -191,10 +191,7 @@ class BME280:
 
         return array("i", (temp, pressure, humidity))
 
-    @property
     def values(self):
-        """ human readable values """
-
         t, p, h = self.read_compensated_data()
 
         p = p // 256
@@ -203,18 +200,4 @@ class BME280:
 
         hi = h // 1024
         hd = h * 100 // 1024 - hi * 100
-        return ("{}C".format(t / 100), "{}.{:02d}hPa".format(pi, pd),
-                "{}.{:02d}%".format(hi, hd))
-
-    def float_values(self):
-        """ human readable values """
-
-        t, p, h = self.read_compensated_data()
-
-        p = p // 256
-        pi = p // 100
-        pd = p - pi * 100
-
-        hi = h // 1024
-        hd = h * 100 // 1024 - hi * 100
-        return (float(t / 100), float("{}.{:02d}".format(pi, pd)), float("{}.{:02d}".format(hi, hd)))
+        return (float(t / 100), float(pi) + float(pd) / 100, float(hi) + float(hd) / 100)
