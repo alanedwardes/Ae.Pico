@@ -5,7 +5,7 @@ from asyncio import sleep
 class HassCpu:
     class Linux:
         def __init__(self):
-            self.datapoint = DataPoint(1)
+            self.datapoint = DataPoint(5)
         
         def update(self):
             with open('/sys/class/thermal/thermal_zone0/temp') as f:
