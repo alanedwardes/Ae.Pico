@@ -34,7 +34,7 @@
 
 
 import time
-from ustruct import unpack, unpack_from
+from struct import unpack, unpack_from
 from array import array
 
 # BME280 default address.
@@ -79,7 +79,7 @@ class BME280:
             self.dig_P6, self.dig_P7, self.dig_P8, self.dig_P9, \
             _, self.dig_H1 = unpack("<HhhHhhhhhhhhBB", dig_88_a1)
 
-        self.dig_H2, self.dig_H3 = unpack("<hB", dig_e1_e7)
+        self.dig_H2, self.dig_H3 = unpack("<hB", dig_e1_e7[:3])
         e4_sign = unpack_from("<b", dig_e1_e7, 3)[0]
         self.dig_H4 = (e4_sign << 4) | (dig_e1_e7[4] & 0xF)
 
@@ -114,10 +114,10 @@ class BME280:
         self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL,
                              self._l1_barray)
 
-        sleep_time = 1250 + 2300 * (1 << self._mode)
-        sleep_time = sleep_time + 2300 * (1 << self._mode) + 575
-        sleep_time = sleep_time + 2300 * (1 << self._mode) + 575
-        time.sleep_us(sleep_time)  # Wait the required time
+        sleep_time_us = 1250 + 2300 * (1 << self._mode)
+        sleep_time_us = sleep_time_us + 2300 * (1 << self._mode) + 575
+        sleep_time_us = sleep_time_us + 2300 * (1 << self._mode) + 575
+        time.sleep(sleep_time_us / 1_000_000)
 
         # burst readout from 0xF7 to 0xFE, recommended by datasheet
         self.i2c.readfrom_mem_into(self.address, 0xF7, self._l8_barray)
@@ -191,10 +191,7 @@ class BME280:
 
         return array("i", (temp, pressure, humidity))
 
-    @property
     def values(self):
-        """ human readable values """
-
         t, p, h = self.read_compensated_data()
 
         p = p // 256
@@ -203,18 +200,4 @@ class BME280:
 
         hi = h // 1024
         hd = h * 100 // 1024 - hi * 100
-        return ("{}C".format(t / 100), "{}.{:02d}hPa".format(pi, pd),
-                "{}.{:02d}%".format(hi, hd))
-
-    def float_values(self):
-        """ human readable values """
-
-        t, p, h = self.read_compensated_data()
-
-        p = p // 256
-        pi = p // 100
-        pd = p - pi * 100
-
-        hi = h // 1024
-        hd = h * 100 // 1024 - hi * 100
-        return (float(t / 100), float("{}.{:02d}".format(pi, pd)), float("{}.{:02d}".format(hi, hd)))
+        return (float(t / 100), float(pi) + float(pd) / 100, float(hi) + float(hd) / 100)

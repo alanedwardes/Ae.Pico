@@ -4,8 +4,8 @@ import machine
 import datapoint
 
 class HassBme280:
-    def __init__(self, hass, scl, sda, temperature_config, pressure_config, humidity_config):
-        self.i2c = machine.I2C(0, scl=scl, sda=sda)
+    def __init__(self, hass, i2c, temperature_config, pressure_config, humidity_config):
+        self.i2c = machine.I2C(i2c['bus'], **i2c.get('options', {}))
         self.bme = bme280.BME280(i2c=self.i2c)
         self.hass = hass
         
@@ -22,11 +22,11 @@ class HassBme280:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['bme280']
-        return HassBme280(provider['hass.Hass'], config['scl'], config['sda'], config['temperature'], config['pressure'], config['humidity'])
+        return HassBme280(provider['hass.Hass'], config['i2c'], config['temperature'], config['pressure'], config['humidity'])
     
     async def start(self):
         while True:
-            current_temp, current_pressure, current_humidity = self.bme.float_values()
+            current_temp, current_pressure, current_humidity = self.bme.values()
             
             self.temperature.set_value(current_temp)
             self.pressure.set_value(current_pressure)
