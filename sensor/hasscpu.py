@@ -24,31 +24,32 @@ class HassCpu:
             temperature = 27 - (voltage - 0.706) / 0.001721
             return self.datapoint.set_value(temperature)
 
-    def __init__(self, hass, temperature_config, implementation):
+    def __init__(self, hass, temperature_config, implementation, offset):
         self.hass = hass
-        self.temperature_config = temperature_config        
+        self.temperature_config = temperature_config
         self.implementation = implementation
+        self.offset = offset
 
     CREATION_PRIORITY = 1
     def create(provider):
-        implentation = None
+        implementation = None
 
         if uname().sysname == 'rp2':
-            implentation = HassCpu.Rp2()
+            implementation = HassCpu.Rp2()
         elif uname().sysname == 'Linux':
-            implentation = HassCpu.Linux()
+            implementation = HassCpu.Linux()
         else:
             return None
         
         config = provider['config']['cpu']
-        return HassCpu(provider['hass.Hass'], config['temperature'], implentation)
+        return HassCpu(provider['hass.Hass'], config['temperature'], implementation, config.get('offset', 0))
     
     async def start(self):
         while True:
             self.implementation.update()
             
             if self.implementation.datapoint.get_needs_update():
-                await self.hass.send_update(self.implementation.datapoint.get_value(), "°C", "temperature", **self.temperature_config)
+                await self.hass.send_update(self.implementation.datapoint.get_value() + self.offset, "°C", "temperature", **self.temperature_config)
                 self.implementation.datapoint.set_value_updated()
             
             await sleep(1)
