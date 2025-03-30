@@ -18,21 +18,19 @@ class PWM:
     def __init__(self, dest, *, freq=None, duty_u16=None, duty_ns=None, invert=None):
         self.__freq = 0
         self.__duty_u16 = 0
-        self.__duty_ns = 0
 
         from pigpio import pi
         self.pi = pi()
         self.dest = dest
         self.freq(freq)
         self.duty_u16(duty_u16)
-        self.duty_ns(duty_ns)
         self.init()
 
     def init(self, *, freq=None, duty_u16=None, duty_ns=None):
         self.freq(freq)
         self.duty_u16(duty_u16)
-        self.duty_ns(duty_ns)
-        self.pi.hardware_PWM(12, self.freq(), 200_000)
+        print("dest=%i freq=%ihz duty=%i" % (self.dest, self.freq(), self.duty()))
+        self.pi.hardware_PWM(self.dest, self.freq(), self.duty())
 
     def deinit(self):
         self.pi.hardware_PWM(12, 0, 0)
@@ -42,14 +40,13 @@ class PWM:
             self.__freq = value
         return self.__freq
 
+    def duty(self):
+        return int(self.duty_u16() / 65_535 * 1_000_000)
+
     def duty_u16(self, value=None):
         if value:
             self.__duty_u16 = value
-            self.__duty_ns = 0
         return self.__duty_u16
 
     def duty_ns(self, value=None):
-        if value:
-            self.__duty_ns = value
-            self.__duty_u16 = 0
-        return self.__duty_ns
+        raise NotImplementedError('duty_ns is not yet supported')
