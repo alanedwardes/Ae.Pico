@@ -33,7 +33,7 @@ class PWM:
         self.pi.hardware_PWM(self.dest, self.freq(), self.duty())
 
     def deinit(self):
-        self.pi.hardware_PWM(12, 0, 0)
+        self.pi.hardware_PWM(self.dest, 0, 0)
 
     def freq(self, value=None):
         if value:
