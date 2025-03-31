@@ -15,38 +15,39 @@ class I2C:
         buf[:] = b
 
 class PWM:
-    def __init__(self, dest, *, freq=None, duty_u16=None, duty_ns=None, invert=None):
+    def __init__(self, dest, *, freq=None, duty_u16=None, duty_ns=None, invert=False):
         self.__freq = 0
         self.__duty_u16 = 0
 
         from pigpio import pi
         self.pi = pi()
         self.dest = dest
-        self.freq(freq)
-        self.duty_u16(duty_u16)
-        self.init()
+        self.init(freq=freq, duty_u16=duty_u16, duty_ns=duty_ns, invert=invert)
 
-    def init(self, *, freq=None, duty_u16=None, duty_ns=None):
-        self.freq(freq)
-        self.duty_u16(duty_u16)
-        print("dest=%i freq=%ihz duty=%i" % (self.dest, self.freq(), self.duty()))
-        self.pi.hardware_PWM(self.dest, self.freq(), self.duty())
+    def init(self, *, freq=None, duty_u16=None, duty_ns=None, invert=False):
+        if freq:
+            self.__freq = freq
+        if duty_u16:
+            self.__duty_u16 = duty_u16
+        if duty_ns:
+            raise NotImplementedError('Support for setting duty_ns is not yet implemented')
+        if invert:
+            raise NotImplementedError('Support for signal inversion is not yet implemented')
+
+        duty = int(self.__duty_u16 / 65_535 * 1_000_000)
+        self.pi.hardware_PWM(self.dest, self.__freq, duty)
 
     def deinit(self):
         self.pi.hardware_PWM(self.dest, 0, 0)
 
     def freq(self, value=None):
-        if value:
-            self.__freq = value
-        return self.__freq
-
-    def duty(self):
-        return int(self.duty_u16() / 65_535 * 1_000_000)
+        return self.init(freq=value) if value else self.__freq
 
     def duty_u16(self, value=None):
-        if value:
-            self.__duty_u16 = value
-        return self.__duty_u16
+        return self.init(duty_u16=value) if value else self.__duty_u16
 
     def duty_ns(self, value=None):
-        raise NotImplementedError('duty_ns is not yet supported')
+        period_s = 1 / self.__freq
+        period_ns = period_s * 1e9
+        duty_cycle_ns = (self.__duty_u16 / 65_535) * period_ns
+        return self.init(duty_ns=value) if value else int(duty_cycle_ns)
