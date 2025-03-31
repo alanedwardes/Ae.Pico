@@ -51,3 +51,36 @@ class PWM:
         period_ns = period_s * 1e9
         duty_cycle_ns = (self.__duty_u16 / 65_535) * period_ns
         return self.init(duty_ns=value) if value else int(duty_cycle_ns)
+
+class Pin:
+    IN = 0
+    OUT = 1
+    PULL_UP = 1
+    PULL_DOWN = 2
+
+    def __init__(self, id, mode=-1, pull=-1, *, value=None, drive=0, alt=-1):
+        self.__id = id
+
+        from pigpio import pi
+        self.pi = pi()
+        self.init(mode=mode, pull=pull, value=value, drive=drive, alt=alt)
+
+    def init(self, mode=-1, pull=-1, *, value=None, drive=0, alt=-1):
+        from pigpio import PUD_OFF, PUD_UP, PUD_DOWN
+
+        if mode > -1:
+            pass
+        if pull > -1:
+            pull_map = {Pin.PULL_UP: PUD_UP, Pin.PULL_DOWN: PUD_DOWN}
+            print('setting resistor on pin %i to %i' % (self.__id, pull))
+            self.pi.set_pull_up_down(self.__id, pull_map.get(pull, PUD_OFF))
+        if value:
+            pass
+        if drive:
+            pass
+        if alt > -1:
+            pass
+
+    def value(self, x=None):
+        print('reading pin %i' % self.__id)
+        return self.pi.read(self.__id)
