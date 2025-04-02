@@ -13,8 +13,7 @@ class OccupancyBacklight:
 
     async def start(self):
         await self.hass.subscribe([self.occupancy_entity_id], self.occupancy_updated)
-        while True:
-            await asyncio.sleep(300)
+        await asyncio.Event().wait()
 
     def occupancy_updated(self, entity_id, entity):
         self.display.set_backlight(1 if entity['s'] == 'on' else 0)
