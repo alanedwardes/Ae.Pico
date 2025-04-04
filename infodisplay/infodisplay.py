@@ -1,3 +1,4 @@
+import gc
 import utime
 import asyncio
 
@@ -218,6 +219,6 @@ class InfoDisplay:
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
         self.display.set_thickness(1)
-        self.display.text("%idB %ims" % (self.wlan.status('rssi'), self.last_update_time_ms), 0, 240, scale=1, angle=270)
+        self.display.text("%idB %ims %ikB" % (self.wlan.status('rssi'), self.last_update_time_ms, gc.mem_free() / 1024), 0, 240, scale=1, angle=270)
         
         self.display.update()
