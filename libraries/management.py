@@ -401,20 +401,19 @@ class PWMController:
         body = await reader.readexactly(content_length)
         pin_number = int(path.split(b'/pwm/')[1])
         pwm = machine.PWM(pin_number)
-        duty_max = float(65535)
+        DUTY_MAX = float(65535)
 
         if body:
             form = parse_form(body)
-            print(form)
             freq = int(form.get(b'frequency', 5_000))
-            duty_u16 = int(duty_max * float(form.get(b'duty', 50)) / 100)
+            duty_u16 = int(DUTY_MAX * float(form.get(b'duty', 50)) / 100)
             pwm.deinit() if freq < 8 else pwm.init(freq=freq, duty_u16=duty_u16)
             writer.write(ACCEPTED_STATUS)
         else:
             writer.write(OK_STATUS)
         
         writer.write(HEADER_TERMINATOR)
-        writer.write('frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / duty_max * 100))
+        writer.write('frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / DUTY_MAX * 100))
 
 class UploadController:    
     def route(self, method, path):
