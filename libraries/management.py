@@ -18,6 +18,7 @@ BACK_LINK = b'<p><a href="/">Back</a></p>'
 
 ERROR_STATUS = b'HTTP/1.0 500 Internal Server Error' + HEADER_TERMINATOR
 OK_STATUS = b'HTTP/1.0 200 OK' + HEADER_TERMINATOR
+ACCEPTED_STATUS = b'HTTP/1.0 202 Accepted' + HEADER_TERMINATOR
 NOT_FOUND_STATUS = b'HTTP/1.0 404 Not Found' + HEADER_TERMINATOR
 UNAUTHORIZED_STATUS = b'HTTP/1.0 401 Unauthorized' + HEADER_TERMINATOR
 HTML_HEADER = b'Content-Type: text/html; charset=utf-8' + HEADER_TERMINATOR
@@ -391,6 +392,30 @@ class GPIOController:
         writer.write(HEADER_TERMINATOR)
         writer.write('ON' if pin.value() else 'OFF')
 
+class PWMController:
+    def route(self, method, path):
+        return path.startswith(b'/pwm')
+    
+    async def serve(self, method, path, headers, reader, writer):
+        content_length = int(headers.get(b'content-length', '0'))
+        body = await reader.readexactly(content_length)
+        pin_number = int(path.split(b'/pwm/')[1])
+        pwm = machine.PWM(pin_number)
+        duty_max = float(65535)
+
+        if body:
+            form = parse_form(body)
+            print(form)
+            freq = int(form.get(b'frequency', 5_000))
+            duty_u16 = int(duty_max * float(form.get(b'duty', 50)) / 100)
+            pwm.deinit() if freq < 8 else pwm.init(freq=freq, duty_u16=duty_u16)
+            writer.write(ACCEPTED_STATUS)
+        else:
+            writer.write(OK_STATUS)
+        
+        writer.write(HEADER_TERMINATOR)
+        writer.write('frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / duty_max * 100))
+
 class UploadController:    
     def route(self, method, path):
         return method == b'POST' and path == b'/upload'
@@ -481,7 +506,8 @@ class ManagementServer:
         self.port = port
         self.controllers = [IndexController(), EditController(), DownloadController(),
                             UploadController(), DeleteController(), ResetController(),
-                            TimeController(), ShellController(), GPIOController()]
+                            TimeController(), ShellController(),
+                            GPIOController(), PWMController()]
         self.authorization_header = None
         self.server = None
     
