@@ -68,6 +68,18 @@ class InfoDisplay:
             return self.over_n10
         else:
             return self.cold
+        
+    def pen_for_uv(self, uv):
+        if uv < 3:
+            return self.over_5c
+        elif uv < 5:
+            return self.over_11c
+        elif uv < 7:
+            return self.over_21c
+        elif uv < 10:
+            return self.over_30c
+        else:
+            return self.cold
     
     def draw_text(self, text, scale, x, y, width):
         text_width = self.display.measure_text(text, scale)
@@ -109,6 +121,13 @@ class InfoDisplay:
                 return self.pen_for_temp(float(value))
             except:
                 pass
+            
+        if subscription.get('uv', False):
+            try:
+                return self.pen_for_uv(int(value))
+            except:
+                pass
+        
         return self.white
     
     CREATION_PRIORITY = 1
