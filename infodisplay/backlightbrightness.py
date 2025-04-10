@@ -16,4 +16,4 @@ class BacklightBrightness:
         await asyncio.Event().wait()
 
     def brightness_updated(self, entity_id, entity):
-        self.display.set_backlight(float(entity['s'])/100)
+        self.display.set_backlight(float(entity['s']))
