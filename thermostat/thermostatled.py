@@ -2,17 +2,18 @@ import asyncio
 from pimoroni import RGBLED
 
 class ThermostatLed:
-    def __init__(self, hass, nic, thermostat_entity_id, led):
+    def __init__(self, hass, nic, thermostat_entity_id, led, intensity):
         self.hass = hass
         self.nic = nic
         self.thermostat_entity_id = thermostat_entity_id
         self.led = RGBLED(*led)
+        self.intensity = intensity
         self.is_heating = False
     
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['thermostat']
-        return ThermostatLed(provider['hassws.HassWs'], provider['nic'], config['entity_id'], config['leds'])
+        return ThermostatLed(provider['hassws.HassWs'], provider['nic'], config['entity_id'], config['leds'], config.get('led_intensity', 1))
     
     async def start(self):
         await self.hass.subscribe([self.thermostat_entity_id], self.thermostat_updated)
@@ -22,9 +23,9 @@ class ThermostatLed:
     
     def evaluate_led_color(self):
         if not self.hass.is_active() or not self.nic.isconnected():
-            self.led.set_rgb(255, 0, 0)
+            self.led.set_rgb(int(255 * self.intensity), 0, 0)
         elif self.is_heating:
-            self.led.set_rgb(255, 69, 0)
+            self.led.set_rgb(int(255 * self.intensity), int(69 * self.intensity), 0)
         else:
             self.led.set_rgb(0, 0, 0)
 
