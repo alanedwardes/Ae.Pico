@@ -390,7 +390,7 @@ class GPIOController:
 
         writer.write(OK_STATUS)
         writer.write(HEADER_TERMINATOR)
-        writer.write('ON' if pin.value() else 'OFF')
+        writer.write(b'ON' if pin.value() else b'OFF')
 
 class PWMController:
     def route(self, method, path):
