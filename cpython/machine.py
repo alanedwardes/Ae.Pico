@@ -57,12 +57,14 @@ class Pin:
     OUT = 1
     PULL_UP = 1
     PULL_DOWN = 2
+    __pi = None
 
     def __init__(self, id, mode=-1, pull=-1, *, value=None, drive=0, alt=-1):
         self.__id = id
 
-        from pigpio import pi
-        self.pi = pi()
+        if Pin.__pi is None:
+            from pigpio import pi
+            Pin.__pi = pi()
         self.init(mode=mode, pull=pull, value=value, drive=drive, alt=alt)
 
     def init(self, *, mode=-1, pull=-1, value=None, drive=0, alt=-1):
@@ -70,19 +72,19 @@ class Pin:
 
         if mode > -1:
             mode_map = {Pin.IN: INPUT, Pin.OUT: OUTPUT}
-            self.pi.set_mode(self.__id, mode_map[mode])
+            Pin.__pi.set_mode(self.__id, mode_map[mode])
         if pull > -1:
             pull_map = {Pin.PULL_UP: PUD_UP, Pin.PULL_DOWN: PUD_DOWN}
-            self.pi.set_pull_up_down(self.__id, pull_map.get(pull, PUD_OFF))
+            Pin.__pi.set_pull_up_down(self.__id, pull_map.get(pull, PUD_OFF))
         if value is not None:
-            self.pi.write(self.__id, 1 if value else 0)
+            Pin.__pi.write(self.__id, 1 if value else 0)
         if drive > 0:
             raise NotImplementedError('Setting drive from init is not yet implemented')
         if alt > -1:
             raise NotImplementedError('Setting alt from init is not yet implemented')
 
     def value(self, x=None):
-        return self.init(value=x) if x is not None else self.pi.read(self.__id)
+        return self.init(value=x) if x is not None else Pin.__pi.read(self.__id)
 
 def freq():
     return 0
