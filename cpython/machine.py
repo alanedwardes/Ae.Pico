@@ -82,7 +82,7 @@ class Pin:
             raise NotImplementedError('Setting alt from init is not yet implemented')
 
     def value(self, x=None):
-        return self.init(value=x) if x else self.pi.read(self.__id)
+        return self.init(value=x) if x is not None else self.pi.read(self.__id)
 
 def freq():
     return 0
