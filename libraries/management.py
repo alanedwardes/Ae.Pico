@@ -4,7 +4,7 @@ import machine
 import asyncio
 from hashlib import sha1
 import utime
-import uos
+import os
 import gc
 
 HEADER_TERMINATOR = b'\r\n'
@@ -135,7 +135,7 @@ class IndexController:
     
     async def serve(self, method, path, headers, reader, writer):
         started_ticks_ms = utime.ticks_ms()
-        statvfs = uos.statvfs("/")
+        statvfs = os.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
         used_space = total_space - free_space
@@ -158,7 +158,7 @@ class IndexController:
         
         KB = 1024
         
-        uname = uos.uname()
+        uname = os.uname()
         mac = mac_address().encode('utf-8')
         ip = ifconfig[0].encode('utf-8')
 
@@ -199,7 +199,7 @@ class IndexController:
             writer.write(b'</tr>')
         
         def list_contents_recursive(start):
-            for node in uos.ilistdir(start):
+            for node in os.ilistdir(start):
                 write_file(start, node)
                 if node[1] == 0x4000:
                     list_contents_recursive(start + node[0] + b'/')
@@ -264,7 +264,7 @@ class EditController:
             await reader.readexactly(remaining)
         
         with open(filename, 'rb') as f:
-            stat = uos.stat(filename)
+            stat = os.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(HTML_HEADER)
@@ -289,7 +289,7 @@ class DeleteController:
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
 
-        uos.unlink(filename)
+        os.unlink(filename)
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
@@ -455,7 +455,7 @@ class DownloadController:
         filename = form[b'filename']
         
         with open(filename, 'rb') as f:
-            stat = uos.stat(filename)
+            stat = os.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(b'Content-Length: %i' % (content_size) + HEADER_TERMINATOR)
@@ -515,7 +515,8 @@ class ManagementServer:
         self.authorization_header = b'Basic ' + encoded[:-1]
         
     def create(provider):
-        return ManagementServer()
+        config = provider['config'].get('management', {})
+        return ManagementServer(config.get('port', 80))
     
     async def start(self):
         try:

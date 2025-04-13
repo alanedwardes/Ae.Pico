@@ -83,3 +83,9 @@ class Pin:
 
     def value(self, x=None):
         return self.init(value=x) if x else self.pi.read(self.__id)
+
+def freq():
+    return 0
+
+def unique_id():
+    return b'\xe6c8a\xa3x/,'
