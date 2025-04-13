@@ -1,3 +1,4 @@
+import gc
 import utime
 import asyncio
 
@@ -67,6 +68,18 @@ class InfoDisplay:
             return self.over_n10
         else:
             return self.cold
+        
+    def pen_for_uv(self, uv):
+        if uv < 3:
+            return self.over_5c
+        elif uv < 5:
+            return self.over_11c
+        elif uv < 7:
+            return self.over_21c
+        elif uv < 10:
+            return self.over_30c
+        else:
+            return self.cold
     
     def draw_text(self, text, scale, x, y, width):
         text_width = self.display.measure_text(text, scale)
@@ -108,6 +121,13 @@ class InfoDisplay:
                 return self.pen_for_temp(float(value))
             except:
                 pass
+            
+        if subscription.get('uv', False):
+            try:
+                return self.pen_for_uv(int(value))
+            except:
+                pass
+        
         return self.white
     
     CREATION_PRIORITY = 1
@@ -218,6 +238,6 @@ class InfoDisplay:
         self.display.set_font("bitmap8")
         self.display.set_pen(self.grey)
         self.display.set_thickness(1)
-        self.display.text("%idB %ims" % (self.wlan.status('rssi'), self.last_update_time_ms), 0, 240, scale=1, angle=270)
+        self.display.text("%idB %ims %ikB" % (self.wlan.status('rssi'), self.last_update_time_ms, gc.mem_free() / 1024), 0, 240, scale=1, angle=270)
         
         self.display.update()
