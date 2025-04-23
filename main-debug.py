@@ -19,9 +19,8 @@ def set_global_exception():
     loop.set_exception_handler(handle_exception)
 set_global_exception()
 
-factory = ServiceFactory(provider)
-
 try:
+    factory = ServiceFactory(provider)
     asyncio.run(factory.run_components_forever())
 except Exception as e:
     save_exception(e)
