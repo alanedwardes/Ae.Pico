@@ -5,7 +5,7 @@ class HassMotion:
     def __init__(self, hass, pin, friendly_name, sensor, timeout_seconds):
         self.hass = hass
         self.pin = machine.Pin(pin, machine.Pin.IN, machine.Pin.PULL_DOWN)
-        self.pin.irq(self.interrupt, machine.Pin.IRQ_RISING)
+        self.pin.irq(self.interrupt)
         self.friendly_name = friendly_name
         self.sensor = sensor
         self.timeout_seconds = timeout_seconds
@@ -21,15 +21,15 @@ class HassMotion:
     
     async def start(self):
         while True:
-            # Wait for initial motion signal
             await self.tsf.wait()
-            await self.hass.send_update("on", None, "motion", self.friendly_name, self.sensor)
             
-            # Once motion has been detected
+            if self.pin.value() == 1:
+                await self.hass.send_update("on", None, "motion", self.friendly_name, self.sensor)
+            else:
+                continue
+            
             try:
                 while True:
-                    # Wait for either another signal, or a timeout
                     await asyncio.wait_for(self.tsf.wait(), self.timeout_seconds)
             except asyncio.TimeoutError:
-                # The timer elapsed without detection so signal no motion
                 await self.hass.send_update("off", None, "motion", self.friendly_name, self.sensor)

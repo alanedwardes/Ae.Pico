@@ -87,6 +87,7 @@ class Hass:
         writer.close()
         await writer.wait_closed()
         
+        print(content)
         return content
     
     def write_protocol(self, writer, method, path):
