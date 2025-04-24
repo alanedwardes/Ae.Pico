@@ -90,6 +90,23 @@ class Hass:
         print(content)
         return content
     
+    async def post_event(self, event_type, payload):
+        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
+        self.write_protocol(writer, b'POST', b'/events/%s' % event_type.encode('utf-8'))
+        self.write_auth_header(writer)
+        self.write_json_content_type_header(writer)
+        self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
+        await writer.drain()
+        await self.ensure_success_status_code(reader)
+
+        content_length = await self.get_content_length(reader)
+        content = await reader.readexactly(content_length)
+        writer.close()
+        await writer.wait_closed()
+        
+        print(content)
+        return content
+    
     def write_protocol(self, writer, method, path):
         writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self.uri.path, path))
         writer.write(b'Host: %s\r\n' % self.uri.hostname)
