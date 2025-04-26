@@ -17,7 +17,7 @@ class HassEvent:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['event']
-        return HassEvent(provider['hass.Hass'], config['pin'], config['event_type'], config['debounce_ms'])
+        return HassEvent(provider['hass.Hass'], config['pin'], config['event_type'], config.get('debounce_ms', 100))
     
     async def start(self):
         while True:
@@ -25,4 +25,4 @@ class HassEvent:
             await asyncio.sleep_ms(self.debounce_ms)
 
             if self.pin.value() == 1:
-                await self.hass.post_event(self.event_type, dict(ms_since_last_event=time.ticks_diff(time.ticks_ms(), last_change)))
+                await self.hass.post_event(self.event_type, dict())
