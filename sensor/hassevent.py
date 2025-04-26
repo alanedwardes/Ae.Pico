@@ -3,25 +3,26 @@ import asyncio
 import machine
 
 class HassEvent:
-    def __init__(self, hass, pin, event_type):
+    def __init__(self, hass, pin, event_type, debounce_ms):
         self.hass = hass
         self.pin = machine.Pin(pin, machine.Pin.IN, machine.Pin.PULL_DOWN)
-        self.pin.irq(self.interrupt)
+        self.pin.irq(self.interrupt, machine.Pin.IRQ_RISING)
         self.event_type = event_type
+        self.debounce_ms = debounce_ms
         self.tsf = asyncio.ThreadSafeFlag()
 
     def interrupt(self, pin):
-        if pin.value() == 1:
-            self.tsf.set()
+        self.tsf.set()
 
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['event']
-        return HassEvent(provider['hass.Hass'], config['pin'], config['event_type'])
+        return HassEvent(provider['hass.Hass'], config['pin'], config['event_type'], config['debounce_ms'])
     
     async def start(self):
-        last_change = time.ticks_ms()
         while True:
             await self.tsf.wait()
-            await self.hass.post_event(self.event_type, dict(ms_since_last_event=time.ticks_diff(time.ticks_ms(), last_change)))
-            last_change = time.ticks_ms()
+            await asyncio.sleep_ms(self.debounce_ms)
+
+            if self.pin.value() == 1:
+                await self.hass.post_event(self.event_type, dict(ms_since_last_event=time.ticks_diff(time.ticks_ms(), last_change)))
