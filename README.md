@@ -142,7 +142,7 @@ An async module may also register its own dependencies with custom names. This c
 
 ```python
 def create(provider):
-    provider['myservice'] = new MyService()
+    provider['myservice'] = MyService()
     return MyModule()
 
 async def start(self):
@@ -153,7 +153,7 @@ This allows manipulation of the dependency injection container prior to construc
 
 ```python
 def create(provider):
-    provider['myservice'] = new MyService()
+    provider['myservice'] = MyService()
 
 async def start(self):
     raise NotImplementedError
