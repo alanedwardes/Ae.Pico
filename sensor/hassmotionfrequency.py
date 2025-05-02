@@ -48,7 +48,6 @@ class HassMotionFrequency:
             
             if self.pin.value() == 1:
                 self.timestamps.add(utime.ticks_ms())
-                await self.send_update()
     
     async def start(self):
         await asyncio.gather(self.tidy_loop(), self.motion_loop())
