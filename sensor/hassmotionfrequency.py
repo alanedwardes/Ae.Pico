@@ -23,23 +23,18 @@ class HassMotionFrequency:
         config = provider['config']['motion']
         return HassMotionFrequency(provider['hass.Hass'], config['pin'], config['friendly_name'], config['sensor'], config.get('timeout_seconds', 300), config.get('debounce_ms', 100))
     
-    def expire_timestamps(self):
-        expired_timestamps = {timestamp for timestamp in self.timestamps if utime.ticks_diff(utime.ticks_ms(), timestamp) > self.timeout_seconds * 1000}
-        self.timestamps -= expired_timestamps
-        return len(expired_timestamps)
-    
-    async def send_update(self):
-        new_state = len(self.timestamps)
-        
-        if new_state != self.last_updated_state:
-            await self.hass.post_state(self.sensor, {"state": new_state, "attributes": {"friendly_name": self.friendly_name, "state_class": "measurement"}})
-            self.last_updated_state = new_state
-        
-    async def tidy_loop(self):
+    async def update_loop(self):
         while True:
             await asyncio.sleep(1)
-            self.expire_timestamps()
-            await self.send_update()
+            
+            # Remove expired timestamps
+            self.timestamps -= {timestamp for timestamp in self.timestamps if utime.ticks_diff(utime.ticks_ms(), timestamp) > self.timeout_seconds * 1000}
+            
+            # Update the state if changed
+            new_state = len(self.timestamps)            
+            if new_state != self.last_updated_state:
+                await self.hass.post_state(self.sensor, {"state": new_state, "attributes": {"friendly_name": self.friendly_name, "state_class": "measurement"}})
+                self.last_updated_state = new_state
             
     async def motion_loop(self):
         while True:
@@ -50,4 +45,4 @@ class HassMotionFrequency:
                 self.timestamps.add(utime.ticks_ms())
     
     async def start(self):
-        await asyncio.gather(self.tidy_loop(), self.motion_loop())
+        await asyncio.gather(self.update_loop(), self.motion_loop())
