@@ -73,12 +73,15 @@ class Hass:
         if unit is not None:
             data['attributes']['unit_of_measurement'] = unit
             data['attributes']['state_class'] = "measurement"
-
+            
+        return await self.post_state(sensor, data)
+    
+    async def post_state(self, sensor_type, payload):
         reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        self.write_protocol(writer, b'POST', b'/states/%s' % sensor.encode('utf-8'))
+        self.write_protocol(writer, b'POST', b'/states/%s' % sensor_type.encode('utf-8'))
         self.write_auth_header(writer)
         self.write_json_content_type_header(writer)
-        self.write_content(writer, ujson.dumps(data).encode('utf-8'))
+        self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
         await writer.drain()
         await self.ensure_success_status_code(reader)
 
