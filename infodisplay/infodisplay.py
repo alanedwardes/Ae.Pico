@@ -11,24 +11,43 @@ class InfoDisplay:
         self.wlan = nic
         self.hass = hass
         self.rtc = rtc
+        self.is_active = False
         
-        self.white = self.display.create_pen(255, 255, 255)
-        self.grey = self.display.create_pen(128, 128, 128)
-        self.black = self.display.create_pen(0, 0, 0)
+        self.white = 0
+        self.display.update_pen(self.white, 255, 255, 255)
+
+        self.grey = 1
+        self.display.update_pen(self.grey, 128, 128, 128)
+
+        self.black = 2
+        self.display.update_pen(self.black, 0, 0, 0)
         
-        self.over_41c = self.display.create_pen(154, 27, 30)
-        self.over_30c = self.display.create_pen(238, 45, 41)
-        self.over_21c = self.display.create_pen(242, 106, 48)
-        self.over_17c = self.display.create_pen(250, 163, 26)
-        self.over_15c = self.display.create_pen(251, 182, 22)
-        self.over_11c = self.display.create_pen(254, 219, 0)
-        self.over_9c = self.display.create_pen(208, 215, 62)
-        self.over_7c = self.display.create_pen(175, 210, 81)
-        self.over_5c = self.display.create_pen(159, 205, 128)
-        self.over_3c = self.display.create_pen(170, 214, 174)
-        self.over_1c = self.display.create_pen(174, 220, 216)
-        self.over_n10 = self.display.create_pen(55, 137, 198)
-        self.cold = self.display.create_pen(2, 98, 169)
+        self.over_41c = 3
+        self.display.update_pen(self.over_41c, 154, 27, 30)
+        self.over_30c = 4
+        self.display.update_pen(self.over_30c, 238, 45, 41)
+        self.over_21c = 5
+        self.display.update_pen(self.over_21c, 242, 106, 48)
+        self.over_17c = 6
+        self.display.update_pen(self.over_17c, 250, 163, 26)
+        self.over_15c = 7
+        self.display.update_pen(self.over_15c, 251, 182, 22)
+        self.over_11c = 8
+        self.display.update_pen(self.over_11c, 254, 219, 0)
+        self.over_9c = 9
+        self.display.update_pen(self.over_9c, 208, 215, 62)
+        self.over_7c = 10
+        self.display.update_pen(self.over_7c, 175, 210, 81)
+        self.over_5c = 11
+        self.display.update_pen(self.over_5c, 159, 205, 128)
+        self.over_3c = 12
+        self.display.update_pen(self.over_3c, 170, 214, 174)
+        self.over_1c = 13
+        self.display.update_pen(self.over_1c, 174, 220, 216)
+        self.over_n10 = 14
+        self.display.update_pen(self.over_n10, 55, 137, 198)
+        self.cold = 15
+        self.display.update_pen(self.cold, 2, 98, 169)
         
         self.red = self.over_21c
 
@@ -152,7 +171,15 @@ class InfoDisplay:
             # Assume subseconds component of RTC means milliseconds
             await asyncio.sleep_ms(max(min(1000 - self.rtc.datetime()[7], 1000), 0))
 
+    def activate(self, new_active):
+        self.is_active = new_active
+        if self.is_active:
+            self.update()
+
     def update(self):
+        if self.is_active == False:
+            return
+        
         start_update_ms = utime.ticks_ms()
         self.__update()
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
