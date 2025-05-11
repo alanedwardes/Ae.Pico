@@ -3,9 +3,6 @@ import utime
 import asyncio
 
 class TrainDisplay:
-    MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-    DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
-    
     def __init__(self, display, entity_id, attribute, hass, rtc):
         self.display = display
         self.entity_id = entity_id
@@ -33,7 +30,7 @@ class TrainDisplay:
         
         self.departures = []
         self.last_update_time_ms = 0
-        self.departures_last_updated = (0, 0, 0, 0, 0, 0, 0, 0)
+        self.departures_last_updated = self.rtc.datetime()
    
     CREATION_PRIORITY = 1
     def create(provider):
@@ -46,7 +43,7 @@ class TrainDisplay:
         return TrainDisplay(provider['display'], config['entity_id'], config['attribute'], provider['hassws.HassWs'], rtc)
     
     def entity_updated(self, entity_id, entity):
-        self.departures = entity['a'][self.attribute][:5]
+        self.departures = entity['a'].get(self.attribute, [])[:5]
         self.departures_last_updated = self.rtc.datetime()
         self.update()
     
@@ -57,6 +54,9 @@ class TrainDisplay:
             self.update()
             # Assume subseconds component of RTC means milliseconds
             await asyncio.sleep_ms(max(min(1000 - self.rtc.datetime()[7], 1000), 0))
+
+    def should_activate(self):
+        return len(self.departures) > 0
 
     def activate(self, new_active):
         self.is_active = new_active
