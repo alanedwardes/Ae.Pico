@@ -11,6 +11,9 @@ class ServiceSwitcher:
         return ServiceSwitcher(provider, config['services'], config['time_ms'])
                  
     async def start(self):
+        for service in self.services:
+            self.provider[service].activate(False)
+
         while True:
             for service in self.services:
                 self.provider[service].activate(True)
