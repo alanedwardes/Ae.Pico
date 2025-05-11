@@ -33,6 +33,7 @@ class TrainDisplay:
         
         self.departures = []
         self.last_update_time_ms = 0
+        self.departures_last_updated = (0, 0, 0, 0, 0, 0, 0, 0)
    
     CREATION_PRIORITY = 1
     def create(provider):
@@ -46,6 +47,7 @@ class TrainDisplay:
     
     def entity_updated(self, entity_id, entity):
         self.departures = entity['a'][self.attribute][:5]
+        self.departures_last_updated = self.rtc.datetime()
         self.update()
     
     async def start(self):
@@ -105,4 +107,6 @@ class TrainDisplay:
         for row in range(0, len(self.departures)):
             y_offset += self.__draw_departure_row(self.departures[row], y_offset)
             
+            
+        self.display.text("Last updated: %02i:%02i:%02i" % (self.departures_last_updated[4], self.departures_last_updated[5], self.departures_last_updated[6]), 0, y_offset, scale=2)
         self.display.update()
