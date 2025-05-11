@@ -11,7 +11,7 @@ class InfoDisplay:
         self.wlan = nic
         self.hass = hass
         self.rtc = rtc
-        self.is_active = False
+        self.is_active = True
         
         self.white = 0
         self.display.update_pen(self.white, 255, 255, 255)
