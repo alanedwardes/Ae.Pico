@@ -98,7 +98,6 @@ class Websocket:
             # We can't receive this many bytes, close the socket
             print("Frame of length %s too big. Closing" % length)
             await self.close(code=CLOSE_TOO_BIG)
-            print(fin, opcode, data)
             return True, OP_CLOSE, None
 
         if mask:
