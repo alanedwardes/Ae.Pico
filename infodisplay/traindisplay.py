@@ -78,7 +78,7 @@ class TrainDisplay:
         destination = departure['dst']
         scheduled = departure['std']
         expected = departure['etd']
-        platform = departure.get('plt', '-')
+        platform = departure['plt']
         if departure['can']:
             self.display.set_pen(self.red)
         elif departure['del']:
