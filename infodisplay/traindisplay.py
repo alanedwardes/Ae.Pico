@@ -25,6 +25,9 @@ class TrainDisplay:
         
         self.yellow = 8
         self.display.update_pen(self.yellow, 254, 219, 0)
+        
+        self.orange = 6
+        self.display.update_pen(self.orange, 250, 163, 26)
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -72,13 +75,13 @@ class TrainDisplay:
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         
     def __draw_departure_row(self, departure, y_offset):
-        destination = departure['destination'][0]['locationName']
+        destination = departure['dst']
         scheduled = departure['std']
         expected = departure['etd']
-        platform = departure.get('platform', '-')
-        if departure['isCancelled']:
+        platform = departure.get('plt', '-')
+        if departure['can']:
             self.display.set_pen(self.red)
-        elif 'delayReason' in departure:
+        elif departure['del']:
             self.display.set_pen(self.yellow)
         else:
             self.display.set_pen(self.white)
@@ -96,17 +99,17 @@ class TrainDisplay:
         self.display.set_font("bitmap8")
         self.display.set_pen(self.black)
         self.display.clear()
-        self.display.set_pen(self.white)
+        self.display.set_pen(self.orange)
         
         y_offset = 8
         now = self.rtc.datetime()
-        self.display.text("    %02i:%02i:%02i" % (now[4], now[5], now[6]), 0, y_offset, scale=5)
+        self.display.text("  %02i : %02i : %02i" % (now[4], now[5], now[6]), 0, y_offset, scale=5)
         
         y_offset += 8 * 7
         
         for row in range(0, len(self.departures)):
             y_offset += self.__draw_departure_row(self.departures[row], y_offset)
             
-            
+        self.display.set_pen(self.orange)
         self.display.text("Last updated: %02i:%02i:%02i" % (self.departures_last_updated[4], self.departures_last_updated[5], self.departures_last_updated[6]), 0, y_offset, scale=2)
         self.display.update()
