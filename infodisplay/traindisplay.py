@@ -1,4 +1,3 @@
-import gc
 import utime
 import asyncio
 
