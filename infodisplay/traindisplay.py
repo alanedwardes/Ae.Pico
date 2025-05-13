@@ -76,7 +76,7 @@ class TrainDisplay:
         self.display.text('{:.1}'.format(platform), x_offset, y_offset, scale=2)
         x_offset += 2 * 10
         self.display.text('{:.9}'.format(expected), x_offset, y_offset, scale=2)
-        return 8 * 3
+        return 20
 
     def __update(self):
         self.display.set_font("bitmap8")
