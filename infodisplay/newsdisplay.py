@@ -39,7 +39,6 @@ class NewsDisplay:
         return NewsDisplay(provider['display'], config['source'], config['entity_id'], config['title_attribute'], provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        print(entity)
         self.title = entity['a'].get(self.title_attribute, [])
         self.last_updated = utime.localtime()
         self.update()
