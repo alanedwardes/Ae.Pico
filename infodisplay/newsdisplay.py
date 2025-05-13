@@ -68,23 +68,24 @@ class NewsDisplay:
         y_offset += 25
         
         self.display.set_pen(self.white)
-        self.display.text(NewsDisplay.__word_wrap(self.title, 20), 0, y_offset, scale=3)
+        self.display.text(self.__word_wrap(self.title, self.display_width, 3), 0, y_offset, scale=3)
         self.display.update()
         
-    def __word_wrap(text, width):
+    def __word_wrap(self, text, max_width, scale):
         words = text.split()  # Split the text into words
         wrapped_lines = []
         current_line = ""
 
         for word in words:
-            # Check if adding the word would exceed the width
-            if len(current_line) + len(word) + (1 if current_line else 0) <= width:
-                # If the current line is not empty, add a space before the word
-                if current_line:
-                    current_line += " "
-                current_line += word
+            # Measure the width of the current line with the new word added
+            test_line = f"{current_line} {word}".strip()
+            line_width = self.display.measure_text(test_line, scale)
+
+            if line_width <= max_width:
+                # If the line width is within the limit, add the word to the current line
+                current_line = test_line
             else:
-                # If the current line is full, add it to the wrapped lines and start a new line
+                # If the line width exceeds the limit, finalize the current line and start a new one
                 wrapped_lines.append(current_line)
                 current_line = word
 
