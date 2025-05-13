@@ -3,14 +3,9 @@ import utime
 import asyncio
 
 class InfoDisplay:
-    MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-    DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
-    
-    def __init__(self, display, middle_row, bottom_row, nic, hass, rtc):
+    def __init__(self, display, middle_row, bottom_row, hass):
         self.display = display
-        self.wlan = nic
         self.hass = hass
-        self.rtc = rtc
         self.is_active = True
         
         self.white = 0
@@ -57,8 +52,6 @@ class InfoDisplay:
         self.entities = {}
         self.middle_row = middle_row
         self.bottom_row = bottom_row
-        
-        self.last_update_time_ms = 0
     
     def pen_for_temp(self, temp):
         if temp >= 41:
@@ -151,13 +144,8 @@ class InfoDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['display']
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
-            import machine
-            rtc = machine.RTC()
-        return InfoDisplay(provider['display'], config.get('middle_row', []), config.get('bottom_row', []), provider['nic'], provider['hassws.HassWs'], rtc)
+        config = provider['config']['info']
+        return InfoDisplay(provider['display'], config.get('middle_row', []), config.get('bottom_row', []), provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
         self.entities[entity_id] = entity
@@ -165,11 +153,7 @@ class InfoDisplay:
     
     async def start(self):
         await self.hass.subscribe([item['entity_id'] for item in self.middle_row + self.bottom_row], self.entity_updated)
-        
-        while True:
-            self.update()
-            # Assume subseconds component of RTC means milliseconds
-            await asyncio.sleep_ms(max(min(1000 - self.rtc.datetime()[7], 1000), 0))
+        await asyncio.Event().wait()
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -180,59 +164,16 @@ class InfoDisplay:
         if self.is_active == False:
             return
         
-        start_update_ms = utime.ticks_ms()
         self.__update()
-        self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
 
     def __update(self):
         self.display.set_font("sans")
         self.display.set_pen(self.black)
-        self.display.clear()
+        self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
 
-        now = self.rtc.datetime()
-        
         spacer = 16
         
-        y = spacer
-        
-        self.display.set_pen(self.white)
-        
-        screen_width_third = self.display_width / 5
-        
-        seconds_width = screen_width_third * 1
-        time_width = screen_width_third * 3
-        
-        # Hours and minutes
-        y += self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 4, y, time_width)
-        
-        # Seconds and day
-        self.draw_text("%s" % self.DAYS[now[3]-1], 1, time_width, 10, seconds_width)
-        self.draw_text("%02i" % now[6], 1.2, time_width, 40, seconds_width)
-        
-        calendar_outline_x = int(time_width + seconds_width)
-        calendar_outline_y = 0
-        calendar_outline_w = int(seconds_width)
-        calendar_outline_h = y + spacer
-        
-        # Calendar outline
-        self.display.set_pen(self.red)
-        self.display.rectangle(calendar_outline_x, calendar_outline_y, calendar_outline_w, calendar_outline_h)
-        
-        date_outline_x = calendar_outline_x
-        date_outline_y = 36
-        date_outline_w = calendar_outline_w
-        date_outline_h = 36
-        
-        # Date outline
-        self.display.set_pen(self.white)
-        self.display.rectangle(date_outline_x, date_outline_y, date_outline_w, date_outline_h)
-        
-        # Date and month
-        self.draw_text("%s" % self.MONTHS[now[1]-1], 1, time_width + seconds_width, 10, seconds_width)
-        self.display.set_pen(self.black)
-        self.draw_text("%02i" % now[2], 1.2, date_outline_x, date_outline_y + 8, date_outline_w)
-        
-        y += spacer
+        y = 80
         
         x = 0
         middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0
@@ -261,10 +202,5 @@ class InfoDisplay:
             self.display.set_pen(self.grey)
             self.draw_text(subscription.get('label', '?'), 1, x, y + top_text_height, bottom_row_item_width)
             x += bottom_row_item_width
-
-        self.display.set_font("bitmap8")
-        self.display.set_pen(self.grey)
-        self.display.set_thickness(1)
-        self.display.text("%idB %ims %ikB" % (self.wlan.status('rssi'), self.last_update_time_ms, gc.mem_free() / 1024), 0, 240, scale=1, angle=270)
         
         self.display.update()
