@@ -36,7 +36,7 @@ class NewsDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['news']
-        return NewsDisplay(provider['display'], config['source'], config['entity_id'], config['title_attribute'], provider['hassws.HassWs'])
+        return NewsDisplay(provider['display'], config['source'], config['entity_id'], config.get('title_attribute', 'title'), provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
         self.title = entity['a'].get(self.title_attribute, [])
