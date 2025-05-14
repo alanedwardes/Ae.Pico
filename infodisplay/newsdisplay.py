@@ -29,6 +29,7 @@ class NewsDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         
         self.last_updated = utime.localtime()
+        self.stories = []
         self.story_index = 0
    
     CREATION_PRIORITY = 1
@@ -61,7 +62,10 @@ class NewsDisplay:
         
         y_offset = 85
         
-        story = self.stories[self.story_index]
+        try:
+            story = self.stories[self.story_index]
+        except IndexError:
+            story = dict(t='?', p='?')
             
         self.display.set_pen(self.grey)
         self.display.text("%i/%i %s" % (self.story_index + 1, len(self.stories), story['p']), 0, y_offset)
