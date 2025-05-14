@@ -2,11 +2,9 @@ import utime
 import asyncio
 
 class NewsDisplay:
-    def __init__(self, display, source, entity_id, title_attribute, hass):
+    def __init__(self, display, entity_id, hass):
         self.display = display
-        self.source = source
         self.entity_id = entity_id
-        self.title_attribute = title_attribute
         self.hass = hass
         self.is_active = True
         
@@ -30,16 +28,16 @@ class NewsDisplay:
 
         self.display_width, self.display_height = self.display.get_bounds()
         
-        self.title = '?'
         self.last_updated = utime.localtime()
+        self.story_index = 0
    
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['news']
-        return NewsDisplay(provider['display'], config['source'], config['entity_id'], config.get('title_attribute', 'title'), provider['hassws.HassWs'])
+        return NewsDisplay(provider['display'], config['entity_id'], provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.title = entity['a'].get(self.title_attribute, [])
+        self.stories = entity['a'].get('stories', [])
         self.last_updated = utime.localtime()
         self.update()
     
@@ -51,6 +49,7 @@ class NewsDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
+            self.story_index = (self.story_index + 1) % len(self.stories)
 
     def update(self):
         if self.is_active == False:
@@ -60,15 +59,17 @@ class NewsDisplay:
         self.display.set_pen(self.black)
         self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
         
-        y_offset = 80
+        y_offset = 85
+        
+        story = self.stories[self.story_index]
             
         self.display.set_pen(self.grey)
-        self.display.text("%s UPDATED %02i:%02i:%02i" % (self.source, self.last_updated[3], self.last_updated[4], self.last_updated[5]), 0, y_offset)
+        self.display.text("%i/%i %s" % (self.story_index + 1, len(self.stories), story['p']), 0, y_offset)
         
         y_offset += 25
         
         self.display.set_pen(self.white)
-        self.display.text(self.__word_wrap(self.title, self.display_width, 3), 0, y_offset, scale=3)
+        self.display.text(self.__word_wrap(story['t'], self.display_width, 3), 0, y_offset, scale=3)
         self.display.update()
         
     def __word_wrap(self, text, max_width, scale):
