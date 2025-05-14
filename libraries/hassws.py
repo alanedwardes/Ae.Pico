@@ -4,10 +4,9 @@ import utime
 import asyncio
 
 class HassWs:
-    def __init__(self, url, token, nic):
+    def __init__(self, url, token):
         self.url = url
         self.token = token
-        self.nic = nic
         
         self.entity_callbacks = {}
         self.subscribed_entities = set()
@@ -19,13 +18,10 @@ class HassWs:
     
     def create(provider):
         config = provider['config']['hass']
-        return HassWs(config['ws'], config['token'], provider['nic'])
+        return HassWs(config['ws'], config['token'])
     
     async def start(self):
         try:
-            while not self.nic.isconnected():
-                await asyncio.sleep_ms(100)
-            
             self.socket = await ws.connect(self.url + '/api/websocket')
             await asyncio.gather(self.__listen(), self.__keepalive())
         finally:
@@ -129,6 +125,8 @@ class HassWs:
                 print('Error executing callback', e)
 
     def process_event(self, event):
+        # Event types: https://github.com/home-assistant/core/blob/9428127021325b9f7500e03a9627929840bfa2e4/homeassistant/components/websocket_api/messages.py#L43-L45
+        # Change types: https://github.com/home-assistant/core/blob/9428127021325b9f7500e03a9627929840bfa2e4/homeassistant/components/websocket_api/messages.py#L11-L17
         if 'a' in event:
             for entity_id in event['a']:
                 self.entities[entity_id] = event['a'][entity_id]
@@ -141,6 +139,10 @@ class HassWs:
                 if 'a' in change:
                     self.entities[entity_id]['a'] |= change['a']
                 self._execute_callback(self.entity_callbacks.get(entity_id, None), entity_id, self.entities[entity_id])
+        elif 'r' in event:
+            for entity_id in event['r']:
+                print(f'Removing {entity_id}')
+                self.entities.pop(entity_id, None)
         else:
             print('Unrecognised event structure: %s', event)
         self._execute_callback(self.entities_updated, self.entities)
