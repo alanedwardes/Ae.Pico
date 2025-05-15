@@ -49,7 +49,8 @@ class TimeDisplay:
         while True:
             self.update()
             # Assume subseconds component of RTC means milliseconds
-            await asyncio.sleep_ms(max(min(1000 - self.rtc.datetime()[7], 1000), 0))
+            sleep_ms = max(min(1000 - self.rtc.datetime()[7], 1000), 0)
+            await asyncio.sleep(sleep_ms / 1000)
 
     def update(self):      
         start_update_ms = utime.ticks_ms()

@@ -23,5 +23,5 @@ class ServiceSwitcher:
                     continue
                 
                 service.activate(True)
-                await asyncio.sleep_ms(self.time_ms)
+                await asyncio.sleep(self.time_ms / 1000)
                 service.activate(False)

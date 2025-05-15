@@ -23,4 +23,5 @@ class RTC:
         if len(args) == 1:
             RTC.ts = args[0]
 
-        return datetime.datetime.now()
+        now = datetime.datetime.now()
+        return (now.year, now.month, now.day, now.weekday(), now.hour, now.minute, now.second, 0)
