@@ -1,5 +1,3 @@
-import gc
-import utime
 import asyncio
 
 class InfoDisplay:
@@ -9,42 +7,23 @@ class InfoDisplay:
         self.is_active = True
         
         self.white = 0
-        self.display.update_pen(self.white, 255, 255, 255)
-
-        self.grey = 1
-        self.display.update_pen(self.grey, 128, 128, 128)
-
-        self.black = 2
-        self.display.update_pen(self.black, 0, 0, 0)
+        self.black = 1
+        self.red = 2
         
-        self.over_41c = 3
-        self.display.update_pen(self.over_41c, 154, 27, 30)
-        self.over_30c = 4
-        self.display.update_pen(self.over_30c, 238, 45, 41)
-        self.over_21c = 5
-        self.display.update_pen(self.over_21c, 242, 106, 48)
+        self.grey = 3
+        self.over_41c = 4
+        self.over_30c = 5
+        self.over_21c = self.red
         self.over_17c = 6
-        self.display.update_pen(self.over_17c, 250, 163, 26)
         self.over_15c = 7
-        self.display.update_pen(self.over_15c, 251, 182, 22)
         self.over_11c = 8
-        self.display.update_pen(self.over_11c, 254, 219, 0)
         self.over_9c = 9
-        self.display.update_pen(self.over_9c, 208, 215, 62)
         self.over_7c = 10
-        self.display.update_pen(self.over_7c, 175, 210, 81)
         self.over_5c = 11
-        self.display.update_pen(self.over_5c, 159, 205, 128)
         self.over_3c = 12
-        self.display.update_pen(self.over_3c, 170, 214, 174)
         self.over_1c = 13
-        self.display.update_pen(self.over_1c, 174, 220, 216)
         self.over_n10 = 14
-        self.display.update_pen(self.over_n10, 55, 137, 198)
         self.cold = 15
-        self.display.update_pen(self.cold, 2, 98, 169)
-        
-        self.red = self.over_21c
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -167,13 +146,30 @@ class InfoDisplay:
         self.__update()
 
     def __update(self):
+        self.display.update_pen(self.white, 255, 255, 255)
+        self.display.update_pen(self.grey, 128, 128, 128)
+        self.display.update_pen(self.black, 0, 0, 0)
+        self.display.update_pen(self.over_41c, 154, 27, 30)
+        self.display.update_pen(self.over_30c, 238, 45, 41)
+        self.display.update_pen(self.over_21c, 242, 106, 48)
+        self.display.update_pen(self.over_17c, 250, 163, 26)
+        self.display.update_pen(self.over_15c, 251, 182, 22)
+        self.display.update_pen(self.over_11c, 254, 219, 0)
+        self.display.update_pen(self.over_9c, 208, 215, 62)
+        self.display.update_pen(self.over_7c, 175, 210, 81)
+        self.display.update_pen(self.over_5c, 159, 205, 128)
+        self.display.update_pen(self.over_3c, 170, 214, 174)
+        self.display.update_pen(self.over_1c, 174, 220, 216)
+        self.display.update_pen(self.over_n10, 55, 137, 198)
+        self.display.update_pen(self.cold, 2, 98, 169)
+        
+        y = 70
+        
         self.display.set_font("sans")
         self.display.set_pen(self.black)
-        self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
+        self.display.rectangle(0, y, self.display_width, self.display_height - y)
 
         spacer = 16
-        
-        y = 80
         
         x = 0
         middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0

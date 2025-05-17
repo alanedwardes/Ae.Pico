@@ -10,13 +10,12 @@ class TimeDisplay:
         self.rtc = rtc
         
         self.white = 0
-        self.display.update_pen(self.white, 255, 255, 255)
-
-        self.black = 2
-        self.display.update_pen(self.black, 0, 0, 0)
+        self.black = 1
+        self.highlight = 2
         
-        self.red = 5
-        self.display.update_pen(self.red, 242, 106, 48)
+        self.display.update_pen(self.white, 255, 255, 255)
+        self.display.update_pen(self.black, 0, 0, 0)
+        self.display.update_pen(self.highlight, 242, 106, 48)
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -58,9 +57,11 @@ class TimeDisplay:
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
 
     def __update(self):
+        height = 70
+        
         self.display.set_font("sans")
         self.display.set_pen(self.black)
-        self.display.rectangle(0, 0, self.display_width, 80)
+        self.display.rectangle(0, 0, self.display_width, height)
 
         now = self.rtc.datetime()
         
@@ -88,13 +89,13 @@ class TimeDisplay:
         calendar_outline_h = y + spacer
         
         # Calendar outline
-        self.display.set_pen(self.red)
-        self.display.rectangle(calendar_outline_x, calendar_outline_y, calendar_outline_w, calendar_outline_h)
+        self.display.set_pen(self.highlight)
+        self.display.rectangle(calendar_outline_x, calendar_outline_y, calendar_outline_w, height)
         
         date_outline_x = calendar_outline_x
         date_outline_y = 36
         date_outline_w = calendar_outline_w
-        date_outline_h = 36
+        date_outline_h = 34
         
         # Date outline
         self.display.set_pen(self.white)
