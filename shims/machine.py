@@ -24,4 +24,4 @@ class RTC:
             RTC.ts = args[0]
 
         now = datetime.datetime.now()
-        return (now.year, now.month, now.day, now.weekday(), now.hour, now.minute, now.second, 0)
+        return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, 0)
