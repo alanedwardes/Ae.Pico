@@ -77,12 +77,12 @@ class TrainDisplay:
         self.display.update_pen(self.yellow, 254, 219, 0)
         self.display.update_pen(self.orange, 250, 163, 26)
         
+        y_offset = 70
+        
         self.display.set_font("bitmap8")
         self.display.set_pen(self.black)
-        self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
+        self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
         self.display.set_pen(self.orange)
-        
-        y_offset = 80
         
         for row in range(0, len(self.departures)):
             y_offset += self.__draw_departure_row(self.departures[row], y_offset)

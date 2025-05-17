@@ -163,13 +163,13 @@ class InfoDisplay:
         self.display.update_pen(self.over_n10, 55, 137, 198)
         self.display.update_pen(self.cold, 2, 98, 169)
         
+        y = 70
+        
         self.display.set_font("sans")
         self.display.set_pen(self.black)
-        self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
+        self.display.rectangle(0, y, self.display_width, self.display_height - y)
 
         spacer = 16
-        
-        y = 80
         
         x = 0
         middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0

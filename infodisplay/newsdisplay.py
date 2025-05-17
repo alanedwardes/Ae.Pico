@@ -46,11 +46,11 @@ class NewsDisplay:
         self.display.update_pen(self.black, 0, 0, 0)
         self.display.update_pen(self.grey, 128, 128, 128)
         
+        y_offset = 70
+        
         self.display.set_font("bitmap8")
         self.display.set_pen(self.black)
-        self.display.rectangle(0, 80, self.display_width, self.display_height - 80)
-        
-        y_offset = 85
+        self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
         
         try:
             story = self.stories[self.story_index]
