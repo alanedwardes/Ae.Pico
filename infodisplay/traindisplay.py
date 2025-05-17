@@ -84,6 +84,8 @@ class TrainDisplay:
         self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
         self.display.set_pen(self.orange)
         
+        y_offset += 8
+        
         for row in range(0, len(self.departures)):
             y_offset += self.__draw_departure_row(self.departures[row], y_offset)
             
