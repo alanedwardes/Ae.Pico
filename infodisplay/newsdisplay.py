@@ -9,22 +9,8 @@ class NewsDisplay:
         self.is_active = True
         
         self.white = 0
-        self.display.update_pen(self.white, 255, 255, 255)
-
-        self.black = 2
-        self.display.update_pen(self.black, 0, 0, 0)
-       
-        self.grey = 1
-        self.display.update_pen(self.grey, 128, 128, 128)
-       
-        self.red = 5
-        self.display.update_pen(self.red, 242, 106, 48)
-        
-        self.yellow = 8
-        self.display.update_pen(self.yellow, 254, 219, 0)
-        
-        self.orange = 6
-        self.display.update_pen(self.orange, 250, 163, 26)
+        self.black = 1        
+        self.grey = 3
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -55,6 +41,10 @@ class NewsDisplay:
     def update(self):
         if self.is_active == False:
             return
+        
+        self.display.update_pen(self.white, 255, 255, 255)
+        self.display.update_pen(self.black, 0, 0, 0)
+        self.display.update_pen(self.grey, 128, 128, 128)
         
         self.display.set_font("bitmap8")
         self.display.set_pen(self.black)
