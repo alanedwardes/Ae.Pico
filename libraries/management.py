@@ -179,6 +179,7 @@ class IndexController:
         writer.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
         writer.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
         writer.write(b'<h2>Filesystem</h2>')
+        writer.write(b'<p>Create file: <form action="new" enctype="multipart/form-data" method="post"><input type="text" name="filename" placeholder="newfile.txt"><button>Create</button></form></p>')
         writer.write(b'<table>')
         writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Hash</th><th>Actions</th></tr></thead>')
         writer.write(b'<tbody>')
@@ -216,7 +217,7 @@ class IndexController:
 
 class EditController:
     def route(self, method, path):
-        return path == b'/edit'
+        return path == b'/edit' or path == b'/new'
     
     async def serve(self, method, path, headers, reader, writer):
         filename_disposition = b'Content-Disposition: form-data; name="filename"\r\n'
@@ -225,7 +226,7 @@ class EditController:
         
         remaining = int(headers[b'content-length'])
         boundary_line = await reader.readline()
-        remaining -= len(boundary_line)        
+        remaining -= len(boundary_line)
         assert boundary_line[-len(HEADER_TERMINATOR):] == HEADER_TERMINATOR
         boundary = boundary_line[:-len(HEADER_TERMINATOR)]
         
@@ -238,8 +239,7 @@ class EditController:
         filename_line = await reader.readline()
         remaining -= len(filename_line)        
         assert filename_line[-len(HEADER_TERMINATOR):] == HEADER_TERMINATOR        
-        filename = filename_line[:-len(HEADER_TERMINATOR)]        
-        print(filename)
+        filename = filename_line[:-len(HEADER_TERMINATOR)]
         
         mid_boundary = await reader.readline()
         remaining -= len(mid_boundary)
@@ -262,6 +262,10 @@ class EditController:
             remaining -= body_length
             assert remaining == trailer_length
             await reader.readexactly(remaining)
+            
+        if path == b'/new':
+            with open(filename, 'x') as f:
+                pass
         
         with open(filename, 'rb') as f:
             stat = os.stat(filename)
@@ -529,7 +533,7 @@ class ManagementServer:
         if self.server is not None:
             self.server.close()
             await self.server.wait_closed()
-        
+    
     async def __serve(self, reader, writer):
         try:
             requestline = (await reader.readline()).split(b' ')
