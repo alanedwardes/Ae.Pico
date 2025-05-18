@@ -54,5 +54,6 @@ try:
     asyncio.run(start())
 except Exception as e:
     save_exception('unhandled.log', e)
+    raise
 finally:
     asyncio.new_event_loop()
