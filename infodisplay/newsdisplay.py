@@ -58,9 +58,9 @@ class NewsDisplay:
             story = dict(t='?', p='?')
             
         self.display.set_pen(self.grey)
-        self.display.text("%i/%i %s" % (self.story_index + 1, len(self.stories), story['p']), 0, y_offset, scale=2)
+        self.display.text("%i/%i %s" % (self.story_index + 1, len(self.stories), story['p']), 0, y_offset + 5, scale=2)
         
-        y_offset += 25
+        y_offset += 30
         
         self.display.set_pen(self.white)
         self.display.text(self.__word_wrap(story['t'], self.display_width, 3), 0, y_offset, scale=3)

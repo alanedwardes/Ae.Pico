@@ -1,3 +1,4 @@
+import math
 import utime
 import asyncio
 
@@ -22,18 +23,24 @@ class TimeDisplay:
         
         self.last_update_time_ms = 0
         
-    def draw_text(self, text, scale, x, y, width):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 20
-        self.display.set_thickness(int(scale * 3))
+    def draw_text(self, text, scale, x, y, width, height):
+        thickness = scale * 3
+        
+        self.display.set_thickness(math.floor(thickness))
+        
+        #text_height = (scale * 20) + thickness
+        #half_height = text_height * 0.5
 
-        text_x = int(width * 0.5 - text_width * 0.5)
+        #self.display.set_pen(self.highlight)
+        #self.display.rectangle(math.floor(x), math.floor(y), math.ceil(width), math.ceil(height))
+
+        text_width = self.display.measure_text(text, scale) + thickness
+        text_x = width * 0.5 - text_width * 0.5
         
-        half_height = text_height * 0.5
+        half_height = height * 0.5
         
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
+        #self.display.set_pen(self.white)
+        self.display.text(text, math.floor(text_x + x + (thickness * 0.5)), math.floor(y + half_height + (thickness * 0.5)), scale=scale)
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -64,46 +71,27 @@ class TimeDisplay:
         self.display.rectangle(0, 0, self.display_width, height)
 
         now = self.rtc.datetime()
+                
+        section_width = self.display_width / 5
+        section_height = height / 2
         
-        spacer = 16
-        
-        y = spacer
+        time_width = self.display_width - section_width * 2
         
         self.display.set_pen(self.white)
+        self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 0, 0, time_width, height)
         
-        screen_width_third = self.display_width / 5
+        self.draw_text(f"{self.DAYS[now[3]-1]}", 1, time_width, 0, section_width, section_height)
+        self.draw_text("%02i" % now[6], 1.2, time_width, section_height, section_width, section_height)
         
-        seconds_width = screen_width_third * 1
-        time_width = screen_width_third * 3
-        
-        # Hours and minutes
-        y += self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 4, y, time_width)
-        
-        # Seconds and day
-        self.draw_text("%s" % self.DAYS[now[3]-1], 1, time_width, 10, seconds_width)
-        self.draw_text("%02i" % now[6], 1.2, time_width, 40, seconds_width)
-        
-        calendar_outline_x = int(time_width + seconds_width)
-        calendar_outline_y = 0
-        calendar_outline_w = int(seconds_width)
-        calendar_outline_h = y + spacer
-        
-        # Calendar outline
         self.display.set_pen(self.highlight)
-        self.display.rectangle(calendar_outline_x, calendar_outline_y, calendar_outline_w, height)
-        
-        date_outline_x = calendar_outline_x
-        date_outline_y = 36
-        date_outline_w = calendar_outline_w
-        date_outline_h = 34
-        
-        # Date outline
+        self.display.rectangle(int(time_width + section_width), 0, int(section_width), int(section_height))
+
         self.display.set_pen(self.white)
-        self.display.rectangle(date_outline_x, date_outline_y, date_outline_w, date_outline_h)
+        self.draw_text(f"{self.MONTHS[now[1]-1]}", 1, time_width + section_width, 0, section_width, section_height)
         
-        # Date and month
-        self.draw_text("%s" % self.MONTHS[now[1]-1], 1, time_width + seconds_width, 10, seconds_width)
+        self.display.rectangle(int(time_width + section_width), int(section_height), int(section_width), int(section_height))
+        
         self.display.set_pen(self.black)
-        self.draw_text("%02i" % now[2], 1.2, date_outline_x, date_outline_y + 8, date_outline_w)
+        self.draw_text("%02i" % now[2], 1.2, time_width + section_width, section_height, section_width, section_height)
         
         self.display.update()
