@@ -1,4 +1,7 @@
 def read_bitmap(data, start_row=0):
+    return read_pixels(read_header(data), data, start_row)
+
+def read_header(data):
     # Read BMP Header
     header = data.read(14)
     if header[0:2] != b'BM':
@@ -10,7 +13,6 @@ def read_bitmap(data, start_row=0):
     dib_header = data.read(40)
     width = int.from_bytes(dib_header[4:8], 'little')
     raw_height = int.from_bytes(dib_header[8:12], 'little')
-    # Manually interpret sign (BMP height is 4 bytes, two's complement)
     if raw_height & 0x80000000:
         height = -((~raw_height + 1) & 0xFFFFFFFF)
     else:
@@ -18,9 +20,6 @@ def read_bitmap(data, start_row=0):
     planes = int.from_bytes(dib_header[12:14], 'little')
     bpp = int.from_bytes(dib_header[14:16], 'little')
     compression = int.from_bytes(dib_header[16:20], 'little')
-    
-    if planes != 1 or compression != 0:
-        raise ValueError("Only uncompressed BMP files with 1 plane are supported")
 
     # Read palette if present
     palette = []
@@ -35,6 +34,30 @@ def read_bitmap(data, start_row=0):
     elif bpp == 16:
         # 16-bit BMPs are usually 5-5-5 or 5-6-5, but we assume 5-5-5 here
         pass  # No palette
+
+    return {
+        "file_size": file_size,
+        "pixel_offset": pixel_offset,
+        "width": width,
+        "height": height,
+        "planes": planes,
+        "bpp": bpp,
+        "compression": compression,
+        "palette": palette
+    }
+
+def read_pixels(data, header, start_row=0):
+    file_size = header["file_size"]
+    pixel_offset = header["pixel_offset"]
+    width = header["width"]
+    height = header["height"]
+    planes = header["planes"]
+    bpp = header["bpp"]
+    compression = header["compression"]
+    palette = header["palette"]
+
+    if planes != 1 or compression != 0:
+        raise ValueError("Only uncompressed BMP files with 1 plane are supported")
 
     # Move to pixel data
     data.seek(pixel_offset)
