@@ -9,6 +9,8 @@ class WeatherDisplay:
         self.entity_id = entity_id
         self.days = []
         self.is_active = True
+        self.bitmap = open('weather_icons.bmp', 'rb')
+        self.bitmap_header = bitmap.read_header(self.bitmap)
         
         self.display_width, self.display_height = self.display.get_bounds()
     
@@ -23,11 +25,10 @@ class WeatherDisplay:
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
-        self.bitmap = open('weather_icons.bmp', 'rb')
-        self.bitmap_header = bitmap.read_header(self.bitmap)
-        while True:
-            self.update()
-            await asyncio.sleep(1)
+        # For testing
+        #while True:
+        #    self.update()
+        #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
     def should_activate(self):
