@@ -1,5 +1,5 @@
 def read_bitmap(data, start_row=0):
-    return read_pixels(read_header(data), data, start_row)
+    return read_pixels(data, read_header(data), start_row)
 
 def read_header(data):
     # Read BMP Header
