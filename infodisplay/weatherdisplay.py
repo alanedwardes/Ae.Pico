@@ -58,13 +58,13 @@ class WeatherDisplay:
     
     def draw_icon(self, icon, palette, offset_x, offset_y, width, height):
         icons = {
-            'sun': (0, 36),
-            'wind': (36, 23),
-            'partial': (60, 24),
-            'fog': (84, 31),
-            'rain': (116, 30),
-            'cloud': (146, 21),
-            'lightning': (168, 31)
+            'sun': (0, 36, 0),
+            'wind': (36, 23, 0),
+            'partial': (60, 24, 0),
+            'fog': (84, 31, 0),
+            'rain': (116, 30, 6),
+            'cloud': (146, 21, 2),
+            'lightning': (168, 31, 0)
         }
         offset = icons[icon]
         icon_height = offset[1]
@@ -73,7 +73,7 @@ class WeatherDisplay:
         centered_offset_x = offset_x + (width - icon_width) // 2
         centered_offset_y = offset_y + (height - icon_height) // 2
         
-        self.read_icon(palette, centered_offset_x, centered_offset_y, offset[0], offset[1], 1)
+        self.read_icon(palette, centered_offset_x, centered_offset_y + offset[2], offset[0], offset[1], 1)
     
     def draw_text(self, text, x, y, width, scale=1):
         text_width = self.display.measure_text(text, scale)
