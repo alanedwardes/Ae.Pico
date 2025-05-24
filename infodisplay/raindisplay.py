@@ -68,7 +68,7 @@ class RainDisplay:
         
         column_width = self.display_width // len(self.hours)
         for i, hour in enumerate(self.hours):
-            hour_number = hour['h']
+            hour_number = 12 if hour['h'] is 0 else hour['h']
             rain_chance = hour['r']
             temperature = hour['t']
             
