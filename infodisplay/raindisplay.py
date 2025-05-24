@@ -1,5 +1,4 @@
 import asyncio
-import bitmap
 import utime
 
 class RainDisplay:
