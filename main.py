@@ -24,8 +24,7 @@ async def start_application(nic):
         from servicefactory import ServiceFactory
 
         provider = {'nic': nic, 'config': config.config}
-        factory = ServiceFactory(provider)
-        factory.exception_handler = handle_factory_exception
+        factory = ServiceFactory(provider, handle_factory_exception)
         await factory.run_components_forever()
     except Exception as e:
         save_exception('application.log', e)

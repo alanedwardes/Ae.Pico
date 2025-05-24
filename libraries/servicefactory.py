@@ -5,8 +5,8 @@ import asyncio
 class ServiceFactory:
     INSTANCE = None
 
-    def __init__(self, provider):
-        self.exception_handler = None
+    def __init__(self, provider, exception_handler = None):
+        self.exception_handler = exception_handler
         # The last created instance gets a reference
         ServiceFactory.INSTANCE = self
         # Make this instance available to the service provider
