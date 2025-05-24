@@ -12,6 +12,12 @@ def save_exception(file_name, exception):
     with open(file_name, 'w') as file:
         sys.print_exception(exception, file)
 
+def handle_factory_exception(exception):
+    save_exception('factory.log', exception)
+    
+def handle_async_exception(loop, context):
+    save_exception('asyncio.log', context["exception"])
+
 async def start_application(nic):
     try:
         import config
@@ -19,7 +25,7 @@ async def start_application(nic):
 
         provider = {'nic': nic, 'config': config.config}
         factory = ServiceFactory(provider)
-        
+        factory.exception_handler = handle_factory_exception
         await factory.run_components_forever()
     except Exception as e:
         save_exception('application.log', e)
@@ -43,9 +49,6 @@ async def start():
             await asyncio.sleep(30)
             
     await asyncio.gather(connect_wifi(), start_application(nic))
-
-def handle_async_exception(loop, context):
-    save_exception('asyncio.log', context["exception"])
 
 loop = asyncio.get_event_loop()
 loop.set_exception_handler(handle_async_exception)

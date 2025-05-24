@@ -13,6 +13,7 @@ class ServiceFactory:
         self.componentTypes = list(sorted(self.__discover_components(), key=lambda component: component[2]))
         self.components = dict(self.__instantiate_components(provider))
         self.tasks = dict()
+        self.exception_handler = None
         #print("%i scheduler components:\n* %s" % (len(self.components), '\n* '.join(self.components)))
         #print("%i service provider entries:\n* %s" % (len(provider), '\n* '.join(set(provider.keys()) - set(self.components.keys()))))
 
@@ -69,5 +70,6 @@ class ServiceFactory:
             await self.tasks[componentName]
         except Exception as e:
             print("Exception from %s: %s" % (componentName, str(e)))
+            self.exception_handler and self.exception_handler(e)
         finally:
             gc.collect()
