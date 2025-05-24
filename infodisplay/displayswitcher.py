@@ -1,6 +1,6 @@
 import asyncio
 
-class ServiceSwitcher:
+class DisplaySwitcher:
     def __init__(self, provider, services, time_ms):
         self.provider = provider
         self.services = services
@@ -8,7 +8,7 @@ class ServiceSwitcher:
     
     def create(provider):
         config = provider['config']['switcher']
-        return ServiceSwitcher(provider, config['services'], config['time_ms'])
+        return DisplaySwitcher(provider, config['services'], config['time_ms'])
                  
     async def start(self):
         for service in self.services:
