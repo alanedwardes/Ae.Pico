@@ -6,6 +6,7 @@ class ServiceFactory:
     INSTANCE = None
 
     def __init__(self, provider):
+        self.exception_handler = None
         # The last created instance gets a reference
         ServiceFactory.INSTANCE = self
         # Make this instance available to the service provider
@@ -13,7 +14,6 @@ class ServiceFactory:
         self.componentTypes = list(sorted(self.__discover_components(), key=lambda component: component[2]))
         self.components = dict(self.__instantiate_components(provider))
         self.tasks = dict()
-        self.exception_handler = None
         #print("%i scheduler components:\n* %s" % (len(self.components), '\n* '.join(self.components)))
         #print("%i service provider entries:\n* %s" % (len(provider), '\n* '.join(set(provider.keys()) - set(self.components.keys()))))
 
