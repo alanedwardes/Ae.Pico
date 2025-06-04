@@ -1,3 +1,7 @@
+import sys
+sys.path.insert(1, '../libraries')
+sys.path.insert(1, '../infodisplay')
+
 import config
 import asyncio
 from servicefactory import ServiceFactory
