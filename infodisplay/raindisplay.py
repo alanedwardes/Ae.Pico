@@ -61,7 +61,7 @@ class RainDisplay:
         
         palette = [(255, 255, 255), (0, 0, 0), (242, 106, 48)]
         
-        self.display.set_pen_color((0, 0, 0), palette)
+        self.set_pen_color((0, 0, 0), palette)
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
         
         self.display.set_font('bitmap8')
@@ -76,40 +76,50 @@ class RainDisplay:
             sy = y_start + 10
             
             if i % 2:
-                self.display.set_pen_color((64, 64, 64), palette)
+                self.set_pen_color((64, 64, 64), palette)
                 self.display.rectangle(sx, sy, column_width, self.display_height - y_start)
             
-            self.display.set_pen_color((255, 255, 255), palette)
+            self.set_pen_color((255, 255, 255), palette)
             self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
             
             sy += 35
             
             max_column_height = 60
             
-            self.display.set_pen_color((255, 255, 255), palette)
+            self.set_pen_color((255, 255, 255), palette)
             self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
             
             line_y = int(max_column_height * ((100 - rain_chance) / 100))
             
-            self.display.set_pen_color((117, 150, 148), palette)
+            self.set_pen_color((117, 150, 148), palette)
             self.display.rectangle(sx, sy + line_y, column_width, max_column_height - line_y)
             
-            self.display.set_pen_color((174, 220, 216), palette)
+            self.set_pen_color((174, 220, 216), palette)
             self.display.rectangle(sx, sy + line_y, column_width, 5)
             
             sy += max_column_height + 35
             
             if temperature > 21:
-                self.display.set_pen_color((242, 106, 48), palette)
+                self.set_pen_color((242, 106, 48), palette)
             elif temperature > 15:
-                self.display.set_pen_color((251, 182, 22), palette)
+                self.set_pen_color((251, 182, 22), palette)
             elif temperature > 11:
-                self.display.set_pen_color((254, 219, 0), palette)
+                self.set_pen_color((254, 219, 0), palette)
             elif temperature > 5:
-                self.display.set_pen_color((159, 205, 128), palette)
+                self.set_pen_color((159, 205, 128), palette)
             else:
-                self.display.set_pen_color((174, 220, 216), palette)
+                self.set_pen_color((174, 220, 216), palette)
             
             self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
 
         self.display.update()
+
+    def set_pen_color(self, color, palette):
+        if color in palette:
+            pen_index = palette.index(color)
+        else:
+            palette.append(color)
+            pen_index = len(palette) - 1
+            self.display.update_pen(pen_index, color[0], color[1], color[2])
+            
+        self.display.set_pen(pen_index)
