@@ -43,6 +43,9 @@ class PygameDisplay:
     def rectangle(self, x, y, width, height):
         pygame.draw.rect(self.screen, self.pens[self.pen], (x, y, width, height))
 
+    def pixel(self, x, y):
+        self.rectangle(x, y, 1, 1)
+
     def set_thickness(self, thickness):
         self.thickness = thickness
 

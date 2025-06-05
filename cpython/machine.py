@@ -1,3 +1,5 @@
+import datetime
+
 class I2C:
     def __init__(self, id, **kwargs):
         from smbus2 import SMBus
@@ -91,3 +93,8 @@ def freq():
 
 def unique_id():
     return b'\xe6c8a\xa3x/,'
+
+class RTC:
+    def datetime(self, *args):
+        now = datetime.datetime.now()
+        return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, 0)
