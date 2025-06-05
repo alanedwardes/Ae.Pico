@@ -1,5 +1,6 @@
 import asyncio
 import bitmap
+import struct
 import utime
 
 class WeatherDisplay:
@@ -39,11 +40,19 @@ class WeatherDisplay:
         if self.is_active:
             self.update()
             
-    def read_icon(self, palette, offset_x, offset_y, start_row, total_rows, scale):
-        for y, row in enumerate(bitmap.read_pixels(self.bitmap, self.bitmap_header, start_row)):
-            if y > total_rows:
-                return
+    def read_image_rows(self, bin_path):
+        with open(bin_path, 'rb') as f:
+            palette_size, width, height = struct.unpack('<HHH', f.read(6))
+            palette = [tuple(f.read(3)) for _ in range(palette_size)]
+            for _ in range(height):
+                row_indices = list(f.read(width))
+                if len(row_indices) < width:
+                    raise ValueError("Unexpected end of file while reading row data")
+                row_colors = [palette[idx] for idx in row_indices]
+                yield row_colors
             
+    def read_icon(self, palette, offset_x, offset_y, start_row, total_rows, scale):
+        for y, row in enumerate(self.read_image_rows('cloudy.bin')):
             last_pen = None
             for x, color in enumerate(row):
                 if color == (0, 0, 0):
@@ -51,8 +60,7 @@ class WeatherDisplay:
                 
                 if last_pen != color:
                     self.set_pen_color(color, palette)
-                    
-                #self.display.rectangle(offset_x + (x * scale), offset_y + (y * scale), scale, scale)                
+                                 
                 self.display.pixel(offset_x + x, offset_y + y)
                 last_pen = color
     
