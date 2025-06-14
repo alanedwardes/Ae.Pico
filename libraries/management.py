@@ -383,18 +383,33 @@ class GPIOController:
     def route(self, method, path):
         return path.startswith(b'/gpio')
     
-    async def serve(self, method, path, headers, reader, writer):
-        content_length = int(headers.get(b'content-length', '0'))
-        body = await reader.readexactly(content_length)
+    def _write_pin_status(self, pin, writer):
+        writer.write(OK_STATUS)
+        writer.write(HEADER_TERMINATOR)
+        writer.write(b'ON' if pin.value() else b'OFF')
+    
+    def _out(self, path, body, writer):
         pin_number = int(path.split(b'/gpio/out/')[1])
         pin = machine.Pin(pin_number, machine.Pin.OUT)
         
         if body:
             pin.value(body == b'ON')
 
-        writer.write(OK_STATUS)
-        writer.write(HEADER_TERMINATOR)
-        writer.write(b'ON' if pin.value() else b'OFF')
+        self._write_pin_status(pin, writer)
+    
+    def _in(self, path, writer):
+        pin_number = int(path.split(b'/gpio/in/')[1])
+        pin = machine.Pin(pin_number, machine.Pin.IN)
+        self._write_pin_status(pin, writer)
+    
+    async def serve(self, method, path, headers, reader, writer):
+        content_length = int(headers.get(b'content-length', '0'))
+        body = await reader.readexactly(content_length)
+
+        if path.startswith(b'/gpio/out'):
+            self._out(path, body, writer)
+        elif path.startswith(b'/gpio/in'):
+            self._in(path, writer)
 
 class PWMController:
     def route(self, method, path):
