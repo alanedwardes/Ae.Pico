@@ -5,25 +5,6 @@ class InfoDisplay:
         self.display = display
         self.hass = hass
         self.is_active = True
-        
-        self.white = 0
-        self.black = 1
-        self.red = 2
-        
-        self.grey = 3
-        self.over_41c = 4
-        self.over_30c = 5
-        self.over_21c = self.red
-        self.over_17c = 6
-        self.over_15c = 7
-        self.over_11c = 8
-        self.over_9c = 9
-        self.over_7c = 10
-        self.over_5c = 11
-        self.over_3c = 12
-        self.over_1c = 13
-        self.over_n10 = 14
-        self.cold = 15
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -146,22 +127,23 @@ class InfoDisplay:
         self.__update()
 
     def __update(self):
-        self.display.update_pen(self.white, 255, 255, 255)
-        self.display.update_pen(self.grey, 128, 128, 128)
-        self.display.update_pen(self.black, 0, 0, 0)
-        self.display.update_pen(self.over_41c, 154, 27, 30)
-        self.display.update_pen(self.over_30c, 238, 45, 41)
-        self.display.update_pen(self.over_21c, 242, 106, 48)
-        self.display.update_pen(self.over_17c, 250, 163, 26)
-        self.display.update_pen(self.over_15c, 251, 182, 22)
-        self.display.update_pen(self.over_11c, 254, 219, 0)
-        self.display.update_pen(self.over_9c, 208, 215, 62)
-        self.display.update_pen(self.over_7c, 175, 210, 81)
-        self.display.update_pen(self.over_5c, 159, 205, 128)
-        self.display.update_pen(self.over_3c, 170, 214, 174)
-        self.display.update_pen(self.over_1c, 174, 220, 216)
-        self.display.update_pen(self.over_n10, 55, 137, 198)
-        self.display.update_pen(self.cold, 2, 98, 169)
+        self.white = self.display.create_pen(255, 255, 255)
+        self.black = self.display.create_pen(0, 0, 0)
+        self.highlight = self.display.create_pen(242, 106, 48)
+        self.grey = self.display.create_pen(128, 128, 128)
+        self.over_41c = self.display.create_pen(154, 27, 30)
+        self.over_30c = self.display.create_pen(238, 45, 41)
+        self.over_21c = self.display.create_pen(242, 106, 48)
+        self.over_17c = self.display.create_pen(250, 163, 26)
+        self.over_15c = self.display.create_pen(251, 182, 22)
+        self.over_11c = self.display.create_pen(254, 219, 0)
+        self.over_9c = self.display.create_pen(208, 215, 62)
+        self.over_7c = self.display.create_pen(175, 210, 81)
+        self.over_5c = self.display.create_pen(159, 205, 128)
+        self.over_3c = self.display.create_pen(170, 214, 174)
+        self.over_1c = self.display.create_pen(174, 220, 216)
+        self.over_n10 = self.display.create_pen(55, 137, 198)
+        self.cold = self.display.create_pen(2, 98, 169)
         
         y = 70
         

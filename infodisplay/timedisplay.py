@@ -10,14 +10,6 @@ class TimeDisplay:
         self.display = display
         self.rtc = rtc
         
-        self.white = 0
-        self.black = 1
-        self.highlight = 2
-        
-        self.display.update_pen(self.white, 255, 255, 255)
-        self.display.update_pen(self.black, 0, 0, 0)
-        self.display.update_pen(self.highlight, 242, 106, 48)
-
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
         
@@ -64,6 +56,10 @@ class TimeDisplay:
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
 
     def __update(self):
+        self.white = self.display.create_pen(255, 255, 255)
+        self.black = self.display.create_pen(0, 0, 0)
+        self.highlight = self.display.create_pen(242, 106, 48)
+        
         height = 70
         
         self.display.set_font("sans")

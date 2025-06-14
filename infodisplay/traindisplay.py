@@ -8,13 +8,6 @@ class TrainDisplay:
         self.attribute = attribute
         self.hass = hass
         self.is_active = True
-        
-        self.white = 0
-        self.black = 1
-        self.red = 2
-        
-        self.yellow = 3
-        self.orange = 4
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -71,11 +64,11 @@ class TrainDisplay:
         return 20
 
     def __update(self):
-        self.display.update_pen(self.white, 255, 255, 255)
-        self.display.update_pen(self.black, 0, 0, 0)
-        self.display.update_pen(self.red, 242, 106, 48)
-        self.display.update_pen(self.yellow, 254, 219, 0)
-        self.display.update_pen(self.orange, 250, 163, 26)
+        self.white = self.display.create_pen(255, 255, 255)
+        self.black = self.display.create_pen(0, 0, 0)
+        self.red = self.display.create_pen(242, 106, 48)
+        self.yellow = self.display.create_pen(254, 219, 0)
+        self.orange = self.display.create_pen(250, 163, 26)
         
         y_offset = 70
         

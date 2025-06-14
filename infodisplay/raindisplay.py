@@ -59,7 +59,10 @@ class RainDisplay:
         
         y_start = 70
         
-        palette = [(255, 255, 255), (0, 0, 0), (242, 106, 48)]
+        palette = []        
+        self.set_pen_color((255, 255, 255), palette)
+        self.set_pen_color((0, 0, 0), palette)
+        self.set_pen_color((242, 106, 48), palette)
         
         self.set_pen_color((0, 0, 0), palette)
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
@@ -115,11 +118,4 @@ class RainDisplay:
         self.display.update()
 
     def set_pen_color(self, color, palette):
-        if color in palette:
-            pen_index = palette.index(color)
-        else:
-            palette.append(color)
-            pen_index = len(palette) - 1
-            self.display.update_pen(pen_index, color[0], color[1], color[2])
-            
-        self.display.set_pen(pen_index)
+        self.display.set_pen(self.display.create_pen(*color))

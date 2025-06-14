@@ -7,10 +7,6 @@ class NewsDisplay:
         self.entity_id = entity_id
         self.hass = hass
         self.is_active = True
-        
-        self.white = 0
-        self.black = 1        
-        self.grey = 3
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -41,10 +37,11 @@ class NewsDisplay:
     def update(self):
         if self.is_active == False:
             return
-        
-        self.display.update_pen(self.white, 255, 255, 255)
-        self.display.update_pen(self.black, 0, 0, 0)
-        self.display.update_pen(self.grey, 128, 128, 128)
+               
+        self.white = self.display.create_pen(255, 255, 255)
+        self.black = self.display.create_pen(0, 0, 0)
+        self.highlight = self.display.create_pen(242, 106, 48)
+        self.grey = self.display.create_pen(128, 128, 128)
         
         y_offset = 70
         
