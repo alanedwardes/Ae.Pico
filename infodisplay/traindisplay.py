@@ -10,9 +10,8 @@ class TrainDisplay:
         self.is_active = True
 
         self.display_width, self.display_height = self.display.get_bounds()
-        
         self.departures = []
-        self.departures_last_updated = utime.localtime()
+        self.departures_last_updated = utime.ticks_ms()
    
     CREATION_PRIORITY = 1
     def create(provider):
@@ -21,7 +20,7 @@ class TrainDisplay:
     
     def entity_updated(self, entity_id, entity):
         self.departures = entity['a'].get(self.attribute, [])
-        self.departures_last_updated = utime.localtime()
+        self.departures_last_updated = utime.ticks_ms()
         self.update()
     
     async def start(self):
@@ -29,7 +28,7 @@ class TrainDisplay:
         await asyncio.Event().wait()
 
     def should_activate(self):
-        return len(self.departures) > 0
+        return len(self.departures) > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -48,11 +47,11 @@ class TrainDisplay:
         expected = departure['etd']
         platform = departure['plt']
         if departure['can']:
-            self.display.set_pen(self.red)
+            self.display.set_pen(self.display.create_pen(242, 106, 48))
         elif departure['del']:
-            self.display.set_pen(self.yellow)
+            self.display.set_pen(self.display.create_pen(254, 219, 0))
         else:
-            self.display.set_pen(self.white)
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
         x_offset = 0
         self.display.text('{:.5}'.format(scheduled), x_offset, y_offset, scale=2)
         x_offset += 5 * 10
@@ -64,24 +63,15 @@ class TrainDisplay:
         return 20
 
     def __update(self):
-        self.white = self.display.create_pen(255, 255, 255)
-        self.black = self.display.create_pen(0, 0, 0)
-        self.red = self.display.create_pen(242, 106, 48)
-        self.yellow = self.display.create_pen(254, 219, 0)
-        self.orange = self.display.create_pen(250, 163, 26)
-        
         y_offset = 70
         
         self.display.set_font("bitmap8")
-        self.display.set_pen(self.black)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
-        self.display.set_pen(self.orange)
         
         y_offset += 8
         
         for row in range(0, len(self.departures)):
             y_offset += self.__draw_departure_row(self.departures[row], y_offset)
             
-        self.display.set_pen(self.orange)
-        self.display.text("Last updated: %02i:%02i:%02i" % (self.departures_last_updated[3], self.departures_last_updated[4], self.departures_last_updated[5]), 0, y_offset, scale=2)
         self.display.update()
