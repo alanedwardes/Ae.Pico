@@ -189,10 +189,8 @@ class WeatherDisplay:
             
             if rain > 50:
                 self.display.set_pen(self.display.create_pen(174, 220, 216))
-            elif rain > 5:
-                self.display.set_pen(self.display.create_pen(137, 142, 149))
             else:
-                continue
+                self.display.set_pen(self.display.create_pen(137, 142, 149))
             
             self.draw_text(f"{rain}%", sx, sy, column_width, scale=2)
 
