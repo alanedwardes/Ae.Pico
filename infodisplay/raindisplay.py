@@ -58,13 +58,8 @@ class RainDisplay:
             return
         
         y_start = 70
-        
-        palette = []        
-        self.set_pen_color((255, 255, 255), palette)
-        self.set_pen_color((0, 0, 0), palette)
-        self.set_pen_color((242, 106, 48), palette)
-        
-        self.set_pen_color((0, 0, 0), palette)
+               
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
         
         self.display.set_font('bitmap8')
@@ -79,43 +74,40 @@ class RainDisplay:
             sy = y_start + 10
             
             if i % 2:
-                self.set_pen_color((64, 64, 64), palette)
+                self.display.set_pen(self.display.create_pen(64, 64, 64))
                 self.display.rectangle(sx, sy, column_width, self.display_height - y_start)
             
-            self.set_pen_color((255, 255, 255), palette)
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
             self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
             
             sy += 35
             
             max_column_height = 60
             
-            self.set_pen_color((255, 255, 255), palette)
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
             self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
             
             line_y = int(max_column_height * ((100 - rain_chance) / 100))
             
-            self.set_pen_color((117, 150, 148), palette)
+            self.display.set_pen(self.display.create_pen(117, 150, 148))
             self.display.rectangle(sx, sy + line_y, column_width, max_column_height - line_y)
             
-            self.set_pen_color((174, 220, 216), palette)
+            self.display.set_pen(self.display.create_pen(174, 220, 216))
             self.display.rectangle(sx, sy + line_y, column_width, 5)
             
             sy += max_column_height + 35
             
             if temperature > 21:
-                self.set_pen_color((242, 106, 48), palette)
+                self.display.set_pen(self.display.create_pen(242, 106, 48))
             elif temperature > 15:
-                self.set_pen_color((251, 182, 22), palette)
+                self.display.set_pen(self.display.create_pen(251, 182, 22))
             elif temperature > 11:
-                self.set_pen_color((254, 219, 0), palette)
+                self.display.set_pen(self.display.create_pen(254, 219, 0))
             elif temperature > 5:
-                self.set_pen_color((159, 205, 128), palette)
+                self.display.set_pen(self.display.create_pen(159, 205, 128))
             else:
-                self.set_pen_color((174, 220, 216), palette)
+                self.display.set_pen(self.display.create_pen(174, 220, 216))
             
             self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
 
         self.display.update()
-
-    def set_pen_color(self, color, palette):
-        self.display.set_pen(self.display.create_pen(*color))

@@ -46,11 +46,9 @@ class UvDisplay:
         
         display_width, display_height = self.display.get_bounds()
             
-        palette = []
-        self.set_pen_color((255, 255, 255), palette)
-        self.set_pen_color((0, 0, 0), palette)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, display_width, display_height - y_start)        
-        self.set_pen_color((242, 106, 48), palette)
+        self.display.set_pen(self.display.create_pen(242, 106, 48))
         
         width = 256 if self.sun_cream() else display_width
         
@@ -58,7 +56,7 @@ class UvDisplay:
             with open('suncream.bmp', 'rb') as f:
                 for y, row in enumerate(bitmap.read_bitmap(f)):
                     for x, color in enumerate(row):
-                        self.set_pen_color(color, palette)
+                        self.display.set_pen(self.display.create_pen(*color))
                         scale = 1
                         self.display.rectangle(width + x * scale, y_start + 32 + y * scale, scale, scale)
             
@@ -83,18 +81,18 @@ class UvDisplay:
             label = 'EXTREME'
             color = (102, 0, 224)
             
-        self.set_pen_color((255, 255, 255), palette)
+        self.display.set_pen(self.display.create_pen(255, 255, 255))
         
         title = f"{label} UV"
         title_width = self.display.measure_text(title, 4)
         centre = int(width / 2)
         self.display.text(title, centre - int(title_width / 2), y_start + 32, scale=4)
-        self.set_pen_color((0, 0, 0), palette)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
             
-        self.set_pen_color(color, palette)
+        self.display.set_pen(self.display.create_pen(*color))
         
         self.display.rectangle(centre - 64, y_start + 80, 128, 64)
-        self.set_pen_color((0, 0, 0), palette)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
         
         subtitle = f"{self.uv}"
         uv_width = self.display.measure_text(subtitle, scale=6)
@@ -103,11 +101,4 @@ class UvDisplay:
         self.display.update()
 
     def set_pen_color(self, color, palette):
-        if color in palette:
-            pen_index = palette.index(color)
-        else:
-            palette.append(color)
-            pen_index = len(palette) - 1
-            self.display.update_pen(pen_index, color[0], color[1], color[2])
-            
-        self.display.set_pen(pen_index)
+        self.display.set_pen(self.display.create_pen(*color))

@@ -50,7 +50,7 @@ class WeatherDisplay:
                     continue
                 
                 if last_pen != color:
-                    self.set_pen_color(color, palette)
+                    self.display.set_pen(self.display.create_pen(*color))
                     
                 #self.display.rectangle(offset_x + (x * scale), offset_y + (y * scale), scale, scale)                
                 self.display.pixel(offset_x + x, offset_y + y)
@@ -103,11 +103,11 @@ class WeatherDisplay:
         y_start = 70
         
         palette = []        
-        self.set_pen_color((255, 255, 255), palette)
-        self.set_pen_color((0, 0, 0), palette)
-        self.set_pen_color((242, 106, 48), palette)
+        self.display.set_pen(self.display.create_pen(255, 255, 255))
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
+        self.display.set_pen(self.display.create_pen(242, 106, 48))
         
-        self.set_pen_color((0, 0, 0), palette)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
         
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
@@ -159,44 +159,41 @@ class WeatherDisplay:
             sy = y_start + 10
             
             if day_number == 5 or day_number == 6:
-                self.set_pen_color((201, 205, 209), palette)
+                self.display.set_pen(self.display.create_pen(201, 205, 209))
             else:
-                self.set_pen_color((255, 255, 255), palette)
+                self.display.set_pen(self.display.create_pen(255, 255, 255))
             
             self.draw_text(f"{day_names[day_number]}", sx, sy, column_width, scale=2)
             
             sy += 25
             
             icon = self.draw_icon(met_office_codes[weather_code], palette, sx, sy, column_width, 50)
-            self.set_pen_color((255, 255, 255), palette)
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
             
             sy += 50
             
             if temperature > 21:
-                self.set_pen_color((242, 106, 48), palette)
+                self.display.set_pen(self.display.create_pen(242, 106, 48))
             elif temperature > 15:
-                self.set_pen_color((251, 182, 22), palette)
+                self.display.set_pen(self.display.create_pen(251, 182, 22))
             elif temperature > 11:
-                self.set_pen_color((254, 219, 0), palette)
+                self.display.set_pen(self.display.create_pen(254, 219, 0))
             elif temperature > 5:
-                self.set_pen_color((159, 205, 128), palette)
+                self.display.set_pen(self.display.create_pen(159, 205, 128))
             else:
-                self.set_pen_color((174, 220, 216), palette)
+                self.display.set_pen(self.display.create_pen(174, 220, 216))
             
             self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
             
             sy += 30
             
             if rain > 50:
-                self.set_pen_color((174, 220, 216), palette)
+                self.display.set_pen(self.display.create_pen(174, 220, 216))
             elif rain > 5:
-                self.set_pen_color((137, 142, 149), palette)
+                self.display.set_pen(self.display.create_pen(137, 142, 149))
             else:
                 continue
             
             self.draw_text(f"{rain}%", sx, sy, column_width, scale=2)
 
         self.display.update()
-
-    def set_pen_color(self, color, palette):
-        self.display.set_pen(self.display.create_pen(*color))

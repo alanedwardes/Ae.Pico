@@ -6,26 +6,33 @@ class PicoGraphicsLimitedPalette(PicoGraphics):
     def activate(self, max_palette_size):
         self.max_palette_size = max_palette_size
         self.palette = []
-        self.original_update = self.update
-        self.update = self.patched_update
-    
+        self.lookup_cache = {}
+
+    def color_distance(self, c1, c2):
+        return ((c1[0] - c2[0]) ** 2 +
+                (c1[1] - c2[1]) ** 2 +
+                (c1[2] - c2[2]) ** 2)
+
     def create_pen(self, r, g, b):
         color = (r, g, b)
         if color in self.palette:
             return self.palette.index(color)
-        
+
         pen_index = len(self.palette)
         if pen_index >= self.max_palette_size:
-            print(f'Warning: no palette space left for {color}')
-            return len(self.palette) - 1
-        
+            # Use cache for overflow lookups
+            if color in self.lookup_cache:
+                return self.lookup_cache[color]
+            closest_index = min(
+                range(len(self.palette)),
+                key=lambda i: self.color_distance(self.palette[i], color)
+            )
+            self.lookup_cache[color] = closest_index
+            return closest_index
+
         self.palette.insert(pen_index, color)
         self.update_pen(pen_index, r, g, b)
         return pen_index
-    
-    def patched_update(self):
-        self.original_update()
-        self.palette = []
 
 class PicoDisplay2:
     def create(provider):
