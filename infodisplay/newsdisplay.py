@@ -32,7 +32,7 @@ class NewsDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
-            self.story_index = (self.story_index + 1) % len(self.stories)
+            self.story_index = (self.story_index + 1) % len(self.stories) if len(self.stories) > 0 else 0
 
     def update(self):
         if self.is_active == False:
