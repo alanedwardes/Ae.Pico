@@ -56,7 +56,7 @@ class TemperatureDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return TemperatureDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['time'])
+        return TemperatureDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['temperature'])
     
     def entity_updated(self, entity_id, entity):
         self.entities[entity_id] = entity
@@ -114,4 +114,3 @@ class TemperatureDisplay:
         self.display.text(f"{maximum_temperature:.0f}", start_x + 40, 52, scale=2)
         
         self.display.update()
-
