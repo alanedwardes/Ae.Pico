@@ -55,16 +55,13 @@ class TimeDisplay:
         self.__update()
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
 
-    def __update(self):
-        self.white = self.display.create_pen(255, 255, 255)
-        self.black = self.display.create_pen(0, 0, 0)
-        self.highlight = self.display.create_pen(242, 106, 48)
-        
+    def __update(self):       
         height = 70
+        width = self.display_width - 64
         
         self.display.set_font("sans")
-        self.display.set_pen(self.black)
-        self.display.rectangle(0, 0, self.display_width, height)
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
+        self.display.rectangle(0, 0, width, height)
 
         now = self.rtc.datetime()
                 
@@ -73,21 +70,10 @@ class TimeDisplay:
         
         time_width = self.display_width - section_width * 2
         
-        self.display.set_pen(self.white)
+        self.display.set_pen(self.display.create_pen(255, 255, 255))
         self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 0, 0, time_width, height)
         
         self.draw_text(f"{self.DAYS[now[3]-1]}", 1, time_width, 0, section_width, section_height)
         self.draw_text("%02i" % now[6], 1.2, time_width, section_height, section_width, section_height)
-        
-        self.display.set_pen(self.highlight)
-        self.display.rectangle(int(time_width + section_width), 0, int(section_width), int(section_height))
-
-        self.display.set_pen(self.white)
-        self.draw_text(f"{self.MONTHS[now[1]-1]}", 1, time_width + section_width, 0, section_width, section_height)
-        
-        self.display.rectangle(int(time_width + section_width), int(section_height), int(section_width), int(section_height))
-        
-        self.display.set_pen(self.black)
-        self.draw_text("%02i" % now[2], 1.2, time_width + section_width, section_height, section_width, section_height)
         
         self.display.update()
