@@ -21,9 +21,6 @@ def get_mapped_range_value_clamped(input_range, output_range, value):
     )
     return get_range_value(output_range, clamped_pct)
 
-def get_mapped_range_value_unclamped(input_range, output_range, value):
-    return get_range_value(output_range, get_range_pct(input_range, value))
-
 def point_on_circle(x, y, radius, angle):
     return (x + radius * math.cos(angle), y + radius * math.sin(angle));
 
