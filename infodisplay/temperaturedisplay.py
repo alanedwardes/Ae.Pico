@@ -22,7 +22,7 @@ def get_mapped_range_value_clamped(input_range, output_range, value):
     return get_range_value(output_range, clamped_pct)
 
 def point_on_circle(x, y, radius, angle):
-    return (x + radius * math.cos(angle), y + radius * math.sin(angle));
+    return (x + radius * math.cos(angle), y + radius * math.sin(angle))
 
 class TemperatureDisplay:
     def __init__(self, display, hass, entity_ids):
@@ -145,7 +145,7 @@ class TemperatureDisplay:
         start_update_ms = utime.ticks_ms()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(update_time_ms)
+        print(f"TemperatureDisplay: {update_time_ms}ms")
 
     def __update(self):
         default_entity = dict(s = '0')
