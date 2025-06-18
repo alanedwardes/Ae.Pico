@@ -8,7 +8,6 @@ class PygameDisplay:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((320, 240))
-        self.pens = []
         self.pen = None
         self.font = None
         self.thickness = 1
@@ -31,8 +30,8 @@ class PygameDisplay:
     def update(self):
         pygame.display.flip()
 
-    def update_pen(self, pen, r, g, b):
-        self.pens.insert(pen, (r, g, b))
+    def create_pen(self, r, g, b):
+        return (r, g, b)
 
     def set_font(self, font):
         self.font = font
@@ -41,7 +40,13 @@ class PygameDisplay:
         self.pen = pen
 
     def rectangle(self, x, y, width, height):
-        pygame.draw.rect(self.screen, self.pens[self.pen], (x, y, width, height))
+        pygame.draw.rect(self.screen, self.pen, (x, y, width, height))
+
+    def circle(self, x, y, radius):
+        pygame.draw.circle(self.screen, self.pen, (x, y), radius)
+
+    def polygon(self, points):
+        pygame.draw.polygon(self.screen, self.pen, points)
 
     def pixel(self, x, y):
         self.rectangle(x, y, 1, 1)
@@ -71,9 +76,9 @@ class PygameDisplay:
 
     def text(self, text, x, y, scale = 1):
         if self.font == 'bitmap8':
-            pygamefont8.Font8.draw_text(self.screen, text, x, y, self.pens[self.pen], 1, scale)
+            pygamefont8.Font8.draw_text(self.screen, text, x, y, self.pen, 1, scale)
         elif self.font == 'sans':
             for (x1, y1), (x2, y2) in self.__get_serif_lines(text, scale):
-                pygame.draw.line(self.screen, self.pens[self.pen], (x + x1, y + y1), (x + x2, y + y2), self.thickness)
+                pygame.draw.line(self.screen, self.pen, (x + x1, y + y1), (x + x2, y + y2), self.thickness)
         else:
             raise NotImplementedError(f"Font '{self.font}' not supported for text")
