@@ -64,6 +64,10 @@ class TemperatureDisplay:
     
     async def start(self):
         await self.hass.subscribe(self.entity_ids.values(), self.entity_updated)
+        # For testing
+        #while True:
+        #    self.update()
+        #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
     def circle(self, x, y, radius):
@@ -136,8 +140,14 @@ class TemperatureDisplay:
         text_y = int(position[1] + size[1] * 0.75)
         self.draw_text(f"{minimum_temperature:.0f}", 2, position[0], text_y, size[0] * 0.5, size[1] * 0.1)
         self.draw_text(f"{maximum_temperature:.0f}", 2, position[0] + size[0] * 0.5, text_y, size[0] * 0.5, size[1] * 0.1)
-
+        
     def update(self):
+        start_update_ms = utime.ticks_ms()
+        self.__update()
+        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+        print(update_time_ms)
+
+    def __update(self):
         default_entity = dict(s = '0')
         minimum_temperature = float(self.entities.get(self.entity_ids['minimum_temp_entity_id'], default_entity)['s'])
         maximum_temperature = float(self.entities.get(self.entity_ids['maximum_temp_entity_id'], default_entity)['s'])
