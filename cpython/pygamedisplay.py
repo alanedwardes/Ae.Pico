@@ -69,8 +69,9 @@ class PygameDisplay:
             return pygamefont8.Font8.measure_text(text, scale, spacing)
         elif self.font == 'sans':
             lines = self.__get_serif_lines(text, scale)
-            width = max([x2 for (x1, y1), (x2, y2) in lines])
-            return width
+            min_x = min(x1 for (x1, y1), (x2, y2) in lines)
+            max_x = max([x2 for (x1, y1), (x2, y2) in lines])
+            return max_x - min_x
         else:
             raise NotImplementedError(f"Font '{self.font}' not supported for measure_text")
 
@@ -78,7 +79,10 @@ class PygameDisplay:
         if self.font == 'bitmap8':
             pygamefont8.Font8.draw_text(self.screen, text, x, y, self.pen, 1, scale)
         elif self.font == 'sans':
-            for (x1, y1), (x2, y2) in self.__get_serif_lines(text, scale):
-                pygame.draw.line(self.screen, self.pen, (x + x1, y + y1), (x + x2, y + y2), self.thickness)
+            lines = self.__get_serif_lines(text, scale)
+            min_x = min(x1 for (x1, y1), (x2, y2) in lines)
+
+            for (x1, y1), (x2, y2) in lines:
+                pygame.draw.line(self.screen, self.pen, (x + x1 - min_x, y + y1), (x + x2 - min_x, y + y2), self.thickness)
         else:
             raise NotImplementedError(f"Font '{self.font}' not supported for text")
