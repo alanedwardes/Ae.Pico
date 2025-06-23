@@ -9,7 +9,10 @@ def catmull_rom(p0, p1, p2, p3, t):
         )
     )
 
-def draw_chart(display, x, y, width, height, points):
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+def draw_chart(x, y, width, height, points, step=1, smoothing=1.0):
     def get_point(idx):
         if idx < 0:
             return points[0]
@@ -19,20 +22,34 @@ def draw_chart(display, x, y, width, height, points):
             return points[idx]
 
     if len(points) < 2:
-        return  # Not enough points to draw
+        return
 
-    column_width = width / (len(points) - 1)  # Use float division for accuracy
+    column_width = width / (len(points) - 1)
+
+    x_positions = [x + i * column_width for i in range(len(points))]
 
     for i in range(len(points) - 1):
-        x0 = int(x + i * column_width)
-        x1 = int(x + (i + 1) * column_width)
-        if x1 == x0:
-            x1 += 1  # Ensure at least one pixel width
-        for px in range(x0, x1):
+        x0 = x_positions[i]
+        x1 = x_positions[i + 1]
+        px_range = []
+        j = 0
+        while True:
+            px = x0 + step * j
+            if px >= x1:
+                break
+            px_range.append(px)
+            j += 1
+        px_range.append(x1)  # Ensure the last point is included
+        for px in px_range:
             t = (px - x0) / (x1 - x0) if (x1 - x0) != 0 else 0
             y0 = (1 - get_point(i - 1)) * height
             y1 = (1 - get_point(i)) * height
             y2 = (1 - get_point(i + 1)) * height
             y3 = (1 - get_point(i + 2)) * height
-            py = int(catmull_rom(y0, y1, y2, y3, t) + y)
+            # Linear interpolation
+            linear_py = lerp(y1, y2, t)
+            # Catmull-Rom interpolation
+            smooth_py = catmull_rom(y0, y1, y2, y3, t)
+            # Blend between linear and smooth based on smoothing parameter
+            py = lerp(linear_py, smooth_py, smoothing) + y
             yield px, py
