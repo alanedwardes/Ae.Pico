@@ -52,7 +52,7 @@ class RainDisplay:
         start_update_ms = utime.ticks_ms()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(update_time_ms)
+        print(f"RainDisplay: {update_time_ms}ms")
     
     def __update(self):
         if len(self.hours) == 0:
@@ -111,12 +111,21 @@ class RainDisplay:
         chart_y = y_start + 45
         chart_height = 60
 
-        self.display.set_pen(self.display.create_pen(174, 220, 216))            
-        for px, py in chart.draw_chart(self.display, 0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.hours]):
-            self.display.circle(px, py, 2)
 
-        self.display.set_pen(self.display.create_pen(255, 165, 0))            
-        for px, py in chart.draw_chart(self.display, 0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours]):
+        polygon = []
+        polygon.append((0, chart_y + chart_height))
+
+        for px, py in chart.draw_chart(self.display, 0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.hours]):
+            polygon.append((px, py))
+
+        polygon.append((self.display_width, chart_y + chart_height))
+
+        self.display.set_pen(self.display.create_pen(117, 150, 148))
+        self.display.polygon(polygon)
+
+        self.display.set_pen(self.display.create_pen(174, 220, 216))
+        for i in range(1, len(polygon) - 1):
+            px, py = polygon[i]
             self.display.circle(px, py, 2)
 
         self.display.update()
