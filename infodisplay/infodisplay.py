@@ -13,7 +13,6 @@ class InfoDisplay:
         self.entities = {}
         self.middle_row = middle_row
         self.bottom_row = bottom_row
-        self.last_update_time_ms = 0
     
     def pen_for_temp(self, temp):
         if temp >= 41:
@@ -110,7 +109,6 @@ class InfoDisplay:
         return InfoDisplay(provider['display'], config.get('middle_row', []), config.get('bottom_row', []), provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.last_update_time_ms = utime.ticks_ms()
         self.entities[entity_id] = entity
         self.update()
     
@@ -119,7 +117,7 @@ class InfoDisplay:
         await asyncio.Event().wait()
         
     def should_activate(self):
-        return utime.ticks_diff(utime.ticks_ms(), self.last_update_time_ms) < 60_000
+        return True
 
     def activate(self, new_active):
         self.is_active = new_active
