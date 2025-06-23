@@ -23,6 +23,23 @@ class PicoGraphicsLimitedPalette(PicoGraphics):
             # Use cache for overflow lookups
             if color in self.lookup_cache:
                 return self.lookup_cache[color]
+
+            # First, try to find the nearest grey in the palette, but skip black (0,0,0)
+            def is_grey(c):
+                return c[0] == c[1] == c[2] and c != (0, 0, 0)
+
+            grey_indices = [i for i, c in enumerate(self.palette) if is_grey(c)]
+            if grey_indices:
+                # Compute the luminance of the requested color
+                luminance = int(0.299 * r + 0.587 * g + 0.114 * b)
+                closest_grey_index = min(
+                    grey_indices,
+                    key=lambda i: abs(self.palette[i][0] - luminance)
+                )
+                self.lookup_cache[color] = closest_grey_index
+                return closest_grey_index
+
+            # Fallback to nearest RGB color
             closest_index = min(
                 range(len(self.palette)),
                 key=lambda i: self.color_distance(self.palette[i], color)
