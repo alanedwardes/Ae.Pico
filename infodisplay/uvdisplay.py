@@ -1,6 +1,7 @@
 import asyncio
 import utime
 import chart
+import colors
 
 class UvDisplay:
     def __init__(self, display, hass, entity_id):
@@ -117,17 +118,7 @@ class UvDisplay:
             
             sy += max_column_height + 30
             
-            if temperature > 21:
-                self.display.set_pen(self.display.create_pen(242, 106, 48))
-            elif temperature > 15:
-                self.display.set_pen(self.display.create_pen(251, 182, 22))
-            elif temperature > 11:
-                self.display.set_pen(self.display.create_pen(254, 219, 0))
-            elif temperature > 5:
-                self.display.set_pen(self.display.create_pen(159, 205, 128))
-            else:
-                self.display.set_pen(self.display.create_pen(174, 220, 216))
-            
+            self.display.set_pen(self.display.create_pen(*colors.get_color_for_temperature(temperature)))
             self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
 
         chart_y = y_start + 45
