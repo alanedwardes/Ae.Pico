@@ -94,7 +94,7 @@ class WeatherDisplay:
         start_update_ms = utime.ticks_ms()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(update_time_ms)
+        print(f"WeatherDisplay: {update_time_ms}ms")
     
     def __update(self):
         if len(self.days) == 0:
