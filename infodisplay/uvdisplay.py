@@ -1,13 +1,16 @@
 import asyncio
-import bitmap
+import utime
+import chart
 
 class UvDisplay:
     def __init__(self, display, hass, entity_id):
         self.display = display
         self.hass = hass
-        self.is_active = True
         self.entity_id = entity_id
-        self.uv = 0
+        self.days = []
+        self.is_active = True
+        
+        self.display_width, self.display_height = self.display.get_bounds()
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -15,90 +18,137 @@ class UvDisplay:
         return UvDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
     
     def entity_updated(self, entity_id, entity):
-        self.uv = int(entity['s'])
+        self.hours = entity['a']['hours']
         self.update()
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
-        # For testing
-        #while True:
-        #    self.uv = (self.uv + 1) % 11
-        #    self.update()
-        #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
-    def sun_cream(self):
-        return self.uv > 2
-        
     def should_activate(self):
-        return self.sun_cream()
+        return True
 
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
             self.update()
+       
+    def draw_text(self, text, x, y, width, scale=1):
+        text_width = self.display.measure_text(text, scale)
+        text_height = scale * 8
 
+        text_x = int(width * 0.5 - text_width * 0.5)
+        
+        half_height = text_height * 0.5
+        
+        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
+        
+        return int(text_height)
+        
     def update(self):
         if self.is_active == False:
             return
         
-        y_start = 70
-        
-        display_width, display_height = self.display.get_bounds()
-            
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, y_start, display_width, display_height - y_start)        
-        self.display.set_pen(self.display.create_pen(242, 106, 48))
-        
-        width = 256 if self.sun_cream() else display_width
-        
-        if self.sun_cream():
-            with open('suncream.bmp', 'rb') as f:
-                for y, row in enumerate(bitmap.read_bitmap(f)):
-                    for x, color in enumerate(row):
-                        self.display.set_pen(self.display.create_pen(*color))
-                        scale = 1
-                        self.display.rectangle(width + x * scale, y_start + 32 + y * scale, scale, scale)
-            
-        self.display.set_font("bitmap8")
-        
-        if self.uv < 1:
-            label = 'NO'
-            color = (96, 96, 96)
-        elif self.uv < 3:
-            label = 'LOW'
-            color = (113, 180, 102)
-        elif self.uv < 6:
-            label = 'MODERATE'
-            color = (248, 231, 28)
-        elif self.uv < 8:
-            label = 'HIGH'
-            color = (255, 149, 12)
-        elif self.uv < 11:
-            label = 'VERY HIGH'
-            color = (215, 41, 33)
-        else:
-            label = 'EXTREME'
-            color = (102, 0, 224)
-            
-        self.display.set_pen(self.display.create_pen(255, 255, 255))
-        
-        title = f"{label} UV"
-        title_width = self.display.measure_text(title, 4)
-        centre = int(width / 2)
-        self.display.text(title, centre - int(title_width / 2), y_start + 32, scale=4)
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
-            
-        self.display.set_pen(self.display.create_pen(*color))
-        
-        self.display.rectangle(centre - 64, y_start + 80, 128, 64)
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
-        
-        subtitle = f"{self.uv}"
-        uv_width = self.display.measure_text(subtitle, scale=6)
-        self.display.text(subtitle, centre - int(uv_width / 2), y_start + 90, scale=6)
-            
-        self.display.update()
+        start_update_ms = utime.ticks_ms()
+        self.__update()
+        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+        print(f"RainDisplay: {update_time_ms}ms")
 
-    def set_pen_color(self, color, palette):
-        self.display.set_pen(self.display.create_pen(*color))
+    def set_pen_for_uv(self, uv):
+        if uv < 1:
+            self.display.set_pen(self.display.create_pen(96, 96, 96))
+        elif uv < 3:
+            self.display.set_pen(self.display.create_pen(113, 180, 102))
+        elif uv < 6:
+            self.display.set_pen(self.display.create_pen(248, 231, 28))
+        elif uv < 8:
+            self.display.set_pen(self.display.create_pen(255, 149, 12))
+        elif uv < 11:
+            self.display.set_pen(self.display.create_pen(215, 41, 33))
+        else:
+            self.display.set_pen(self.display.create_pen(102, 0, 224))
+    
+    def __update(self):
+        if len(self.hours) == 0:
+            return
+        
+        y_start = 70
+               
+        self.display.set_pen(self.display.create_pen(0, 0, 0))
+        self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
+
+        self.display.set_pen(self.display.create_pen(64, 64, 64))
+        self.display.rectangle(0, y_start + 35, self.display_width, 2)
+        
+        self.display.set_font('bitmap8')
+
+        # generate random rain data for testing
+        #import random
+        #for i in range(len(self.hours)):
+        #    self.hours[i]['u'] = random.randint(0, 12)
+
+        column_width = self.display_width // (len(self.hours) - 1)
+        for i, hour in enumerate(self.hours):
+            if i == len(self.hours) - 1:
+                continue
+
+            hour_number = 12 if hour['h'] == 0 else hour['h']
+            uv = hour['u']
+            temperature = hour['t']
+            
+            sx = i * column_width
+            #sy = y_start + 10
+            sy = y_start
+            
+            if i > 0:
+                self.display.set_pen(self.display.create_pen(64, 64, 64))
+                self.display.rectangle(sx, sy, 2, self.display_height - y_start)
+            
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
+            self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
+            
+            sy += 35
+            
+            max_column_height = 70
+            
+            self.set_pen_for_uv(uv)
+
+            self.draw_text(f"{uv}", sx, sy + max_column_height + 5, column_width, scale=2)
+            
+            sy += max_column_height + 30
+            
+            if temperature > 21:
+                self.display.set_pen(self.display.create_pen(242, 106, 48))
+            elif temperature > 15:
+                self.display.set_pen(self.display.create_pen(251, 182, 22))
+            elif temperature > 11:
+                self.display.set_pen(self.display.create_pen(254, 219, 0))
+            elif temperature > 5:
+                self.display.set_pen(self.display.create_pen(159, 205, 128))
+            else:
+                self.display.set_pen(self.display.create_pen(174, 220, 216))
+            
+            self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
+
+        chart_y = y_start + 45
+        chart_height = 60
+
+        self.display.set_pen(self.display.create_pen(64, 64, 64))
+        self.display.rectangle(0, chart_y + chart_height, self.display_width, 2)
+
+        polygon = []
+        polygon.append((0, chart_y + chart_height))
+
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours], 32):
+            polygon.append((int(px), int(py)))
+
+        polygon.append((self.display_width, chart_y + chart_height))
+
+        self.display.set_pen(self.display.create_pen(128, 64, 0))
+        self.display.polygon(polygon)
+
+        self.display.set_pen(self.display.create_pen(255, 128, 0))
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours]):
+            self.display.circle(int(px), int(py), 2)
+
+        self.display.update()
