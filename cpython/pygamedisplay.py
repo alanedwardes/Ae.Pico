@@ -51,6 +51,9 @@ class PygameDisplay:
     def pixel(self, x, y):
         self.rectangle(x, y, 1, 1)
 
+    def line(self, x1, y1, x2, y2, thickness = 1):
+        pygame.draw.line(self.screen, self.pen, (x1, y1), (x2, y2), thickness)
+
     def set_thickness(self, thickness):
         self.thickness = thickness
 
@@ -83,6 +86,6 @@ class PygameDisplay:
             min_x = min(x1 for (x1, y1), (x2, y2) in lines)
 
             for (x1, y1), (x2, y2) in lines:
-                pygame.draw.line(self.screen, self.pen, (x + x1 - min_x, y + y1), (x + x2 - min_x, y + y2), self.thickness)
+                self.line(x + x1 - min_x, y + y1, x + x2 - min_x, y + y2, self.thickness)
         else:
             raise NotImplementedError(f"Font '{self.font}' not supported for text")
