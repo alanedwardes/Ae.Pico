@@ -1,5 +1,6 @@
 import asyncio
 import utime
+import chart
 
 class RainDisplay:
     def __init__(self, display, hass, entity_id):
@@ -87,13 +88,21 @@ class RainDisplay:
             self.display.set_pen(self.display.create_pen(255, 255, 255))
             self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
             
-            line_y = int(max_column_height * ((100 - rain_chance) / 100))
-            
             self.display.set_pen(self.display.create_pen(117, 150, 148))
-            self.display.rectangle(sx, sy + line_y, column_width, max_column_height - line_y)
-            
-            self.display.set_pen(self.display.create_pen(174, 220, 216))
-            self.display.rectangle(sx, sy + line_y, column_width, 5)
+
+            if i == len(self.hours) - 1:
+                continue
+
+            chart_y = y_start + 45
+            chart_height = 60
+
+            self.display.set_pen(self.display.create_pen(174, 220, 216))            
+            for px, py in chart.draw_chart(self.display, 0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.hours]):
+                self.display.circle(px, py, 2)
+
+            self.display.set_pen(self.display.create_pen(255, 165, 0))            
+            for px, py in chart.draw_chart(self.display, 0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours]):
+                self.display.circle(px, py, 2)
             
             sy += max_column_height + 35
             
@@ -110,4 +119,5 @@ class RainDisplay:
             
             self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
 
-        self.display.update()
+            self.display.update()
+        
