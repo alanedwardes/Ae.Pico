@@ -69,9 +69,9 @@ class RainDisplay:
         self.display.set_font('bitmap8')
 
         # generate random rain data for testing
-        import random
-        for i in range(len(self.hours)):
-            self.hours[i]['r'] = random.randint(0, 100)
+        #import random
+        #for i in range(len(self.hours)):
+        #    self.hours[i]['r'] = random.randint(0, 100)
 
         column_width = self.display_width // (len(self.hours) - 1)
         for i, hour in enumerate(self.hours):
