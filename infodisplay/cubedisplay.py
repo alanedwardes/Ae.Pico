@@ -42,14 +42,48 @@ def draw_cube(display, angle):
     # Project vertices
     projected = [project(v[0], v[1], v[2], angle) for v in rotated]
 
-    # Define cube edges (pairs of vertex indices)
+    # Define cube faces (each as a list of 4 vertex indices)
+    faces = [
+        [0, 1, 2, 3],  # back
+        [4, 5, 6, 7],  # front
+        [0, 1, 5, 4],  # bottom
+        [2, 3, 7, 6],  # top
+        [1, 2, 6, 5],  # right
+        [0, 3, 7, 4],  # left
+    ]
+
+    # Calculate average Z for each face for painter's algorithm
+    face_depths = []
+    for i, face in enumerate(faces):
+        avg_z = sum(rotated[idx][2] for idx in face) / 4
+        face_depths.append((avg_z, i))
+    face_depths.sort(reverse=True)  # Draw farthest faces first
+
+    # Colors for faces (optional)
+    face_colors = [
+        (255, 0, 0),    # back - red
+        (0, 255, 0),    # front - green
+        (0, 0, 255),    # bottom - blue
+        (255, 255, 0),  # top - yellow
+        (0, 255, 255),  # right - cyan
+        (255, 0, 255),  # left - magenta
+    ]
+
+    # Draw filled faces
+    for _, face_idx in face_depths:
+        face = faces[face_idx]
+        points = [projected[idx] for idx in face]
+        color = face_colors[face_idx]
+        display.set_pen(display.create_pen(*color))
+        display.polygon(points)
+
+    # Draw edges on top
     edges = [
         (0, 1), (1, 2), (2, 3), (3, 0),  # bottom face
         (4, 5), (5, 6), (6, 7), (7, 4),  # top face
         (0, 4), (1, 5), (2, 6), (3, 7)   # vertical edges
     ]
-
-    # Draw edges
+    display.set_pen(display.create_pen(255, 255, 255))
     for start, end in edges:
         x1, y1 = projected[start]
         x2, y2 = projected[end]
