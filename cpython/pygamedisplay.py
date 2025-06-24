@@ -42,6 +42,9 @@ class PygameDisplay:
     def rectangle(self, x, y, width, height):
         pygame.draw.rect(self.screen, self.pen, (x, y, width, height))
 
+    def clear(self):
+        self.rectangle(0, 0, self.screen.get_width(), self.screen.get_height())
+
     def circle(self, x, y, radius):
         pygame.draw.circle(self.screen, self.pen, (x, y), radius)
 
