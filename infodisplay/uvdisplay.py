@@ -19,7 +19,6 @@ class UvDisplay:
         return UvDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
     
     def entity_updated(self, entity_id, entity):
-        self.hours = entity['a']['hours']
         self.update()
     
     async def start(self):
@@ -70,7 +69,9 @@ class UvDisplay:
             self.display.set_pen(self.display.create_pen(102, 0, 224))
     
     def __update(self):
-        if len(self.hours) == 0:
+        hours = self.hass.entities.get(self.entity_id, {}).get('a', {}).get('hours', [])
+        
+        if len(hours) == 0:
             return
         
         y_start = 70
@@ -85,12 +86,12 @@ class UvDisplay:
 
         # generate random rain data for testing
         #import random
-        #for i in range(len(self.hours)):
-        #    self.hours[i]['u'] = random.randint(0, 12)
+        #for i in range(len(hours)):
+        #    hours[i]['u'] = random.randint(0, 12)
 
-        column_width = self.display_width // (len(self.hours) - 1)
-        for i, hour in enumerate(self.hours):
-            if i == len(self.hours) - 1:
+        column_width = self.display_width // (len(hours) - 1)
+        for i, hour in enumerate(hours):
+            if i == len(hours) - 1:
                 continue
 
             hour_number = 12 if hour['h'] == 0 else hour['h']
@@ -130,7 +131,7 @@ class UvDisplay:
         polygon = []
         polygon.append((0, chart_y + chart_height))
 
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours], 32):
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in hours], 32):
             polygon.append((int(px), int(py)))
 
         polygon.append((self.display_width, chart_y + chart_height))
@@ -139,7 +140,7 @@ class UvDisplay:
         self.display.polygon(polygon)
 
         self.display.set_pen(self.display.create_pen(255, 128, 0))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in self.hours]):
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in hours]):
             self.display.circle(int(px), int(py), 2)
 
         self.display.update()

@@ -14,7 +14,7 @@ class DisplaySwitcher:
         for service in self.services:
             self.provider[service].activate(False)
 
-        while True:
+        while True:           
             for service_name in self.services:
                 service = self.provider[service_name]
                 

@@ -8,7 +8,6 @@ class RainDisplay:
         self.display = display
         self.hass = hass
         self.entity_id = entity_id
-        self.days = []
         self.is_active = True
         
         self.display_width, self.display_height = self.display.get_bounds()
@@ -19,7 +18,6 @@ class RainDisplay:
         return RainDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
     
     def entity_updated(self, entity_id, entity):
-        self.hours = entity['a']['hours']
         self.update()
     
     async def start(self):
@@ -56,7 +54,9 @@ class RainDisplay:
         print(f"RainDisplay: {update_time_ms}ms")
     
     def __update(self):
-        if len(self.hours) == 0:
+        hours = self.hass.entities.get(self.entity_id, {}).get('a', {}).get('hours', [])
+        
+        if len(hours) == 0:
             return
         
         y_start = 70
@@ -71,12 +71,12 @@ class RainDisplay:
 
         # generate random rain data for testing
         #import random
-        #for i in range(len(self.hours)):
-        #    self.hours[i]['r'] = random.randint(0, 100)
+        #for i in range(len(hours)):
+        #    hours[i]['r'] = random.randint(0, 100)
 
-        column_width = self.display_width // (len(self.hours) - 1)
-        for i, hour in enumerate(self.hours):
-            if i == len(self.hours) - 1:
+        column_width = self.display_width // (len(hours) - 1)
+        for i, hour in enumerate(hours):
+            if i == len(hours) - 1:
                 continue
 
             hour_number = 12 if hour['h'] == 0 else hour['h']
@@ -117,7 +117,7 @@ class RainDisplay:
         polygon = []
         polygon.append((0, chart_y + chart_height))
 
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.hours], 32):
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in hours], 32):
             polygon.append((int(px), int(py)))
 
         polygon.append((self.display_width, chart_y + chart_height))
@@ -126,7 +126,7 @@ class RainDisplay:
         self.display.polygon(polygon)
 
         self.display.set_pen(self.display.create_pen(174, 220, 216))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.hours]):
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in hours]):
             self.display.circle(int(px), int(py), 2)
 
         self.display.update()

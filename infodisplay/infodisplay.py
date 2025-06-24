@@ -11,7 +11,6 @@ class InfoDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
         
-        self.entities = {}
         self.middle_row = middle_row
         self.bottom_row = bottom_row
     
@@ -34,7 +33,7 @@ class InfoDisplay:
         return height
     
     def _get_entity_value(self, subscription):
-        entity = self.entities.get(subscription['entity_id'], {})
+        entity = self.hass.entities.get(subscription['entity_id'], {})
         
         value = None
         attribute_name = subscription.get('attribute', None)
@@ -70,7 +69,6 @@ class InfoDisplay:
         return InfoDisplay(provider['display'], config.get('middle_row', []), config.get('bottom_row', []), provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.entities[entity_id] = entity
         self.update()
     
     async def start(self):

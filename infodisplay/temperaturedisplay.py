@@ -10,7 +10,6 @@ class TemperatureDisplay:
 
         self.display_width, self.display_height = self.display.get_bounds()
         
-        self.entities = dict()
         self.alpha = 0
     
     CREATION_PRIORITY = 1
@@ -18,7 +17,6 @@ class TemperatureDisplay:
         return TemperatureDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['temperature'])
     
     def entity_updated(self, entity_id, entity):
-        self.entities[entity_id] = entity
         self.update()
     
     async def start(self):
@@ -37,9 +35,9 @@ class TemperatureDisplay:
 
     def __update(self):
         default_entity = dict(s = '0')
-        minimum_temperature = float(self.entities.get(self.entity_ids['minimum_temp_entity_id'], default_entity)['s'])
-        maximum_temperature = float(self.entities.get(self.entity_ids['maximum_temp_entity_id'], default_entity)['s'])
-        current_temperature = float(self.entities.get(self.entity_ids['current_temp_entity_id'], default_entity)['s'])
+        minimum_temperature = float(self.hass.entities.get(self.entity_ids['minimum_temp_entity_id'], default_entity)['s'])
+        maximum_temperature = float(self.hass.entities.get(self.entity_ids['maximum_temp_entity_id'], default_entity)['s'])
+        current_temperature = float(self.hass.entities.get(self.entity_ids['current_temp_entity_id'], default_entity)['s'])
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(self.display_width - 64, 0, 64, 70)

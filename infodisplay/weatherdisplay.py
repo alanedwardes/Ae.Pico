@@ -8,7 +8,6 @@ class WeatherDisplay:
         self.display = display
         self.hass = hass
         self.entity_id = entity_id
-        self.days = []
         self.is_active = True
         self.bitmap = open('weather_icons.bmp', 'rb')
         self.bitmap_header = bitmap.read_header(self.bitmap)
@@ -21,7 +20,6 @@ class WeatherDisplay:
         return WeatherDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
     
     def entity_updated(self, entity_id, entity):
-        self.days = entity['a']['days']
         self.update()
     
     async def start(self):
@@ -98,7 +96,9 @@ class WeatherDisplay:
         print(f"WeatherDisplay: {update_time_ms}ms")
     
     def __update(self):
-        if len(self.days) == 0:
+        days = self.hass.entities.get(self.entity_id, {}).get('a', {}).get('days', [])
+        
+        if len(days) == 0:
             return
         
         y_start = 70
@@ -149,8 +149,8 @@ class WeatherDisplay:
         
         self.display.set_font('bitmap8')
         
-        column_width = self.display_width // len(self.days)
-        for i, day in enumerate(self.days):
+        column_width = self.display_width // len(days)
+        for i, day in enumerate(days):
             day_number = day['d']
             weather_code = day['c']
             temperature = day['t']

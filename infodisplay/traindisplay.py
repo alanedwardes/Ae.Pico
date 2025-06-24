@@ -2,24 +2,21 @@ import utime
 import asyncio
 
 class TrainDisplay:
-    def __init__(self, display, entity_id, attribute, hass):
+    def __init__(self, display, entity_id, hass):
         self.display = display
         self.entity_id = entity_id
-        self.attribute = attribute
         self.hass = hass
         self.is_active = True
 
         self.display_width, self.display_height = self.display.get_bounds()
-        self.departures = []
         self.departures_last_updated = utime.ticks_ms()
    
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['trains']
-        return TrainDisplay(provider['display'], config['entity_id'], config['attribute'], provider['hassws.HassWs'])
+        return TrainDisplay(provider['display'], config['entity_id'], provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.departures = entity['a'].get(self.attribute, [])
         self.departures_last_updated = utime.ticks_ms()
         self.update()
     
@@ -28,7 +25,7 @@ class TrainDisplay:
         await asyncio.Event().wait()
 
     def should_activate(self):
-        return len(self.departures) > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
+        return len(self.get_departures()) > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -61,8 +58,13 @@ class TrainDisplay:
         x_offset += 2 * 10
         self.display.text('{:.9}'.format(expected), x_offset, y_offset, scale=2)
         return 20
+    
+    def get_departures(self):
+        return self.hass.entities.get(self.entity_id, {}).get('a', {}).get('services', [])
 
     def __update(self):
+        departures = self.get_departures()
+        
         y_offset = 70
         
         self.display.set_font("bitmap8")
@@ -71,7 +73,7 @@ class TrainDisplay:
         
         y_offset += 8
         
-        for row in range(0, len(self.departures)):
-            y_offset += self.__draw_departure_row(self.departures[row], y_offset)
+        for row in range(0, len(departures)):
+            y_offset += self.__draw_departure_row(departures[row], y_offset)
             
         self.display.update()

@@ -11,7 +11,6 @@ class NewsDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         
         self.last_updated = utime.localtime()
-        self.stories = []
         self.story_index = 0
    
     CREATION_PRIORITY = 1
@@ -20,7 +19,6 @@ class NewsDisplay:
         return NewsDisplay(provider['display'], config['entity_id'], provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.stories = entity['a'].get('stories', [])
         self.last_updated = utime.localtime()
         self.update()
     
@@ -32,11 +30,16 @@ class NewsDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
-            self.story_index = (self.story_index + 1) % len(self.stories) if len(self.stories) > 0 else 0
+            self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
+    
+    def get_stories(self):
+        return self.hass.entities.get(self.entity_id, {}).get('a', {}).get('stories', [])
 
     def update(self):
         if self.is_active == False:
             return
+        
+        stories = self.get_stories()
                
         self.white = self.display.create_pen(255, 255, 255)
         self.black = self.display.create_pen(0, 0, 0)
@@ -50,12 +53,12 @@ class NewsDisplay:
         self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
         
         try:
-            story = self.stories[self.story_index]
+            story = stories[self.story_index]
         except IndexError:
             story = dict(t='?', p='?')
             
         self.display.set_pen(self.grey)
-        self.display.text("%i/%i %s" % (self.story_index + 1, len(self.stories), story['p']), 0, y_offset + 5, scale=2)
+        self.display.text("%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 0, y_offset + 5, scale=2)
         
         y_offset += 30
         
