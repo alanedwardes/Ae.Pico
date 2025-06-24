@@ -1,4 +1,5 @@
 from picographics import PicoGraphics, DISPLAY_PICO_DISPLAY_2
+from pimoroni import RGBLED
 
 # Provides a service registration for 'display'
 # Which is a PicoGraphics instance for the current display
@@ -54,6 +55,11 @@ class PicoGraphicsLimitedPalette(PicoGraphics):
 class PicoDisplay2:
     def create(provider):
         config = provider['config'].get('display', {})
+        
+        led_pins = config.get('led')
+        if led_pins is not None:
+            RGBLED(*led_pins).set_rgb(0, 0, 0)
+        
         mode = config.get('mode', 'RGB332')
         
         pen_type = None
