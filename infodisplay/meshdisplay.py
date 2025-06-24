@@ -4,7 +4,21 @@ import asyncio
 WIDTH = 320
 HEIGHT = 240
 
-# Function to project 3D points to 2D
+def load_obj(filename):
+    vertices = []
+    faces = []
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.startswith('v '):
+                parts = line.strip().split()
+                vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+            elif line.startswith('f '):
+                parts = line.strip().split()
+                # OBJ indices are 1-based, so subtract 1
+                face = [int(p.split('/')[0]) - 1 for p in parts[1:]]
+                faces.append(face)
+    return vertices, faces
+
 def project(x, y, z, angle):
     # Simple perspective projection
     fov = 256
@@ -13,22 +27,8 @@ def project(x, y, z, angle):
     y_proj = int(-y * distance + HEIGHT // 2)
     return x_proj, y_proj
 
-# Function to draw a cube
-def draw_cube(display, angle):
-    # Define cube vertices
-    size = 1
-    vertices = [
-        [-size, -size, -size],
-        [size, -size, -size],
-        [size, size, -size],
-        [-size, size, -size],
-        [-size, -size, size],
-        [size, -size, size],
-        [size, size, size],
-        [-size, size, size]
-    ]
-
-    # Rotate the cube
+def draw_mesh(display, angle, vertices, faces):
+    # Rotate vertices
     rotated = []
     for v in vertices:
         # Rotate around the Y-axis
@@ -42,65 +42,54 @@ def draw_cube(display, angle):
     # Project vertices
     projected = [project(v[0], v[1], v[2], angle) for v in rotated]
 
-    # Define cube faces (each as a list of 4 vertex indices)
-    faces = [
-        [0, 1, 2, 3],  # back
-        [4, 5, 6, 7],  # front
-        [0, 1, 5, 4],  # bottom
-        [2, 3, 7, 6],  # top
-        [1, 2, 6, 5],  # right
-        [0, 3, 7, 4],  # left
-    ]
-
     # Calculate average Z for each face for painter's algorithm
     face_depths = []
     for i, face in enumerate(faces):
-        avg_z = sum(rotated[idx][2] for idx in face) / 4
+        avg_z = sum(rotated[idx][2] for idx in face) / len(face)
         face_depths.append((avg_z, i))
     face_depths.sort(reverse=True)  # Draw farthest faces first
 
-    # Colors for faces (optional)
-    face_colors = [
-        (255, 0, 0),    # back - red
-        (0, 255, 0),    # front - green
-        (0, 0, 255),    # bottom - blue
-        (255, 255, 0),  # top - yellow
-        (0, 255, 255),  # right - cyan
-        (255, 0, 255),  # left - magenta
+    # Simple color cycling for faces
+    base_colors = [
+        (255, 0, 0), (0, 255, 0), (0, 0, 255),
+        (255, 255, 0), (0, 255, 255), (255, 0, 255)
     ]
 
     # Draw filled faces
     for _, face_idx in face_depths:
         face = faces[face_idx]
         points = [projected[idx] for idx in face]
-        color = face_colors[face_idx]
+        color = base_colors[face_idx % len(base_colors)]
         display.set_pen(display.create_pen(*color))
         display.polygon(points)
 
     # Draw edges on top
-    edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),  # bottom face
-        (4, 5), (5, 6), (6, 7), (7, 4),  # top face
-        (0, 4), (1, 5), (2, 6), (3, 7)   # vertical edges
-    ]
     display.set_pen(display.create_pen(255, 255, 255))
-    for start, end in edges:
-        x1, y1 = projected[start]
-        x2, y2 = projected[end]
-        display.line(x1, y1, x2, y2)
+    for face in faces:
+        for i in range(len(face)):
+            start = face[i]
+            end = face[(i + 1) % len(face)]
+            x1, y1 = projected[start]
+            x2, y2 = projected[end]
+            display.line(x1, y1, x2, y2)
 
-class CubeDisplay:
-    def __init__(self, display):
+class MeshDisplay:
+    def __init__(self, display, mesh_vertices, mesh_faces):
         self.display = display
         self.is_active = True        
         self.display_width, self.display_height = self.display.get_bounds()
         self.angle = 0
-    
+        self.vertices = mesh_vertices
+        self.faces = mesh_faces
+
     CREATION_PRIORITY = 1
+    @staticmethod
     def create(provider):
-        config = provider['config']['rain']
-        return CubeDisplay(provider['display'])
-    
+        # You can set the OBJ file path in your config or hardcode it here
+        obj_path = provider['config'].get('obj_path', 'mesh.obj')
+        vertices, faces = load_obj(obj_path)
+        return MeshDisplay(provider['display'], vertices, faces)
+
     async def start(self):
         while True:
             self.angle += 0.05
@@ -110,8 +99,6 @@ class CubeDisplay:
     def update(self):
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.clear()
-        
         self.display.set_pen(self.display.create_pen(255, 255, 255))
-        draw_cube(self.display, self.angle)
-        
+        draw_mesh(self.display, self.angle, self.vertices, self.faces)
         self.display.update()
