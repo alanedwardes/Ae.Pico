@@ -138,10 +138,17 @@ class Font8:
     @classmethod
     def draw_char(cls, surface, char, x, y, color=(255,255,255), scale=1):
         """Draw a single character at (x, y) on the given surface, with scaling."""
+        # Map special characters to their font index
+        special_map = {
+            '°': len(cls.widths) - 1,  # degree symbol is last in widths/data
+        }
         index = ord(char)
-        if index < 32 or index > 126:
-            index = 32  # fallback to space
-        font_index = index - 32
+        if char in special_map:
+            font_index = special_map[char]
+        elif 32 <= index <= 126:
+            font_index = index - 32
+        else:
+            font_index = 0  # fallback to space
         width = cls.widths[font_index]
         offset = font_index * cls.max_width
         for col in range(width):
