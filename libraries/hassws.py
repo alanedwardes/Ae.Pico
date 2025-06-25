@@ -124,6 +124,26 @@ class HassWs:
             except Exception as e:
                 print('Error executing callback', e)
 
+    def _cleanup_entities(self):
+        for entity_id in self.entities:
+            if 'c' in self.entities[entity_id]:
+                del self.entities[entity_id]['c']
+            if 'lc' in self.entities[entity_id]:
+                del self.entities[entity_id]['lc']
+            if 'lu' in self.entities[entity_id]:
+                del self.entities[entity_id]['lu']
+            if 'a' in self.entities[entity_id]:
+                if 'friendly_name' in self.entities[entity_id]['a']:
+                    del self.entities[entity_id]['a']['friendly_name']
+                if 'device_class' in self.entities[entity_id]['a']:
+                    del self.entities[entity_id]['a']['device_class']
+                if 'unit_of_measurement' in self.entities[entity_id]['a']:
+                    del self.entities[entity_id]['a']['unit_of_measurement']
+                if 'state_class' in self.entities[entity_id]['a']:
+                    del self.entities[entity_id]['a']['state_class']
+                if self.entities[entity_id]['a'] == {}:
+                    del self.entities[entity_id]['a']
+
     def process_event(self, event):
         # Event types: https://github.com/home-assistant/core/blob/9428127021325b9f7500e03a9627929840bfa2e4/homeassistant/components/websocket_api/messages.py#L43-L45
         # Change types: https://github.com/home-assistant/core/blob/9428127021325b9f7500e03a9627929840bfa2e4/homeassistant/components/websocket_api/messages.py#L11-L17
@@ -145,4 +165,6 @@ class HassWs:
                 self.entities.pop(entity_id, None)
         else:
             print('Unrecognised event structure: %s', event)
+
+        self._cleanup_entities()
         self._execute_callback(self.entities_updated, self.entities)
