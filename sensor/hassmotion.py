@@ -24,18 +24,7 @@ class HassMotion:
         while True:
             try:
                 await asyncio.wait_for(self.tsf.wait(), self.timeout_seconds)
-            except asyncio.TimeoutError:
-                pass
-
-            await asyncio.sleep_ms(self.debounce_ms)
-            
-            if self.pin.value() == 1:
-                await self.hass.send_update("on", None, "motion", self.friendly_name, self.sensor)
-            else:
-                continue
-            
-            try:
-                while True:
-                    await asyncio.wait_for(self.tsf.wait(), self.timeout_seconds)
+                await asyncio.sleep_ms(self.debounce_ms)
+                await self.hass.send_update("on" if self.pin.value() == 1 else "off", None, "motion", self.friendly_name, self.sensor)
             except asyncio.TimeoutError:
                 await self.hass.send_update("off", None, "motion", self.friendly_name, self.sensor)
