@@ -121,7 +121,7 @@ class UvDisplay:
             self.display.circle(int(px), int(py), 2)
 
         self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(max(hour['u'] for hour in hours))))
-        self.display.rectangle(3, y_start + 40, 64, 16)
+        self.display.rectangle(3, y_start + 40, 128, 32)
 
         # After drawing the chart and before self.display.update()
         max_uv = max(hour['u'] for hour in hours)
@@ -137,6 +137,6 @@ class UvDisplay:
             uv_word = "EXTREME"
 
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.draw_text(uv_word, 3, y_start + 40, 64, 1)
+        self.draw_text(uv_word, 3, y_start + 40, 128, 2)
 
         self.display.update()
