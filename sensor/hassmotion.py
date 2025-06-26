@@ -22,7 +22,11 @@ class HassMotion:
     
     async def start(self):
         while True:
-            await self.tsf.wait()
+            try:
+                await asyncio.wait_for(self.tsf.wait(), self.timeout_seconds)
+            except asyncio.TimeoutError:
+                pass
+
             await asyncio.sleep_ms(self.debounce_ms)
             
             if self.pin.value() == 1:
