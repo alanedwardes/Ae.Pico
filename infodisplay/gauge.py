@@ -112,5 +112,5 @@ def draw_gauge(display, position, size, minimum_temperature, maximum_temperature
     text_size_x = size[1] * 0.5
     text_size_y = size[1] * 0.1
     
-    draw_text(display, f"{math.floor(minimum_temperature):.0f}", math.ceil(size[1] * 0.02), extent_x[0], text_y, text_size_x, text_size_y)
-    draw_text(display, f"{math.ceil(maximum_temperature):.0f}", math.ceil(size[1] * 0.02), centre[0], text_y, text_size_x, text_size_y)
+    draw_text(display, f"{minimum_temperature:.0f}", math.ceil(size[1] * 0.02), extent_x[0], text_y, text_size_x, text_size_y)
+    draw_text(display, f"{maximum_temperature:.0f}", math.ceil(size[1] * 0.02), centre[0], text_y, text_size_x, text_size_y)
