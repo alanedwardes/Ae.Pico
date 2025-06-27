@@ -36,22 +36,28 @@ class WeatherDisplay:
         if self.is_active:
             self.update()
     
-    def draw_icon(self, icon, fb, offset_x, offset_y, width, height):
-        with open(f'icons/{icon}.bin', 'rb') as f:
-            icon_width, icon_height = struct.unpack('<HH', f.read(4))
-            centered_offset_x = offset_x + (width - icon_width) // 2
-            centered_offset_y = offset_y + (height - icon_height) // 2
-            row_bytes = icon_width * 2
-            fb_row_bytes = self.display_width * 2
+    def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height):
+        with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
+            icon_width, icon_height = struct.unpack('<HH', icon_file.read(4))
+            # Center the icon in the given box
+            icon_x = x + (box_width - icon_width) // 2
+            icon_y = y + (box_height - icon_height) // 2
 
-            for y in range(icon_height):
-                fb_y = y + centered_offset_y
+            # Calculate bytes per pixel from framebuffer size and display dimensions
+            total_pixels = self.display_width * self.display_height
+            bytes_per_pixel = len(framebuffer) // total_pixels
+
+            icon_row_bytes = icon_width * bytes_per_pixel
+            fb_row_bytes = self.display_width * bytes_per_pixel
+
+            for row in range(icon_height):
+                fb_y = row + icon_y
                 if 0 <= fb_y < self.display_height:
-                    fb_start = fb_y * fb_row_bytes + centered_offset_x * 2
-                    mv = memoryview(fb)[fb_start : fb_start + row_bytes]
-                    f.readinto(mv)
+                    fb_start = fb_y * fb_row_bytes + icon_x * bytes_per_pixel
+                    mv = memoryview(framebuffer)[fb_start : fb_start + icon_row_bytes]
+                    icon_file.readinto(mv)
                 else:
-                    f.seek(row_bytes, 1)
+                    icon_file.seek(icon_row_bytes, 1)
     
     def draw_text(self, text, x, y, width, scale=1):
         text_width = self.display.measure_text(text, scale)
