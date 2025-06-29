@@ -10,5 +10,13 @@ jobs:
           aws-region: eu-west-2
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - name: Test
-        run: aws
+      - name: Copy libraries
+        run: aws s3 cp ./libraries s3://ae-pico/latest
+      - name: Copy infodisplay
+        run: aws s3 cp ./infodisplay s3://ae-pico/latest
+      - name: Copy scrollclock
+        run: aws s3 cp ./scrollclock s3://ae-pico/latest
+      - name: Copy sensor
+        run: aws s3 cp ./sensor s3://ae-pico/latest
+      - name: Copy thermostat
+        run: aws s3 cp ./thermostat s3://ae-pico/latest
