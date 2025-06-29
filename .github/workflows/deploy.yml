@@ -22,4 +22,4 @@ jobs:
       - name: create manifest
         run: ls temp_deploy/*.py | xargs -n 1 basename > temp_deploy/manifest.txt
       - name: copy libraries
-        run: aws s3 sync temp_deploy/ s3://ae-pico/latest --delete
+        run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
