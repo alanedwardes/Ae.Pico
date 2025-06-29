@@ -12,5 +12,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: checkout repo
         uses: actions/checkout@v4
+      - name: prepare files
+        run: |
+          mkdir -p temp_deploy
+          cp libraries/*.py temp_deploy/
+          cp scrollclock/*.py temp_deploy/
+          cp sensor/*.py temp_deploy/
+          cp thermostat/*.py temp_deploy/
       - name: copy libraries
-        run: aws s3 sync . s3://ae-pico/latest --exclude "*" --include "libraries/*.py" --include "scrollclock/*.py" --include "sensor/*.py" --include "thermostat/*.py" --delete
+        run: aws s3 sync temp_deploy/ s3://ae-pico/latest --delete
