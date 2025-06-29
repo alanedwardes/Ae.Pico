@@ -5,8 +5,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Configure AWS Credentials"
-        # You may pin to the exact commit or the version.
-        # uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         uses: aws-actions/configure-aws-credentials@v4.1.0
         with:
           aws-region: eu-west-2
