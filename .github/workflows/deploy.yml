@@ -20,6 +20,14 @@ jobs:
           cp sensor/*.py temp_deploy/
           cp thermostat/*.py temp_deploy/
       - name: create manifest
-        run: ls temp_deploy/*.py | xargs -n 1 basename > temp_deploy/manifest.txt
+        run: |
+          echo "" >> temp_deploy/manifest.txt
+          for file in temp_deploy/*.py; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              hash=$(sha256sum "$file" | cut -d' ' -f1)
+              echo "$filename $hash" >> temp_deploy/manifest.txt
+            fi
+          done
       - name: copy libraries
         run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
