@@ -1,0 +1,33 @@
+name: Deploy
+on: workflow_dispatch
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: credentials
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          aws-region: eu-west-2
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: checkout repo
+        uses: actions/checkout@v4
+      - name: prepare files
+        run: |
+          mkdir -p temp_deploy
+          cp libraries/*.py temp_deploy/
+          cp scrollclock/*.py temp_deploy/
+          cp sensor/*.py temp_deploy/
+          cp thermostat/*.py temp_deploy/
+      - name: create manifest
+        run: |
+          echo "" >> temp_deploy/manifest.txt
+          for file in temp_deploy/*.py; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              hash=$(sha256sum "$file" | cut -d' ' -f1)
+              echo "$filename $hash" >> temp_deploy/manifest.txt
+            fi
+          done
+      - name: copy libraries
+        run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
