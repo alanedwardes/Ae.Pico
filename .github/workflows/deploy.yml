@@ -13,12 +13,12 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
       - name: Copy libraries
-        run: aws s3 cp ./libraries s3://ae-pico/latest
+        run: aws s3 cp ./libraries s3://ae-pico/latest --recursive
       - name: Copy infodisplay
-        run: aws s3 cp ./infodisplay s3://ae-pico/latest
+        run: aws s3 cp ./infodisplay s3://ae-pico/latest --recursive
       - name: Copy scrollclock
-        run: aws s3 cp ./scrollclock s3://ae-pico/latest
+        run: aws s3 cp ./scrollclock s3://ae-pico/latest --recursive
       - name: Copy sensor
-        run: aws s3 cp ./sensor s3://ae-pico/latest
+        run: aws s3 cp ./sensor s3://ae-pico/latest --recursive
       - name: Copy thermostat
-        run: aws s3 cp ./thermostat s3://ae-pico/latest
+        run: aws s3 cp ./thermostat s3://ae-pico/latest --recursive
