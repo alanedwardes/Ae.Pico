@@ -10,8 +10,8 @@ jobs:
           aws-region: eu-west-2
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - name: List
-        run: ls -alsr
+      - name: checkout repo
+        uses: actions/checkout@v4
       - name: Copy libraries
         run: aws s3 cp ./libraries s3://ae-pico/latest
       - name: Copy infodisplay
