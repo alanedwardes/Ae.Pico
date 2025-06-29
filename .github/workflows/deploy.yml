@@ -12,13 +12,5 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: checkout repo
         uses: actions/checkout@v4
-      - name: Copy libraries
-        run: aws s3 cp ./libraries s3://ae-pico/latest --recursive
-      - name: Copy infodisplay
-        run: aws s3 cp ./infodisplay s3://ae-pico/latest --recursive
-      - name: Copy scrollclock
-        run: aws s3 cp ./scrollclock s3://ae-pico/latest --recursive
-      - name: Copy sensor
-        run: aws s3 cp ./sensor s3://ae-pico/latest --recursive
-      - name: Copy thermostat
-        run: aws s3 cp ./thermostat s3://ae-pico/latest --recursive
+      - name: copy libraries
+        run: aws s3 sync . s3://ae-pico/latest --include "libraries/*.py" --include "scrollclock/*.py" --include "sensor/*.py" --include "thermostat/*.py" --exclude "*" --delete
