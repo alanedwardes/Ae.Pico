@@ -13,4 +13,4 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
       - name: copy libraries
-        run: aws s3 sync . s3://ae-pico/latest --include "libraries/*.py" --include "scrollclock/*.py" --include "sensor/*.py" --include "thermostat/*.py" --delete
+        run: aws s3 sync . s3://ae-pico/latest --exclude "*" --include "libraries/*.py" --include "scrollclock/*.py" --include "sensor/*.py" --include "thermostat/*.py" --delete
