@@ -1,29 +1,37 @@
+try:
+    import ujson
+except ModuleNotFoundError:
+    import json as ujson
+
 import asyncio
 import utime
 import chart
 import colors
+import re
+
+URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 class UvDisplay:
-    def __init__(self, display, hass, entity_id):
+    def __init__(self, display, url):
         self.display = display
-        self.hass = hass
-        self.entity_id = entity_id
-        self.days = []
+        self.url = url
+        self.uv_data = []
         self.is_active = True
         
         self.display_width, self.display_height = self.display.get_bounds()
     
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['uv']
-        return UvDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
+        return UvDisplay(provider['display'], provider['config']['uv']['url'])
     
     def entity_updated(self, entity_id, entity):
-        self.update()
+        pass  # No longer using Home Assistant entities
     
     async def start(self):
-        await self.hass.subscribe([self.entity_id], self.entity_updated)
-        await asyncio.Event().wait()
+        while True:
+            await self.fetch_uv_data()
+            self.update()
+            await asyncio.sleep(300)
         
     def should_activate(self):
         return True
@@ -32,6 +40,67 @@ class UvDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
+    
+    def parse_url(self, url):
+        match = URL_RE.match(url)
+        if match:
+            protocol = match.group(1)
+            host = match.group(2)
+            port = match.group(3)
+            path = match.group(4)
+
+            if protocol == 'https':
+                if port is None:
+                    port = 443
+            elif protocol == 'http':
+                if port is None:
+                    port = 80
+            else:
+                raise ValueError('Scheme {} is invalid'.format(protocol))
+
+            return (host, int(port), path if path else '/', protocol == 'https')
+        raise ValueError('Invalid URL format')
+    
+    async def fetch_uv_data(self):
+        try:               
+            url = self.url
+            host, port, path, use_ssl = self.parse_url(url)
+            
+            reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
+            
+            # Write HTTP request
+            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
+            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
+            writer.write(b'\r\n')
+            await writer.drain()
+            
+            # Read response
+            line = await reader.readline()
+            status = line.split(b' ', 2)
+            status_code = int(status[1])
+            
+            if status_code != 200:
+                print(f"Failed to fetch UV data: {status_code}")
+                writer.close()
+                await writer.wait_closed()
+                return
+            
+            # Skip headers
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+            
+            # Read content
+            content = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            
+            self.uv_data = ujson.loads(content.decode('utf-8'))
+            print(f"UV data fetched: {self.uv_data}")
+                
+        except Exception as e:
+            print(f"Error fetching UV data: {e}")
        
     def draw_text(self, text, x, y, width, scale=1):
         text_width = self.display.measure_text(text, scale)
@@ -52,12 +121,10 @@ class UvDisplay:
         start_update_ms = utime.ticks_ms()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"RainDisplay: {update_time_ms}ms")
+        print(f"UvDisplay: {update_time_ms}ms")
    
     def __update(self):
-        hours = self.hass.entities.get(self.entity_id, {}).get('a', {}).get('hours', [])
-        
-        if len(hours) == 0:
+        if len(self.uv_data) == 0:
             return
         
         y_start = 70
@@ -65,78 +132,92 @@ class UvDisplay:
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
 
-        self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(0, y_start + 35, self.display_width, 2)
-        
         self.display.set_font('bitmap8')
 
-        # generate random rain data for testing
-        #import random
-        #for i in range(len(hours)):
-        #    hours[i]['u'] = random.randint(0, 12)
-
-        column_width = self.display_width // (len(hours) - 1)
-        for i, hour in enumerate(hours):
-            if i == len(hours) - 1:
-                continue
-
-            hour_number = 12 if hour['h'] == 0 else hour['h']
-            uv = hour['u']
-            temperature = hour['t']
-            
-            sx = i * column_width
-            #sy = y_start + 10
-            sy = y_start
-            
-            if i > 0:
-                self.display.set_pen(self.display.create_pen(64, 64, 64))
-                self.display.rectangle(sx, sy, 2, self.display_height - y_start)
+        # Display specific hours: 00, 06, 12, 18
+        target_hours = [0, 6, 12, 18]
+        display_hours = []
+        hour_positions = []
+        
+        for hour in target_hours:
+            if hour < len(self.uv_data):
+                display_hours.append(self.uv_data[hour])
+                hour_positions.append(hour)
+        
+        # Draw hour labels for every 6th hour (0, 6, 12, 18)
+        # Since we show every other UV value above, we need to align with those positions
+        label_hours = [0, 6, 12, 18]
+        label_width = self.display_width // 12  # 12 UV values shown above
+        
+        for i, hour in enumerate(label_hours):
+            # Map hours to positions: 0->0, 6->3, 12->6, 18->9
+            position = hour // 2
+            sx = position * label_width
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
-            
-            sy += 35
-            
-            max_column_height = 70
-            
-            self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
+            self.draw_text(f"{hour:02d}", sx, self.display_height - 15, label_width, scale=1)
 
-            self.draw_text(f"{uv}", sx, sy + max_column_height + 5, column_width, scale=2)
+        chart_y = y_start + 20  # Move chart up to start after UV values
+        chart_height = self.display_height - y_start - 35  # Make chart fill more space
+        
+        # Draw vertical grid lines after chart area is defined
+        for i, hour in enumerate(label_hours):
+            if i > 0:  # Skip first line
+                position = hour // 2
+                sx = position * label_width
+                self.display.set_pen(self.display.create_pen(64, 64, 64))
+                # Calculate the top of the chart area (UV 12 line)
+                chart_top = chart_y + chart_height - (12 / 12.0) * chart_height  # UV 12 line
+                # Extend to bottom of screen
+                self.display.rectangle(sx, int(chart_top), 1, self.display_height - int(chart_top))
+
+        # Draw horizontal grid lines for all UV levels 0-12
+        for uv_value in range(13):  # 0-12 inclusive
+            # Calculate Y position (invert because 0 is at top)
+            y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
-            sy += max_column_height + 30
+            # Draw horizontal grid line
+            self.display.set_pen(self.display.create_pen(64, 64, 64))
+            self.display.rectangle(0, int(y_pos), self.display_width, 1)
+        
+        # Draw labels for specific UV levels
+        uv_levels = [
+            (0.5, "LOW"),
+            (3.5, "MODERATE"), 
+            (6.5, "HIGH"),
+            (8.5, "VERY HIGH"),
+            (11.5, "EXTREME")
+        ]
+        
+        for uv_value, label in uv_levels:
+            # Calculate Y position (invert because 0 is at top)
+            y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
-            self.display.set_pen(self.display.create_pen(*colors.get_color_for_temperature(temperature)))
-            self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
+            # Draw label on the left
+            self.display.set_pen(self.display.create_pen(255, 255, 255))
+            self.display.text(label, 0, int(y_pos - 3), scale=1)
 
-        chart_y = y_start + 45
-        chart_height = 60
+        # Display UV values above the graph
+        if self.uv_data:
+            # Calculate spacing for 12 values (every other data point)
+            label_width = self.display_width // 12
+            
+            for i in range(0, len(self.uv_data), 2):  # Step by 2 to get every other value
+                uv = self.uv_data[i]
+                label_index = i // 2  # Index for positioning
+                x_pos = label_index * label_width
+                self.display.set_pen(self.display.create_pen(255, 255, 255))
+                self.display.text(f"{uv}", x_pos, y_start + 5, scale=1)
 
-        self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(0, chart_y + chart_height, self.display_width, 2)
-
+        # Normalize UV values for chart (max UV is 12)
+        max_uv_value = 12  # Fixed maximum
+        normalized_data = [uv / max_uv_value for uv in self.uv_data]
+        
         self.display.set_pen(self.display.create_pen(255, 128, 0))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['u'] / 12 for hour in hours]):
-            uv = hours[min(10, int(px / (self.display_width / len(hours))))]['u']
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
+            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
+            uv = self.uv_data[data_index]
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
             self.display.circle(int(px), int(py), 2)
-
-        self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(max(hour['u'] for hour in hours))))
-        self.display.rectangle(3, y_start + 40, 128, 32)
-
-        # After drawing the chart and before self.display.update()
-        max_uv = max(hour['u'] for hour in hours)
-        if max_uv <= 2:
-            uv_word = "LOW"
-        elif max_uv <= 5:
-            uv_word = "MODERATE"
-        elif max_uv <= 7:
-            uv_word = "HIGH"
-        elif max_uv <= 10:
-            uv_word = "VERY HIGH"
-        else:
-            uv_word = "EXTREME"
-
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.draw_text(uv_word, 3, y_start + 40, 128, 2)
 
         self.display.update()
