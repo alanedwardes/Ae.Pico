@@ -12,9 +12,10 @@ import re
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 class UvDisplay:
-    def __init__(self, display, url):
+    def __init__(self, display, url, rtc=None):
         self.display = display
         self.url = url
+        self.rtc = rtc
         self.uv_data = []
         self.is_active = True
         
@@ -22,7 +23,12 @@ class UvDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return UvDisplay(provider['display'], provider['config']['uv']['url'])
+        rtc = provider.get('remotetime.RemoteTime')
+        if not rtc:
+            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
+            import machine
+            rtc = machine.RTC()
+        return UvDisplay(provider['display'], provider['config']['uv']['url'], rtc)
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -262,5 +268,38 @@ class UvDisplay:
             uv = self.uv_data[data_index]
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
             self.display.circle(int(px), int(py), 2)
+
+        # Draw current time vertical line
+        if self.rtc and len(self.uv_data) > 0:
+            now = self.rtc.datetime()
+            current_hour = now[4]  # Hour from datetime tuple
+            current_minute = now[5]  # Minute from datetime tuple
+            
+            # Calculate position for current time with minute precision
+            # Convert to decimal hours (e.g., 2:30 = 2.5 hours)
+            current_time_decimal = current_hour + (current_minute / 60.0)
+            
+            # Since we show every other UV value (step=2), we need to map the time to the correct position
+            if current_hour < len(self.uv_data):
+                # Calculate x position based on decimal time
+                time_x = (current_time_decimal / len(self.uv_data)) * self.display_width
+                
+                # Draw 2px light gray vertical line
+                self.display.set_pen(self.display.create_pen(128, 128, 128))
+                self.display.rectangle(int(time_x - 1), y_start, 2, self.display_height - y_start)
+                
+                # Find the UV value at current hour (still use hour for data lookup)
+                current_uv = self.uv_data[current_hour]
+                
+                # Calculate y position for the UV value
+                normalized_uv = current_uv / max_uv_value
+                uv_y = chart_y + chart_height - (normalized_uv * chart_height)
+                
+                # Draw 2px black circle with 1px white circle inside
+                self.display.set_pen(self.display.create_pen(0, 0, 0))
+                self.display.circle(int(time_x), int(uv_y), 5)
+                
+                self.display.set_pen(self.display.create_pen(255, 255, 255))
+                self.display.circle(int(time_x), int(uv_y), 2)
 
         self.display.update()
