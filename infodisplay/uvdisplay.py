@@ -103,7 +103,9 @@ class UvDisplay:
             await writer.wait_closed()
             
             self.uv_data = ujson.loads(content.decode('utf-8'))
-            print(f"UV data fetched: {self.uv_data}")
+            print(f"UV data fetched: {len(self.uv_data)} data points")
+            for hour, uv_value in enumerate(self.uv_data):
+                print(f"  Hour {hour:02d}: UV {uv_value}")
                 
         except Exception as e:
             print(f"Error fetching UV data: {e}")
@@ -150,13 +152,13 @@ class UvDisplay:
                 display_hours.append(self.uv_data[hour])
                 hour_positions.append(hour)
         
-        # Draw hour labels for every 6th hour (0, 6, 12, 18)
+        # Draw hour labels for every 2nd hour (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
         # Since we show every other UV value above, we need to align with those positions
-        label_hours = [0, 6, 12, 18]
+        label_hours = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
         label_width = self.display_width // 12  # 12 UV values shown above
         
         for i, hour in enumerate(label_hours):
-            # Map hours to positions: 0->0, 6->3, 12->6, 18->9
+            # Map hours to positions: 0->0, 2->1, 4->2, 6->3, 8->4, 10->5, 12->6, 14->7, 16->8, 18->9, 20->10, 22->11
             position = hour // 2
             sx = position * label_width
             
@@ -220,7 +222,7 @@ class UvDisplay:
         normalized_data = [uv / max_uv_value for uv in self.uv_data]
         
         # Get chart points for both polygon and circles
-        chart_points = list(chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data, step=2))
+        chart_points = list(chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data))
         
         if len(chart_points) > 1:
             # Create polygons for each UV color zone using the same chart points as circles
