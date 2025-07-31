@@ -67,9 +67,7 @@ def get_color_for_temperature(degrees):
         return (213, 208, 205) # #d5d0cd
 
 def get_color_for_uv(index):
-    if index < 1:
-        return (96, 96, 96)
-    elif index < 3:
+    if index < 3:
         return (113, 180, 102)
     elif index < 6:
         return (248, 231, 28)

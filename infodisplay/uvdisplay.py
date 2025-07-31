@@ -12,9 +12,10 @@ import re
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 class UvDisplay:
-    def __init__(self, display, url):
+    def __init__(self, display, url, rtc=None):
         self.display = display
         self.url = url
+        self.rtc = rtc
         self.uv_data = []
         self.is_active = True
         
@@ -22,7 +23,12 @@ class UvDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return UvDisplay(provider['display'], provider['config']['uv']['url'])
+        rtc = provider.get('remotetime.RemoteTime')
+        if not rtc:
+            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
+            import machine
+            rtc = machine.RTC()
+        return UvDisplay(provider['display'], provider['config']['uv']['url'], rtc)
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -97,7 +103,9 @@ class UvDisplay:
             await writer.wait_closed()
             
             self.uv_data = ujson.loads(content.decode('utf-8'))
-            print(f"UV data fetched: {self.uv_data}")
+            print(f"UV data fetched: {len(self.uv_data)} data points")
+            for hour, uv_value in enumerate(self.uv_data):
+                print(f"  Hour {hour:02d}: UV {uv_value}")
                 
         except Exception as e:
             print(f"Error fetching UV data: {e}")
@@ -144,13 +152,13 @@ class UvDisplay:
                 display_hours.append(self.uv_data[hour])
                 hour_positions.append(hour)
         
-        # Draw hour labels for every 6th hour (0, 6, 12, 18)
+        # Draw hour labels for every 2nd hour (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
         # Since we show every other UV value above, we need to align with those positions
-        label_hours = [0, 6, 12, 18]
+        label_hours = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
         label_width = self.display_width // 12  # 12 UV values shown above
         
         for i, hour in enumerate(label_hours):
-            # Map hours to positions: 0->0, 6->3, 12->6, 18->9
+            # Map hours to positions: 0->0, 2->1, 4->2, 6->3, 8->4, 10->5, 12->6, 14->7, 16->8, 18->9, 20->10, 22->11
             position = hour // 2
             sx = position * label_width
             
@@ -213,11 +221,87 @@ class UvDisplay:
         max_uv_value = 12  # Fixed maximum
         normalized_data = [uv / max_uv_value for uv in self.uv_data]
         
-        self.display.set_pen(self.display.create_pen(255, 128, 0))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
+        # Get chart points for both polygon and circles
+        chart_points = list(chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data))
+        
+        if len(chart_points) > 1:
+            # Create polygons for each UV color zone using the same chart points as circles
+            current_polygon = []
+            current_color = None
+            
+            # Start at the first chart point
+            first_x = int(chart_points[0][0])
+            current_polygon.append((first_x, chart_y + chart_height))
+            
+            for px, py in chart_points:
+                data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
+                uv = self.uv_data[data_index]
+                uv_color = colors.get_color_for_uv(uv)
+                
+                # If color changes, draw current polygon and start new one
+                if current_color is not None and current_color != uv_color:
+                    # Complete current polygon
+                    current_polygon.append((int(px), int(py)))
+                    current_polygon.append((int(px), chart_y + chart_height))
+                    
+                    # Draw filled polygon with 50% transparency
+                    transparent_color = tuple(c // 2 for c in current_color)
+                    self.display.set_pen(self.display.create_pen(*transparent_color))
+                    self.display.polygon(current_polygon)
+                    
+                    # Start new polygon
+                    current_polygon = [(int(px), chart_y + chart_height), (int(px), int(py))]
+                    current_color = uv_color
+                else:
+                    current_polygon.append((int(px), int(py)))
+                    current_color = uv_color
+            
+            # Draw final polygon
+            if current_polygon:
+                last_x = int(chart_points[-1][0])
+                current_polygon.append((last_x, chart_y + chart_height))
+                transparent_color = tuple(c // 2 for c in current_color)
+                self.display.set_pen(self.display.create_pen(*transparent_color))
+                self.display.polygon(current_polygon)
+        
+        # Draw chart circles on top using the same points
+        for px, py in chart_points:
             data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
             uv = self.uv_data[data_index]
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
             self.display.circle(int(px), int(py), 2)
+
+        # Draw current time vertical line
+        if self.rtc and len(self.uv_data) > 0:
+            now = self.rtc.datetime()
+            current_hour = now[4]  # Hour from datetime tuple
+            current_minute = now[5]  # Minute from datetime tuple
+            
+            # Calculate position for current time with minute precision
+            # Convert to decimal hours (e.g., 2:30 = 2.5 hours)
+            current_time_decimal = current_hour + (current_minute / 60.0)
+            
+            # Since we show every other UV value (step=2), we need to map the time to the correct position
+            if current_hour < len(self.uv_data):
+                # Calculate x position based on decimal time
+                time_x = (current_time_decimal / len(self.uv_data)) * self.display_width
+                
+                # Draw 2px light gray vertical line
+                self.display.set_pen(self.display.create_pen(128, 128, 128))
+                self.display.rectangle(int(time_x - 1), y_start, 2, self.display_height - y_start)
+                
+                # Find the UV value at current hour (still use hour for data lookup)
+                current_uv = self.uv_data[current_hour]
+                
+                # Calculate y position for the UV value
+                normalized_uv = current_uv / max_uv_value
+                uv_y = chart_y + chart_height - (normalized_uv * chart_height)
+                
+                # Draw 2px black circle with 1px white circle inside
+                self.display.set_pen(self.display.create_pen(0, 0, 0))
+                self.display.circle(int(time_x), int(uv_y), 5)
+                
+                self.display.set_pen(self.display.create_pen(255, 255, 255))
+                self.display.circle(int(time_x), int(uv_y), 2)
 
         self.display.update()

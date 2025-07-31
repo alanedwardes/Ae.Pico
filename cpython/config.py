@@ -1,4 +1,4 @@
 import pygamedisplay
-import timedisplay
+import secret_config
 
-config = dict()
+config = secret_config.config
