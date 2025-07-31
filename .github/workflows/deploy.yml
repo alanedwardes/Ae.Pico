@@ -16,6 +16,7 @@ jobs:
         run: |
           mkdir -p temp_deploy
           cp libraries/*.py temp_deploy/
+          cp infodisplay/*.py temp_deploy/
           cp scrollclock/*.py temp_deploy/
           cp sensor/*.py temp_deploy/
           cp thermostat/*.py temp_deploy/
