@@ -1,3 +1,4 @@
+import gc
 import re
 import asyncio
 import os
@@ -272,7 +273,17 @@ class RemoteUpdate:
 
     # Web controller interface methods
     def route(self, method, path):
-        return path == b'/remoteupdate'
+        # Handle both the main remoteupdate page and individual bundle updates
+        if path == b'/remoteupdate':
+            return True
+        # Handle individual bundle updates: /remoteupdate/bundle/{index}
+        if path.startswith(b'/remoteupdate/bundle/'):
+            try:
+                bundle_index = int(path.split(b'/')[-1])
+                return 0 <= bundle_index < len(self.bundles)
+            except (ValueError, IndexError):
+                return False
+        return False
     
     async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
@@ -283,68 +294,99 @@ class RemoteUpdate:
         writer.write(b'\r\n')
         writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}</style>')
         
-        if b'action' in form and form[b'action'] == b'update':
-            # Handle the update process directly in the response
-            writer.write(b'<h1>Remote Update</h1>')
-            writer.write(b'<div id="progress">Starting update process...</div>')
-            writer.write(b'<p><a href="/">Back</a></p>')
-            await writer.drain()
-            
+        # Check if this is an individual bundle update
+        if path.startswith(b'/remoteupdate/bundle/'):
             try:
-                for i, bundle in enumerate(self.bundles):
-                    progress_msg = f'<div>Processing bundle {i+1}/{len(self.bundles)}: {bundle[0]}</div>'
-                    writer.write(progress_msg.encode('utf-8'))
-                    await writer.drain()
-                    
-                    # Get manifest for this bundle
-                    manifest = await self.downloader.get_manifest(bundle[0])
-                    
-                    for j, item in enumerate(manifest):
-                        progress_msg = f'<div>Processing {item[0]} ({j+1}/{len(manifest)})...</div>'
-                        writer.write(progress_msg.encode('utf-8'))
-                        await writer.drain()
-                        
-                        filename, status, message = await self.downloader.download_manifest_item(item, bundle[1])
-                        
-                        if status == 'updated':
-                            status_msg = f'<div style="color: blue;">✓ {message}</div>'
-                        elif status == 'skipped':
-                            status_msg = f'<div style="color: gray;">○ {message}</div>'
-                        elif status == 'error':
-                            status_msg = f'<div style="color: red;">✗ {message}</div>'
-                        
-                        writer.write(status_msg.encode('utf-8'))
-                        await writer.drain()
-                
-                completion_msg = '<div style="color: green; margin-top: 20px;"><strong>Update completed successfully!</strong></div>'
-                writer.write(completion_msg.encode('utf-8'))
-                await writer.drain()
-                
-            except Exception as e:
-                error_msg = f'<div style="color: red;"><strong>Update failed: {str(e)}</strong></div>'
-                writer.write(error_msg.encode('utf-8'))
-                await writer.drain()
+                bundle_index = int(path.split(b'/')[-1])
+                if b'action' in form and form[b'action'] == b'update':
+                    await self._handle_bundle_update(writer, bundle_index)
+                else:
+                    await self._show_bundle_interface(writer, bundle_index)
+            except (ValueError, IndexError):
+                writer.write(b'<h1>Error</h1><p>Invalid bundle index</p><p><a href="/remoteupdate">Back</a></p>')
         else:
-            # Show the update interface
-            writer.write(b'<h1>Remote Update</h1>')
-            writer.write(b'<p><b>Bundles:</b> %i</p>' % len(self.bundles))
-            
-            if self.bundles:
-                writer.write(b'<ul>')
-                for i, bundle in enumerate(self.bundles):
-                    writer.write(b'<li>Bundle %i: %s -> %s</li>' % (
-                        i + 1,
-                        bundle[0].encode('utf-8'),
-                        bundle[1].encode('utf-8')
-                    ))
-                writer.write(b'</ul>')
-            
-            writer.write(b'<form action="remoteupdate" method="post">')
-            writer.write(b'<input type="hidden" name="action" value="update"/>')
-            writer.write(b'<button type="submit">Start Update</button>')
-            writer.write(b'</form>')
-            
-            writer.write(b'<p><a href="/">Back</a></p>')
+            # Main remoteupdate page
+            await self._show_main_interface(writer)
         
         writer.close()
         await writer.wait_closed()
+    
+    async def _show_main_interface(self, writer):
+        """Show the main remote update interface with individual bundle buttons."""
+        writer.write(b'<h1>Remote Update</h1>')
+        writer.write(b'<p><b>Available Bundles:</b> %i</p>' % len(self.bundles))
+        
+        if self.bundles:
+            writer.write(b'<div style="margin: 20px 0;">')
+            for i, bundle in enumerate(self.bundles):
+                writer.write(b'<div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">')
+                writer.write(b'<h3>Bundle %i</h3>' % (i + 1))
+                writer.write(b'<p><strong>Source:</strong> %s</p>' % bundle[0].encode('utf-8'))
+                writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
+                writer.write(b'<form action="/remoteupdate/bundle/%i" method="post">' % i)
+                writer.write(b'<input type="hidden" name="action" value="update"/>')
+                writer.write(b'<button type="submit" style="background-color: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Update This Bundle</button>')
+                writer.write(b'</form>')
+                writer.write(b'</div>')
+            writer.write(b'</div>')
+        else:
+            writer.write(b'<p>No bundles configured.</p>')
+        
+        writer.write(b'<p><a href="/">Back to Home</a></p>')
+    
+    async def _show_bundle_interface(self, writer, bundle_index):
+        """Show interface for a specific bundle."""
+        bundle = self.bundles[bundle_index]
+        writer.write(b'<h1>Bundle %i Update</h1>' % (bundle_index + 1))
+        writer.write(b'<p><strong>Source:</strong> %s</p>' % bundle[0].encode('utf-8'))
+        writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
+        writer.write(b'<form action="/remoteupdate/bundle/%i" method="post">' % bundle_index)
+        writer.write(b'<input type="hidden" name="action" value="update"/>')
+        writer.write(b'<button type="submit" style="background-color: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Start Update</button>')
+        writer.write(b'</form>')
+        writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
+    
+    async def _handle_bundle_update(self, writer, bundle_index):
+        """Handle the update process for a specific bundle."""
+        bundle = self.bundles[bundle_index]
+        
+        writer.write(b'<h1>Bundle %i Update</h1>' % (bundle_index + 1))
+        writer.write(b'<div id="progress">Starting update process...</div>')
+        writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
+        await writer.drain()
+        
+        try:
+            progress_msg = f'<div>Processing bundle: {bundle[0]}</div>'
+            writer.write(progress_msg.encode('utf-8'))
+            await writer.drain()
+            
+            # Get manifest for this bundle
+            manifest = await self.downloader.get_manifest(bundle[0])
+            
+            for j, item in enumerate(manifest):
+                progress_msg = f'<div>Processing {item[0]} ({j+1}/{len(manifest)})...</div>'
+                writer.write(progress_msg.encode('utf-8'))
+                await writer.drain()
+                
+                filename, status, message = await self.downloader.download_manifest_item(item, bundle[1])
+                
+                if status == 'updated':
+                    status_msg = f'<div style="color: blue;">✓ {message}</div>'
+                elif status == 'skipped':
+                    status_msg = f'<div style="color: gray;">○ {message}</div>'
+                elif status == 'error':
+                    status_msg = f'<div style="color: red;">✗ {message}</div>'
+                
+                writer.write(status_msg.encode('utf-8'))
+                await writer.drain()
+                
+                gc.collect()
+            
+            completion_msg = '<div style="color: green; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'
+            writer.write(completion_msg.encode('utf-8'))
+            await writer.drain()
+            
+        except Exception as e:
+            error_msg = f'<div style="color: red;"><strong>Bundle update failed: {str(e)}</strong></div>'
+            writer.write(error_msg.encode('utf-8'))
+            await writer.drain()
