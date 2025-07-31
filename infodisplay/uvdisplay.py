@@ -215,29 +215,30 @@ class UvDisplay:
                 label_index = i // 2  # Index for positioning
                 x_pos = label_index * label_width
                 self.display.set_pen(self.display.create_pen(255, 255, 255))
-                self.display.text(f"{uv}", x_pos, y_start + 5, scale=1)
+                self.display.text(str(uv), x_pos, y_start + 5, scale=1)
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
         normalized_data = [uv / max_uv_value for uv in self.uv_data]
         
-        # Get chart points for both polygon and circles
-        chart_points = list(chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data))
+        # Process chart points directly from generator without storing in list
+        current_polygon = []
+        current_color = None
+        first_point = True
         
-        if len(chart_points) > 1:
-            # Create polygons for each UV color zone using the same chart points as circles
-            current_polygon = []
-            current_color = None
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
+            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
+            uv = self.uv_data[data_index]
+            uv_color = colors.get_color_for_uv(uv)
             
-            # Start at the first chart point
-            first_x = int(chart_points[0][0])
-            current_polygon.append((first_x, chart_y + chart_height))
-            
-            for px, py in chart_points:
-                data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
-                uv = self.uv_data[data_index]
-                uv_color = colors.get_color_for_uv(uv)
-                
+            if first_point:
+                # Start at the first chart point
+                first_x = int(px)
+                current_polygon.append((first_x, chart_y + chart_height))
+                current_polygon.append((int(px), int(py)))
+                current_color = uv_color
+                first_point = False
+            else:
                 # If color changes, draw current polygon and start new one
                 if current_color is not None and current_color != uv_color:
                     # Complete current polygon
@@ -255,17 +256,17 @@ class UvDisplay:
                 else:
                     current_polygon.append((int(px), int(py)))
                     current_color = uv_color
-            
-            # Draw final polygon
-            if current_polygon:
-                last_x = int(chart_points[-1][0])
-                current_polygon.append((last_x, chart_y + chart_height))
-                transparent_color = tuple(c // 2 for c in current_color)
-                self.display.set_pen(self.display.create_pen(*transparent_color))
-                self.display.polygon(current_polygon)
         
-        # Draw chart circles on top using the same points
-        for px, py in chart_points:
+        # Draw final polygon
+        if current_polygon:
+            last_x = int(px)
+            current_polygon.append((last_x, chart_y + chart_height))
+            transparent_color = tuple(c // 2 for c in current_color)
+            self.display.set_pen(self.display.create_pen(*transparent_color))
+            self.display.polygon(current_polygon)
+        
+        # Draw chart circles on top using the same generator
+        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
             data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
             uv = self.uv_data[data_index]
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
