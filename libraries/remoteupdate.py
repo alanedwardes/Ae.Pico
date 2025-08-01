@@ -319,15 +319,13 @@ class RemoteUpdate:
         if self.bundles:
             writer.write(b'<div style="margin: 20px 0;">')
             for i, bundle in enumerate(self.bundles):
-                writer.write(b'<div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">')
-                writer.write(b'<h3>Bundle %i</h3>' % (i + 1))
+                writer.write(b'<h2>Bundle %i</h2>' % (i + 1))
                 writer.write(b'<p><strong>Source:</strong> %s</p>' % bundle[0].encode('utf-8'))
                 writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
                 writer.write(b'<form action="/remoteupdate/bundle/%i" method="post">' % i)
                 writer.write(b'<input type="hidden" name="action" value="update"/>')
-                writer.write(b'<button type="submit" style="background-color: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Update This Bundle</button>')
+                writer.write(b'<button type="submit">Update This Bundle</button>')
                 writer.write(b'</form>')
-                writer.write(b'</div>')
             writer.write(b'</div>')
         else:
             writer.write(b'<p>No bundles configured.</p>')
@@ -342,7 +340,7 @@ class RemoteUpdate:
         writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
         writer.write(b'<form action="/remoteupdate/bundle/%i" method="post">' % bundle_index)
         writer.write(b'<input type="hidden" name="action" value="update"/>')
-        writer.write(b'<button type="submit" style="background-color: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Start Update</button>')
+        writer.write(b'<button type="submit">Start Update</button>')
         writer.write(b'</form>')
         writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
     
@@ -371,22 +369,22 @@ class RemoteUpdate:
                 filename, status, message = await self.downloader.download_manifest_item(item, bundle[1])
                 
                 if status == 'updated':
-                    status_msg = f'<div style="color: blue;">✓ {message}</div>'
+                    status_msg = f'<div style="color: Highlight;">✓ {message}</div>'
                 elif status == 'skipped':
-                    status_msg = f'<div style="color: gray;">○ {message}</div>'
+                    status_msg = f'<div style="color: GrayText;">○ {message}</div>'
                 elif status == 'error':
-                    status_msg = f'<div style="color: red;">✗ {message}</div>'
+                    status_msg = f'<div style="color: Mark;">✗ {message}</div>'
                 
                 writer.write(status_msg.encode('utf-8'))
                 await writer.drain()
                 
                 gc.collect()
             
-            completion_msg = '<div style="color: green; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'
+            completion_msg = '<div style="color: Highlight; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'
             writer.write(completion_msg.encode('utf-8'))
             await writer.drain()
             
         except Exception as e:
-            error_msg = f'<div style="color: red;"><strong>Bundle update failed: {str(e)}</strong></div>'
+            error_msg = f'<div style="color: Mark;"><strong>Bundle update failed: {str(e)}</strong></div>'
             writer.write(error_msg.encode('utf-8'))
             await writer.drain()
