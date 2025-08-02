@@ -15,7 +15,6 @@ class WeatherDisplay:
     def __init__(self, display, url, rtc=None):
         self.display = display
         self.url = url
-        self.rtc = rtc
         self.weather_data = []
         self.is_active = True
         
@@ -23,12 +22,7 @@ class WeatherDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
-            import machine
-            rtc = machine.RTC()
-        return WeatherDisplay(provider['display'], provider['config']['weather']['url'], rtc)
+        return WeatherDisplay(provider['display'], provider['config']['weather']['url'])
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -229,12 +223,10 @@ class WeatherDisplay:
             sy = y_start + 10
             
             # Get current day of week (0 = Monday, 6 = Sunday)
-            if self.rtc:
-                now = self.rtc.datetime()
-                # Calculate day of week (0 = Monday)
-                day_of_week = (now[6] + 6) % 7  # Convert from MicroPython RTC format
-            else:
-                day_of_week = i  # Fallback to just using index
+            # Use utime to get current time and calculate day of week
+            now = utime.localtime()
+            # Calculate day of week (0 = Monday) and increment for each column
+            day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
             
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
                 self.display.set_pen(self.display.create_pen(201, 205, 209))

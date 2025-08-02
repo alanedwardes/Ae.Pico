@@ -15,7 +15,6 @@ class RainDisplay:
     def __init__(self, display, url, rtc=None):
         self.display = display
         self.url = url
-        self.rtc = rtc
         self.weather_data = []
         self.is_active = True
         
@@ -23,12 +22,7 @@ class RainDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
-            import machine
-            rtc = machine.RTC()
-        return RainDisplay(provider['display'], provider['config']['rain']['url'], rtc)
+        return RainDisplay(provider['display'], provider['config']['rain']['url'])
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -107,12 +101,15 @@ class RainDisplay:
             # Convert flat array to structured data
             # Format: [rain_prob, temp, rain_prob, temp, ...]
             self.weather_data = []
+            current_hour = utime.localtime()[3]  # Get current hour
             for i in range(0, len(raw_data), 2):
                 if i + 1 < len(raw_data):
                     rain_prob = raw_data[i]
                     temp = raw_data[i + 1]
+                    hour_offset = i // 2
+                    actual_hour = (current_hour + hour_offset) % 24
                     self.weather_data.append({
-                        'h': i // 2,  # Hour
+                        'h': actual_hour,  # Actual hour
                         'r': rain_prob,  # Rain probability
                         't': temp  # Temperature
                     })

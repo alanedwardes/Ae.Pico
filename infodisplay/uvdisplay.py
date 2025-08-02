@@ -15,7 +15,6 @@ class UvDisplay:
     def __init__(self, display, url, rtc=None):
         self.display = display
         self.url = url
-        self.rtc = rtc
         self.uv_data = []
         self.is_active = True
         
@@ -23,12 +22,7 @@ class UvDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
-            import machine
-            rtc = machine.RTC()
-        return UvDisplay(provider['display'], provider['config']['uv']['url'], rtc)
+        return UvDisplay(provider['display'], provider['config']['uv']['url'])
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -273,10 +267,10 @@ class UvDisplay:
             self.display.circle(int(px), int(py), 2)
 
         # Draw current time vertical line
-        if self.rtc and len(self.uv_data) > 0:
-            now = self.rtc.datetime()
-            current_hour = now[4]  # Hour from datetime tuple
-            current_minute = now[5]  # Minute from datetime tuple
+        if len(self.uv_data) > 0:
+            now = utime.localtime()
+            current_hour = now[3]  # Hour from time tuple
+            current_minute = now[4]  # Minute from time tuple
             
             # Calculate position for current time with minute precision
             # Convert to decimal hours (e.g., 2:30 = 2.5 hours)
