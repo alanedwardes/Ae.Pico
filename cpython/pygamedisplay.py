@@ -7,7 +7,7 @@ import pygamefont8
 class PygameDisplay:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((320, 240))
+        self.screen = pygame.display.set_mode((320, 240), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=16)
         self.pen = None
         self.font = None
         self.thickness = 1
@@ -62,6 +62,9 @@ class PygameDisplay:
 
     def get_bounds(self):
         return (self.screen.get_width(), self.screen.get_height())
+
+    def __buffer__(self, flags):
+        return memoryview(self.screen.get_buffer())
     
     def __get_font(self, scale):
         name, size = self.fonts[self.font]
