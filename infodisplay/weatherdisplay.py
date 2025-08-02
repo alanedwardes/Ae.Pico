@@ -1,32 +1,43 @@
+try:
+    import ujson
+except ModuleNotFoundError:
+    import json as ujson
+
 import asyncio
 import utime
 import colors
 import struct
+import re
+
+URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 class WeatherDisplay:
-    def __init__(self, display, hass, entity_id):
+    def __init__(self, display, url, rtc=None):
         self.display = display
-        self.hass = hass
-        self.entity_id = entity_id
+        self.url = url
+        self.rtc = rtc
+        self.weather_data = []
         self.is_active = True
         
         self.display_width, self.display_height = self.display.get_bounds()
     
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['weather']
-        return WeatherDisplay(provider['display'], provider['hassws.HassWs'], config['entity_id'])
+        rtc = provider.get('remotetime.RemoteTime')
+        if not rtc:
+            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
+            import machine
+            rtc = machine.RTC()
+        return WeatherDisplay(provider['display'], provider['config']['weather']['url'], rtc)
     
     def entity_updated(self, entity_id, entity):
-        self.update()
+        pass  # No longer using Home Assistant entities
     
     async def start(self):
-        await self.hass.subscribe([self.entity_id], self.entity_updated)
-        # For testing
-        #while True:
-        #    self.update()
-        #    await asyncio.sleep(1)
-        await asyncio.Event().wait()
+        while True:
+            await self.fetch_weather_data()
+            self.update()
+            await asyncio.sleep(300)
         
     def should_activate(self):
         return True
@@ -35,6 +46,73 @@ class WeatherDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
+    
+    def parse_url(self, url):
+        match = URL_RE.match(url)
+        if match:
+            protocol = match.group(1)
+            host = match.group(2)
+            port = match.group(3)
+            path = match.group(4)
+
+            if protocol == 'https':
+                if port is None:
+                    port = 443
+            elif protocol == 'http':
+                if port is None:
+                    port = 80
+            else:
+                raise ValueError('Scheme {} is invalid'.format(protocol))
+
+            return (host, int(port), path if path else '/', protocol == 'https')
+        raise ValueError('Invalid URL format')
+    
+    async def fetch_weather_data(self):
+        try:               
+            url = self.url
+            host, port, path, use_ssl = self.parse_url(url)
+            
+            reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
+            
+            # Write HTTP request
+            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
+            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
+            writer.write(b'\r\n')
+            await writer.drain()
+            
+            # Read response
+            line = await reader.readline()
+            status = line.split(b' ', 2)
+            status_code = int(status[1])
+            
+            if status_code != 200:
+                print(f"Failed to fetch weather data: {status_code}")
+                writer.close()
+                await writer.wait_closed()
+                return
+            
+            # Skip headers
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+            
+            # Read content
+            content = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            
+            self.weather_data = ujson.loads(content.decode('utf-8'))
+            print(f"Weather data fetched: {len(self.weather_data)} data points")
+            for i in range(0, len(self.weather_data), 3):
+                if i + 2 < len(self.weather_data):
+                    code = self.weather_data[i]
+                    temp = self.weather_data[i + 1]
+                    rain = self.weather_data[i + 2]
+                    print(f"  Day {i//3}: Code {code}, Temp {temp}°C, Rain {rain}%")
+                
+        except Exception as e:
+            print(f"Error fetching weather data: {e}")
     
     def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height):
         with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
@@ -81,9 +159,7 @@ class WeatherDisplay:
         print(f"WeatherDisplay: {update_time_ms}ms")
     
     def __update(self):
-        days = self.hass.entities.get(self.entity_id, {}).get('a', {}).get('days', [])
-        
-        if len(days) == 0:
+        if len(self.weather_data) == 0:
             return
         
         y_start = 70
@@ -136,22 +212,36 @@ class WeatherDisplay:
         
         self.display.set_font('bitmap8')
         
-        column_width = self.display_width // len(days)
-        for i, day in enumerate(days):
-            day_number = day['d']
-            weather_code = day['c']
-            temperature = day['t']
-            rain = day['r']
+        # Calculate number of days from data (each day has 3 values: code, temp, rain)
+        num_days = len(self.weather_data) // 3
+        column_width = self.display_width // num_days
+        
+        for i in range(num_days):
+            data_index = i * 3
+            if data_index + 2 >= len(self.weather_data):
+                break
+                
+            weather_code = self.weather_data[data_index]
+            temperature = self.weather_data[data_index + 1]
+            rain = self.weather_data[data_index + 2]
             
             sx = i * column_width
             sy = y_start + 10
             
-            if day_number == 5 or day_number == 6:
+            # Get current day of week (0 = Monday, 6 = Sunday)
+            if self.rtc:
+                now = self.rtc.datetime()
+                # Calculate day of week (0 = Monday)
+                day_of_week = (now[6] + 6) % 7  # Convert from MicroPython RTC format
+            else:
+                day_of_week = i  # Fallback to just using index
+            
+            if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
                 self.display.set_pen(self.display.create_pen(201, 205, 209))
             else:
                 self.display.set_pen(self.display.create_pen(255, 255, 255))
             
-            self.draw_text(f"{day_names[day_number]}", sx, sy, column_width, scale=2)
+            self.draw_text(f"{day_names[day_of_week]}", sx, sy, column_width, scale=2)
             
             sy += 25
             
