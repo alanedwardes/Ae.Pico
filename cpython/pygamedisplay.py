@@ -7,7 +7,7 @@ import pygamefont8
 class PygameDisplay:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((320, 240))
+        self.screen = pygame.display.set_mode((320, 240), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=32)
         self.pen = None
         self.font = None
         self.thickness = 1

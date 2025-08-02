@@ -37,9 +37,9 @@ def convert_image(input_path, output_path, fmt='rgb24'):
             for r, g, b in pixels:
                 f.write(bytes([r, g, b]))
         elif fmt == 'rgb32':
-            # 32-bit RGB, 8 bits per channel (RGBA with alpha=255)
+            # 32-bit BGRA, 8 bits per channel (BGRA with alpha=255)
             for r, g, b in pixels:
-                f.write(struct.pack('<BBBB', r, g, b, 255))
+                f.write(struct.pack('<BBBB', b, g, r, 255))
         else:
             print(f"Unknown format: {fmt}")
             sys.exit(1)
