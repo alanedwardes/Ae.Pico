@@ -77,3 +77,46 @@ def get_color_for_uv(index):
         return (215, 41, 33)
     else:
         return (102, 0, 224)
+
+def get_color_for_humidity(percentage):
+    if percentage <= 30:
+        return (220, 53, 34)  # Very Dry - red
+    elif percentage <= 50:
+        return (255, 140, 0)  # Dry - orange
+    elif percentage <= 70:
+        return (76, 175, 80)  # Comfortable - green
+    elif percentage <= 85:
+        return (33, 150, 243)  # Humid - light blue
+    elif percentage <= 100:
+        return (30, 136, 229)  # Very Humid - dark blue
+    else:
+        return (213, 208, 205)  # Default gray for invalid values
+
+def get_color_for_rain_percentage(percentage):
+    # 0% - No rain
+    if percentage == 0:
+        return (128, 128, 128)  # Light gray - no rain
+    # 1-10% - Very light rain chance
+    elif percentage <= 10:
+        return (150, 150, 150)  # Light gray
+    # 11-25% - Light rain chance
+    elif percentage <= 25:
+        return (180, 200, 220)  # Very light blue-gray
+    # 26-40% - Moderate rain chance
+    elif percentage <= 40:
+        return (160, 190, 230)  # Light blue-gray
+    # 41-60% - High rain chance
+    elif percentage <= 60:
+        return (140, 180, 240)  # Light blue
+    # 61-80% - Very high rain chance
+    elif percentage <= 80:
+        return (120, 170, 250)  # Medium light blue
+    # 81-95% - Heavy rain chance
+    elif percentage <= 95:
+        return (100, 160, 255)  # Light blue
+    # 96-100% - Certain rain
+    elif percentage <= 100:
+        return (80, 150, 255)   # Light blue
+    # Invalid values
+    else:
+        return (213, 208, 205)  # Default gray for invalid values

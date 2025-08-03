@@ -99,24 +99,24 @@ class RainDisplay:
             raw_data = ujson.loads(content.decode('utf-8'))
             
             # Convert flat array to structured data
-            # Format: [rain_prob, temp, rain_prob, temp, ...]
+            # Format: [rain_prob, humidity, rain_prob, humidity, ...]
             self.weather_data = []
             current_hour = utime.localtime()[3]  # Get current hour
             for i in range(0, len(raw_data), 2):
                 if i + 1 < len(raw_data):
                     rain_prob = raw_data[i]
-                    temp = raw_data[i + 1]
+                    humidity = raw_data[i + 1]
                     hour_offset = i // 2
                     actual_hour = (current_hour + hour_offset) % 24
                     self.weather_data.append({
-                        'h': actual_hour,  # Actual hour
+                        'hour': actual_hour,  # Actual hour
                         'r': rain_prob,  # Rain probability
-                        't': temp  # Temperature
+                        'humidity': humidity  # Humidity
                     })
             
             print(f"Weather data fetched: {len(self.weather_data)} hours")
             for hour_data in self.weather_data:
-                print(f"  Hour {hour_data['h']:02d}: Rain {hour_data['r']}%, Temp {hour_data['t']}°C")
+                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Humidity {hour_data['humidity']}%")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
@@ -161,9 +161,9 @@ class RainDisplay:
             if i == len(self.weather_data) - 1:
                 continue
 
-            hour_number = 12 if hour_data['h'] == 0 else hour_data['h']
+            hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
             rain_chance = hour_data['r']
-            temperature = hour_data['t']
+            humidity = hour_data['humidity']
             
             sx = i * column_width
             sy = y_start
@@ -179,15 +179,17 @@ class RainDisplay:
             
             max_column_height = 70
             
-            self.display.set_pen(self.display.create_pen(255, 255, 255))
+            rain_color = colors.get_color_for_rain_percentage(rain_chance)
+            self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
             self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
             
             self.display.set_pen(self.display.create_pen(117, 150, 148))
             
             sy += max_column_height + 30
             
-            self.display.set_pen(self.display.create_pen(*colors.get_color_for_temperature(temperature)))
-            self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
+            humidity_color = colors.get_color_for_humidity(humidity)
+            self.display.set_pen(self.display.create_pen(humidity_color[0], humidity_color[1], humidity_color[2]))
+            self.draw_text(f"{humidity:.0f}%", sx, sy, column_width, scale=2)
 
         chart_y = y_start + 45
         chart_height = 60
