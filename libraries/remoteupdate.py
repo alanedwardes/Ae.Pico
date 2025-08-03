@@ -362,6 +362,7 @@ class RemoteUpdate:
             manifest = await self.downloader.get_manifest(bundle[0])
             
             for j, item in enumerate(manifest):
+                gc.collect()
                 progress_msg = f'<div>Processing {item[0]} ({j+1}/{len(manifest)})...</div>'
                 writer.write(progress_msg.encode('utf-8'))
                 await writer.drain()
@@ -377,8 +378,6 @@ class RemoteUpdate:
                 
                 writer.write(status_msg.encode('utf-8'))
                 await writer.drain()
-                
-                gc.collect()
             
             completion_msg = '<div style="color: Highlight; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'
             writer.write(completion_msg.encode('utf-8'))
