@@ -112,12 +112,17 @@ class ManifestDownloader:
         destination_path = path_join(destination_folder, filename)
         
         try:
-            # Check if file exists and verify its hash
-            if os.path.exists(destination_path):
+            # Check if file exists and verify its hash (MicroPython compatible)
+            try:
+                os.stat(destination_path)
+                # File exists, check its hash
                 actual_hash = self._calculate_sha256(destination_path)
                 if actual_hash == expected_hash:
                     # File exists and hash matches, no need to download
                     return filename, 'skipped', f'File {filename} is up to date (hash matches)'
+            except OSError:
+                # File doesn't exist, proceed with download
+                pass
         except (OSError, Exception) as e:
             # If we can't read the file or calculate hash, proceed with download
             pass
@@ -283,6 +288,13 @@ class RemoteUpdate:
                 return 0 <= bundle_index < len(self.bundles)
             except (ValueError, IndexError):
                 return False
+        # Handle manifest checking: /remoteupdate/check/{index}
+        if path.startswith(b'/remoteupdate/check/'):
+            try:
+                bundle_index = int(path.split(b'/')[-1])
+                return 0 <= bundle_index < len(self.bundles)
+            except (ValueError, IndexError):
+                return False
         return False
     
     async def serve(self, method, path, headers, reader, writer):
@@ -304,6 +316,15 @@ class RemoteUpdate:
                     await self._show_bundle_interface(writer, bundle_index)
             except (ValueError, IndexError):
                 writer.write(b'<h1>Error</h1><p>Invalid bundle index</p><p><a href="/remoteupdate">Back</a></p>')
+        elif path.startswith(b'/remoteupdate/check/'):
+            try:
+                bundle_index = int(path.split(b'/')[-1])
+                if b'action' in form and form[b'action'] == b'check':
+                    await self._handle_manifest_check(writer, bundle_index)
+                else:
+                    await self._show_manifest_check_interface(writer, bundle_index)
+            except (ValueError, IndexError):
+                writer.write(b'<h1>Error</h1><p>Invalid bundle index</p><p><a href="/remoteupdate">Back</a></p>')
         else:
             # Main remoteupdate page
             await self._show_main_interface(writer)
@@ -322,9 +343,13 @@ class RemoteUpdate:
                 writer.write(b'<h2>Bundle %i</h2>' % (i + 1))
                 writer.write(b'<p><strong>Source:</strong> %s</p>' % bundle[0].encode('utf-8'))
                 writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
-                writer.write(b'<form action="/remoteupdate/bundle/%i" method="post">' % i)
+                writer.write(b'<form action="/remoteupdate/bundle/%i" method="post" style="display:inline; margin-right: 10px;">' % i)
                 writer.write(b'<input type="hidden" name="action" value="update"/>')
                 writer.write(b'<button type="submit">Update This Bundle</button>')
+                writer.write(b'</form>')
+                writer.write(b'<form action="/remoteupdate/check/%i" method="post" style="display:inline;">' % i)
+                writer.write(b'<input type="hidden" name="action" value="check"/>')
+                writer.write(b'<button type="submit">Check Manifest</button>')
                 writer.write(b'</form>')
             writer.write(b'</div>')
         else:
@@ -343,6 +368,92 @@ class RemoteUpdate:
         writer.write(b'<button type="submit">Start Update</button>')
         writer.write(b'</form>')
         writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
+    
+    async def _show_manifest_check_interface(self, writer, bundle_index):
+        """Show interface for manifest checking."""
+        bundle = self.bundles[bundle_index]
+        writer.write(b'<h1>Bundle %i Manifest Check</h1>' % (bundle_index + 1))
+        writer.write(b'<p><strong>Source:</strong> %s</p>' % bundle[0].encode('utf-8'))
+        writer.write(b'<p><strong>Destination:</strong> %s</p>' % bundle[1].encode('utf-8'))
+        writer.write(b'<form action="/remoteupdate/check/%i" method="post">' % bundle_index)
+        writer.write(b'<input type="hidden" name="action" value="check"/>')
+        writer.write(b'<button type="submit">Start Manifest Check</button>')
+        writer.write(b'</form>')
+        writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
+    
+    async def _handle_manifest_check(self, writer, bundle_index):
+        """Handle the manifest checking process for a specific bundle."""
+        bundle = self.bundles[bundle_index]
+        
+        writer.write(b'<h1>Bundle %i Manifest Check</h1>' % (bundle_index + 1))
+        writer.write(b'<div id="progress">Starting manifest check...</div>')
+        writer.write(b'<p><a href="/remoteupdate">Back to Remote Update</a></p>')
+        await writer.drain()
+        
+        try:
+            progress_msg = f'<div>Checking manifest: {bundle[0]}</div>'
+            writer.write(progress_msg.encode('utf-8'))
+            await writer.drain()
+            
+            # Get manifest for this bundle
+            manifest = await self.downloader.get_manifest(bundle[0])
+            
+            total_files = len(manifest)
+            matching_files = 0
+            missing_files = 0
+            mismatched_files = 0
+            
+            for j, item in enumerate(manifest):
+                gc.collect()
+                filename, expected_hash, download_url = item
+                
+                progress_msg = f'<div>Checking {filename} ({j+1}/{total_files})...</div>'
+                writer.write(progress_msg.encode('utf-8'))
+                await writer.drain()
+                
+                # Check if file exists and verify its hash
+                destination_path = path_join(bundle[1], filename)
+                
+                try:
+                    # Check if file exists using os.stat() (MicroPython compatible)
+                    try:
+                        os.stat(destination_path)
+                        # File exists, check its hash
+                        actual_hash = self.downloader._calculate_sha256(destination_path)
+                        if actual_hash == expected_hash:
+                            status_msg = f'<div style="color: Highlight;">✓ {filename} - Hash matches</div>'
+                            matching_files += 1
+                        else:
+                            status_msg = f'<div style="color: Orange;">⚠ {filename} - Hash mismatch (expected: {expected_hash[:8]}..., got: {actual_hash[:8]}...)</div>'
+                            mismatched_files += 1
+                    except OSError:
+                        # File doesn't exist
+                        status_msg = f'<div style="color: Mark;">✗ {filename} - File missing</div>'
+                        missing_files += 1
+                except Exception as e:
+                    status_msg = f'<div style="color: Mark;">✗ {filename} - Error checking file: {str(e)}</div>'
+                    missing_files += 1
+                
+                writer.write(status_msg.encode('utf-8'))
+                await writer.drain()
+            
+            # Summary
+            summary_msg = f'''
+            <div style="margin-top: 20px; padding: 10px; background-color: Canvas; border: 1px solid CanvasText;">
+                <h3>Manifest Check Summary</h3>
+                <p><strong>Total files:</strong> {total_files}</p>
+                <p style="color: Highlight;"><strong>Matching files:</strong> {matching_files}</p>
+                <p style="color: Orange;"><strong>Mismatched files:</strong> {mismatched_files}</p>
+                <p style="color: Mark;"><strong>Missing files:</strong> {missing_files}</p>
+            </div>
+            '''
+            writer.write(summary_msg.encode('utf-8'))
+            await writer.drain()
+            
+        except Exception as e:
+            error_msg = f'<div style="color: Mark;"><strong>Manifest check failed: {str(e)}</strong></div>'
+            writer.write(error_msg.encode('utf-8'))
+            await writer.drain()
     
     async def _handle_bundle_update(self, writer, bundle_index):
         """Handle the update process for a specific bundle."""
