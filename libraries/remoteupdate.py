@@ -402,6 +402,9 @@ class RemoteUpdate:
             matching_files = 0
             missing_files = 0
             mismatched_files = 0
+            extra_files = 0
+
+            manifest_files = set([item[0] for item in manifest])
             
             for j, item in enumerate(manifest):
                 gc.collect()
@@ -436,6 +439,36 @@ class RemoteUpdate:
                 
                 writer.write(status_msg.encode('utf-8'))
                 await writer.drain()
+
+            # Scan for extra files not present in the manifest
+            try:
+                writer.write(b'<div>Scanning for extra files not in manifest...</div>')
+                await writer.drain()
+
+                stack = ['']
+                while stack:
+                    rel_dir = stack.pop()
+                    abs_dir = path_join(bundle[1], rel_dir) if rel_dir else bundle[1]
+                    try:
+                        entries = os.listdir(abs_dir)
+                    except OSError:
+                        continue
+
+                    for name in entries:
+                        child_rel = path_join(rel_dir, name) if rel_dir else name
+                        child_abs = path_join(abs_dir, name)
+                        if self._is_dir(child_abs):
+                            stack.append(child_rel)
+                        else:
+                            if child_rel not in manifest_files:
+                                extra_files += 1
+                                status_msg = f'<div style="color: Mark;">• Extra file: {child_rel}</div>'
+                                writer.write(status_msg.encode('utf-8'))
+                                await writer.drain()
+            except Exception as _scan_err:
+                err_msg = f'<div style="color: Mark;">Error scanning for extra files: {str(_scan_err)}</div>'
+                writer.write(err_msg.encode('utf-8'))
+                await writer.drain()
             
             # Summary
             summary_msg = f'''
@@ -445,6 +478,7 @@ class RemoteUpdate:
                 <p style="color: Highlight;"><strong>Matching files:</strong> {matching_files}</p>
                 <p style="color: Orange;"><strong>Mismatched files:</strong> {mismatched_files}</p>
                 <p style="color: Mark;"><strong>Missing files:</strong> {missing_files}</p>
+                <p style="color: Mark;"><strong>Extra files (not in manifest):</strong> {extra_files}</p>
             </div>
             '''
             writer.write(summary_msg.encode('utf-8'))
@@ -490,6 +524,29 @@ class RemoteUpdate:
                 writer.write(status_msg.encode('utf-8'))
                 await writer.drain()
             
+            # Cleanup: remove files/dirs not present in manifest
+            try:
+                writer.write(b'<div>Cleaning up obsolete files...</div>')
+                await writer.drain()
+
+                manifest_files = set([item[0] for item in manifest])
+                manifest_dirs = set()
+                for rel_path in manifest_files:
+                    parts = rel_path.split('/')
+                    # include all parent directories for each file
+                    for i in range(1, len(parts)):
+                        manifest_dirs.add('/'.join(parts[:i]))
+
+                await self._cleanup_obsolete_paths(bundle[1], manifest_files, manifest_dirs, writer)
+
+                writer.write(b'<div style="color: Highlight;"><strong>Cleanup complete</strong></div>')
+                await writer.drain()
+            except Exception as _cleanup_err:
+                # Log cleanup error but do not fail the whole update
+                err_msg = f'<div style="color: Mark;">Cleanup encountered an error: {str(_cleanup_err)}</div>'
+                writer.write(err_msg.encode('utf-8'))
+                await writer.drain()
+            
             completion_msg = '<div style="color: Highlight; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'
             writer.write(completion_msg.encode('utf-8'))
             await writer.drain()
@@ -498,3 +555,50 @@ class RemoteUpdate:
             error_msg = f'<div style="color: Mark;"><strong>Bundle update failed: {str(e)}</strong></div>'
             writer.write(error_msg.encode('utf-8'))
             await writer.drain()
+
+    def _is_dir(self, path):
+        try:
+            st = os.stat(path)
+            mode = st[0] if isinstance(st, (tuple, list)) else getattr(st, 'st_mode', 0)
+            return (mode & 0x4000) != 0
+        except OSError:
+            return False
+
+    async def _cleanup_obsolete_paths(self, root, manifest_files, manifest_dirs, writer):
+        """Remove files under root not listed in manifest_files and prune empty directories not in manifest_dirs."""
+
+        async def recurse(rel_path):
+            abs_path = path_join(root, rel_path) if rel_path else root
+            try:
+                entries = os.listdir(abs_path)
+            except OSError:
+                return
+
+            for name in entries:
+                child_rel = path_join(rel_path, name) if rel_path else name
+                child_abs = path_join(abs_path, name)
+                if self._is_dir(child_abs):
+                    await recurse(child_rel)
+                else:
+                    if child_rel not in manifest_files:
+                        try:
+                            os.remove(child_abs)
+                            msg = f'<div style="color: Mark;">Deleted file: {child_rel}</div>'
+                            writer.write(msg.encode('utf-8'))
+                            await writer.drain()
+                        except OSError:
+                            pass
+
+            # After processing children, try to remove directory if empty and not required
+            if rel_path:
+                try:
+                    # Re-list to check if now empty
+                    if not os.listdir(abs_path) and rel_path not in manifest_dirs:
+                        os.rmdir(abs_path)
+                        msg = f'<div style="color: Mark;">Removed empty directory: {rel_path}</div>'
+                        writer.write(msg.encode('utf-8'))
+                        await writer.drain()
+                except OSError:
+                    pass
+
+        await recurse('')
