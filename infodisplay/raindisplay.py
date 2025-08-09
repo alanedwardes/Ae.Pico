@@ -189,7 +189,7 @@ class RainDisplay:
             
             humidity_color = colors.get_color_for_humidity(humidity)
             self.display.set_pen(self.display.create_pen(humidity_color[0], humidity_color[1], humidity_color[2]))
-            self.draw_text(f"{humidity:.0f}%", sx, sy, column_width, scale=2)
+            self.draw_text(colors.get_humidity_category_letter(humidity), sx, sy, column_width, scale=2)
 
         chart_y = y_start + 45
         chart_height = 60

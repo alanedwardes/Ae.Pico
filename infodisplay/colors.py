@@ -79,18 +79,32 @@ def get_color_for_uv(index):
         return (102, 0, 224)
 
 def get_color_for_humidity(percentage):
-    if percentage <= 30:
-        return (220, 53, 34)  # Very Dry - red
-    elif percentage <= 50:
-        return (255, 140, 0)  # Dry - orange
-    elif percentage <= 70:
-        return (76, 175, 80)  # Comfortable - green
-    elif percentage <= 85:
-        return (33, 150, 243)  # Humid - light blue
+    if percentage <= 20:
+        return (220, 53, 34)
+    elif percentage <= 40:
+        return (255, 140, 0)
+    elif percentage <= 60:
+        return (76, 175, 80)
+    elif percentage <= 80:
+        return (33, 150, 243)
     elif percentage <= 100:
-        return (30, 136, 229)  # Very Humid - dark blue
+        return (30, 136, 229)
     else:
-        return (213, 208, 205)  # Default gray for invalid values
+        return (213, 208, 205)
+
+def get_humidity_category_letter(percentage):
+    if percentage <= 20:
+        return 'VD'  # Very Dry
+    elif percentage <= 40:
+        return 'DR'  # Dry
+    elif percentage <= 60:
+        return 'OK'  # Comfortable
+    elif percentage <= 80:
+        return 'MU'  # Muggy/Humid
+    elif percentage <= 100:
+        return 'VH'  # Very Humid / Near Saturation
+    else:
+        return '??'
 
 def get_color_for_rain_percentage(percentage):
     # 0% - No rain
