@@ -53,3 +53,77 @@ def draw_chart(x, y, width, height, points, step=1, smoothing=1.0):
             # Blend between linear and smooth based on smoothing parameter
             py = lerp(linear_py, smooth_py, smoothing) + y
             yield px, py
+
+
+def compute_column_width(width, num_points):
+    if num_points <= 1:
+        return width
+    return width / (num_points - 1)
+
+
+def map_px_to_index(px, x, width, num_points):
+    if num_points <= 0:
+        return 0
+    column_width = compute_column_width(width, num_points)
+    # Translate px relative to the chart origin x
+    relative_px = max(0.0, px - x)
+    index = int(relative_px / column_width)
+    if index < 0:
+        return 0
+    if index >= num_points:
+        return num_points - 1
+    return index
+
+
+def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
+    if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
+        return
+
+    current_polygon = []
+    current_color = None
+    first_point = True
+
+    last_px = x
+
+    for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
+        last_px = px
+        data_index = map_px_to_index(px, x, width, len(raw_values))
+        color = color_fn(data_index, raw_values[data_index])
+
+        if first_point:
+            first_x = int(px)
+            current_polygon.append((first_x, y + height))
+            current_polygon.append((int(px), int(py)))
+            current_color = color
+            first_point = False
+        else:
+            if current_color is not None and current_color != color:
+                current_polygon.append((int(px), int(py)))
+                current_polygon.append((int(px), y + height))
+
+                transparent_color = tuple(c // max(1, alpha_divisor) for c in current_color)
+                display.set_pen(display.create_pen(*transparent_color))
+                display.polygon(current_polygon)
+
+                current_polygon = [(int(px), y + height), (int(px), int(py))]
+                current_color = color
+            else:
+                current_polygon.append((int(px), int(py)))
+                current_color = color
+
+    if current_polygon:
+        last_x = int(last_px)
+        current_polygon.append((last_x, y + height))
+        transparent_color = tuple(c // max(1, alpha_divisor) for c in current_color)
+        display.set_pen(display.create_pen(*transparent_color))
+        display.polygon(current_polygon)
+
+
+def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
+    if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
+        return
+    for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
+        data_index = map_px_to_index(px, x, width, len(raw_values))
+        color = color_fn(data_index, raw_values[data_index])
+        display.set_pen(display.create_pen(*color))
+        display.circle(int(px), int(py), radius)

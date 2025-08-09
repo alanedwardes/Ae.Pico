@@ -156,7 +156,7 @@ class RainDisplay:
         
         self.display.set_font('bitmap8')
 
-        column_width = self.display_width // (len(self.weather_data) - 1)
+        column_width = self.display_width / (len(self.weather_data) - 1)
         for i, hour_data in enumerate(self.weather_data):
             if i == len(self.weather_data) - 1:
                 continue
@@ -165,7 +165,7 @@ class RainDisplay:
             rain_chance = hour_data['r']
             humidity = hour_data['humidity']
             
-            sx = i * column_width
+            sx = int(i * column_width)
             sy = y_start
             
             if i > 0:
@@ -173,7 +173,7 @@ class RainDisplay:
                 self.display.rectangle(sx, sy, 2, self.display_height - y_start)
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
+            self.draw_text(f"{hour_number}", sx, sy, int(column_width), scale=2)
             
             sy += 35
             
@@ -181,7 +181,7 @@ class RainDisplay:
             
             rain_color = colors.get_color_for_rain_percentage(rain_chance)
             self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
-            self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
+            self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, int(column_width), scale=2)
             
             self.display.set_pen(self.display.create_pen(117, 150, 148))
             
@@ -189,7 +189,7 @@ class RainDisplay:
             
             humidity_color = colors.get_color_for_humidity(humidity)
             self.display.set_pen(self.display.create_pen(humidity_color[0], humidity_color[1], humidity_color[2]))
-            self.draw_text(colors.get_humidity_category_letter(humidity), sx, sy, column_width, scale=2)
+            self.draw_text(colors.get_humidity_category_letter(humidity), sx, sy, int(column_width), scale=2)
 
         chart_y = y_start + 45
         chart_height = 60
@@ -197,19 +197,15 @@ class RainDisplay:
         self.display.set_pen(self.display.create_pen(64, 64, 64))
         self.display.rectangle(0, chart_y + chart_height, self.display_width, 2)
 
-        polygon = []
-        polygon.append((0, chart_y + chart_height))
+        normalized_data = [hour['r'] / 100 for hour in self.weather_data]
 
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.weather_data], 32):
-            polygon.append((int(px), int(py)))
+        def rain_color_fn(idx, value):
+            return colors.get_color_for_rain_percentage(int(value))
 
-        polygon.append((self.display_width, chart_y + chart_height))
+        chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
+                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn)
 
-        self.display.set_pen(self.display.create_pen(117, 150, 148))
-        self.display.polygon(polygon)
-
-        self.display.set_pen(self.display.create_pen(174, 220, 216))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.weather_data]):
-            self.display.circle(int(px), int(py), 2)
+        chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
+                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn, radius=2)
 
         self.display.update()

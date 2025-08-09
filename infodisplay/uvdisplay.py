@@ -215,56 +215,15 @@ class UvDisplay:
         max_uv_value = 12  # Fixed maximum
         normalized_data = [uv / max_uv_value for uv in self.uv_data]
         
-        # Process chart points directly from generator without storing in list
-        current_polygon = []
-        current_color = None
-        first_point = True
-        
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
-            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
-            uv = self.uv_data[data_index]
-            uv_color = colors.get_color_for_uv(uv)
-            
-            if first_point:
-                # Start at the first chart point
-                first_x = int(px)
-                current_polygon.append((first_x, chart_y + chart_height))
-                current_polygon.append((int(px), int(py)))
-                current_color = uv_color
-                first_point = False
-            else:
-                # If color changes, draw current polygon and start new one
-                if current_color is not None and current_color != uv_color:
-                    # Complete current polygon
-                    current_polygon.append((int(px), int(py)))
-                    current_polygon.append((int(px), chart_y + chart_height))
-                    
-                    # Draw filled polygon with 50% transparency
-                    transparent_color = tuple(c // 2 for c in current_color)
-                    self.display.set_pen(self.display.create_pen(*transparent_color))
-                    self.display.polygon(current_polygon)
-                    
-                    # Start new polygon
-                    current_polygon = [(int(px), chart_y + chart_height), (int(px), int(py))]
-                    current_color = uv_color
-                else:
-                    current_polygon.append((int(px), int(py)))
-                    current_color = uv_color
-        
-        # Draw final polygon
-        if current_polygon:
-            last_x = int(px)
-            current_polygon.append((last_x, chart_y + chart_height))
-            transparent_color = tuple(c // 2 for c in current_color)
-            self.display.set_pen(self.display.create_pen(*transparent_color))
-            self.display.polygon(current_polygon)
-        
-        # Draw chart circles on top using the same generator
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
-            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
-            uv = self.uv_data[data_index]
-            self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
-            self.display.circle(int(px), int(py), 2)
+        # Shared segmented area and colored points
+        def uv_color_fn(idx, value):
+            return colors.get_color_for_uv(value)
+
+        chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
+                                   self.uv_data, normalized_data, uv_color_fn)
+
+        chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
+                                   self.uv_data, normalized_data, uv_color_fn, radius=2)
 
         # Draw current time vertical line
         if len(self.uv_data) > 0:
