@@ -99,24 +99,24 @@ class RainDisplay:
             raw_data = ujson.loads(content.decode('utf-8'))
             
             # Convert flat array to structured data
-            # Format: [rain_prob, humidity, rain_prob, humidity, ...]
+            # Format: [rain_prob, rate_mmh, rain_prob, rate_mmh, ...]
             self.weather_data = []
             current_hour = utime.localtime()[3]  # Get current hour
             for i in range(0, len(raw_data), 2):
                 if i + 1 < len(raw_data):
                     rain_prob = raw_data[i]
-                    humidity = raw_data[i + 1]
+                    rate_mmh = raw_data[i + 1]
                     hour_offset = i // 2
                     actual_hour = (current_hour + hour_offset) % 24
                     self.weather_data.append({
                         'hour': actual_hour,  # Actual hour
                         'r': rain_prob,  # Rain probability
-                        'humidity': humidity  # Humidity
+                        'rate': rate_mmh  # Rate mm/h
                     })
             
             print(f"Weather data fetched: {len(self.weather_data)} hours")
             for hour_data in self.weather_data:
-                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Humidity {hour_data['humidity']}%")
+                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Rate {hour_data['rate']} mm/h")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
@@ -163,7 +163,7 @@ class RainDisplay:
 
             hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
             rain_chance = hour_data['r']
-            humidity = hour_data['humidity']
+            rate_mmh = hour_data['rate']
             
             sx = int(i * column_width)
             sy = y_start
@@ -187,9 +187,10 @@ class RainDisplay:
             
             sy += max_column_height + 30
             
-            humidity_color = colors.get_color_for_humidity(humidity)
-            self.display.set_pen(self.display.create_pen(humidity_color[0], humidity_color[1], humidity_color[2]))
-            self.draw_text(colors.get_humidity_category_letter(humidity), sx, sy, int(column_width), scale=2)
+            precip_color = colors.get_color_for_precip_rate(rate_mmh)
+            self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
+            rate_label = f"{rate_mmh:.0f}"
+            self.draw_text(rate_label, sx, sy, int(column_width), scale=2)
 
         chart_y = y_start + 45
         chart_height = 60

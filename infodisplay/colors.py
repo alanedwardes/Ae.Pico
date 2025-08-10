@@ -134,3 +134,25 @@ def get_color_for_rain_percentage(percentage):
     # Invalid values
     else:
         return (213, 208, 205)  # Default gray for invalid values
+
+def get_color_for_precip_rate(rate_mmh):
+    if rate_mmh is None:
+        return (213, 208, 205)
+    if rate_mmh > 32:
+        return (179, 0, 0)
+    elif rate_mmh >= 16:
+        return (254, 0, 0)
+    elif rate_mmh >= 8:
+        return (254, 152, 0)
+    elif rate_mmh >= 4:
+        return (254, 203, 0)
+    elif rate_mmh >= 2:
+        return (0, 163, 0)
+    elif rate_mmh >= 1:
+        return (12, 188, 254)
+    elif rate_mmh >= 0.5:
+        return (50, 101, 254)
+    elif rate_mmh >= 0:
+        return (0, 0, 254)
+    else:
+        return (213, 208, 205)
