@@ -3,23 +3,80 @@ import utime
 import asyncio
 
 class ThermostatDisplay:
-    def __init__(self, display, hass, entity_id):
+    def __init__(self, display, hass, entity_id, event_bus=None):
         self.display = display
         self.hass = hass
         self.entity_id = entity_id
+        self.event_bus = event_bus
 
         self.display_width, self.display_height = self.display.get_bounds()
         
         self.entities = dict()
         self.alpha = 0
+        self.is_active = False
+        
+        # Track previous values for focus detection
+        self.prev_temperature = None
+        self.prev_hvac_action = None
+        self.prev_state = None
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return ThermostatDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['thermostat']['entity_id'])
+        event_bus = provider.get('eventbus.EventBus') or provider.get('libraries.eventbus.EventBus')
+        return ThermostatDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['thermostat']['entity_id'], event_bus)
     
     def entity_updated(self, entity_id, entity):
+        should_request_focus = False
+        
+        if entity_id == self.entity_id and self.event_bus is not None:
+            # Get new values
+            new_temp = entity.get('a', {}).get('temperature')
+            new_hvac = entity.get('a', {}).get('hvac_action')
+            new_state = entity.get('s')
+            
+            # Check for changes
+            if self.prev_temperature is not None and self.prev_temperature != new_temp:
+                should_request_focus = True
+            elif self.prev_hvac_action is not None and self.prev_hvac_action != new_hvac:
+                should_request_focus = True
+            elif self.prev_state is not None and self.prev_state != new_state:
+                should_request_focus = True
+            
+            # Update our tracking variables
+            self.prev_temperature = new_temp
+            self.prev_hvac_action = new_hvac
+            self.prev_state = new_state
+        
+        # Update entities
         self.entities[entity_id] = entity
+        
+        if should_request_focus:
+            self.event_bus.publish('focus.request', {
+                'instance': self,
+                'hold_ms': 8000  # Show for 8 seconds when thermostat changes
+            })
+        
         self.update()
+    
+    def test_focus_request(self):
+        """Test method to manually trigger focus request"""
+        if self.event_bus is not None:
+            print("ThermostatDisplay: Manual focus request test...")
+            self.event_bus.publish('focus.request', {
+                'instance': self,
+                'hold_ms': 5000
+            })
+        else:
+            print("ThermostatDisplay: Cannot test - event_bus is None")
+    
+    def simulate_temperature_change(self):
+        """Simulate a temperature change for testing"""
+        if self.entity_id in self.entities:
+            entity = self.entities[self.entity_id].copy()
+            current_temp = entity['a']['temperature']
+            entity['a']['temperature'] = current_temp + 0.5  # Increase by 0.5
+            print(f"ThermostatDisplay: Simulating temperature change from {current_temp} to {entity['a']['temperature']}")
+            self.entity_updated(self.entity_id, entity)
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
@@ -30,6 +87,8 @@ class ThermostatDisplay:
         await asyncio.Event().wait()
         
     def update(self):
+        if not self.is_active:
+            return
         start_update_ms = utime.ticks_ms()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
@@ -54,3 +113,11 @@ class ThermostatDisplay:
         self.display.text(f"{current_temperature:.0f}c", int(self.display_width / 2), 200, scale=2)
         
         self.display.update()
+    
+    def activate(self, new_active):
+        self.is_active = new_active
+        if self.is_active:
+            self.update()
+    
+    def should_activate(self):
+        return True
