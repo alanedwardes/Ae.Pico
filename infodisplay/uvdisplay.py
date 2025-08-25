@@ -34,6 +34,23 @@ class UvDisplay:
             await asyncio.sleep(300)
         
     def should_activate(self):
+        if not self.uv_data:
+            return True
+        first_idx = None
+        last_idx = None
+        for i, v in enumerate(self.uv_data):
+            if v != 0 and first_idx is None:
+                first_idx = i
+            if v != 0:
+                last_idx = i
+        if first_idx is None or last_idx is None:
+            return True
+        now = utime.localtime()
+        current_time = now[3] + (now[4] / 60.0)
+        if current_time < (first_idx - 1.0):
+            return False
+        if current_time > (last_idx + 1.0):
+            return False
         return True
 
     def activate(self, new_active):
