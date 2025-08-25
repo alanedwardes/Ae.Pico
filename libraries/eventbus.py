@@ -2,6 +2,22 @@ import asyncio
 import utime
 
 
+class SimpleQueue:
+	def __init__(self):
+		self._queue = []
+		self._event = asyncio.Event()
+
+	def put_nowait(self, item):
+		self._queue.append(item)
+		self._event.set()
+
+	async def get(self):
+		while not self._queue:
+			await self._event.wait()
+			self._event.clear()
+		return self._queue.pop(0)
+
+
 class Event:
 	def __init__(self, name, data=None, ts_ms=None):
 		self.name = name
@@ -76,7 +92,7 @@ class EventBus:
 			cancel()
 
 	def stream(self, event, maxsize=0):
-		q = asyncio.Queue(maxsize=maxsize)
+		q = SimpleQueue()
 		self._queues.setdefault(event, set()).add(q)
 		def cancel():
 			qs = self._queues.get(event)

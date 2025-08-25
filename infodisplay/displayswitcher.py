@@ -31,11 +31,24 @@ class DisplaySwitcher:
                 service.activate(True)
 
                 if focus_queue is None:
-                    await asyncio.sleep(self.time_ms / 1000)
+                    if hasattr(asyncio, 'sleep_ms'):
+                        await asyncio.sleep_ms(self.time_ms)
+                    else:
+                        await asyncio.sleep(self.time_ms / 1000)
                 else:
-                    sleep_task = asyncio.create_task(asyncio.sleep(self.time_ms / 1000))
+                    async def sleep_coro():
+                        if hasattr(asyncio, 'sleep_ms'):
+                            await asyncio.sleep_ms(self.time_ms)
+                        else:
+                            await asyncio.sleep(self.time_ms / 1000)
+                    
+                    sleep_task = asyncio.create_task(sleep_coro())
                     focus_task = asyncio.create_task(focus_queue.get())
-                    done, pending = await asyncio.wait({sleep_task, focus_task}, return_when=asyncio.FIRST_COMPLETED)
+                    if hasattr(asyncio, 'wait'):
+                        done, pending = await asyncio.wait({sleep_task, focus_task}, return_when=asyncio.FIRST_COMPLETED)
+                    else:
+                        # MicroPython doesn't have asyncio.wait, use alternative approach
+                        done, pending = await self._wait_first_completed(sleep_task, focus_task)
                     for p in pending:
                         p.cancel()
 
@@ -101,3 +114,34 @@ class DisplaySwitcher:
 
         if cancel_focus_stream is not None:
             cancel_focus_stream()
+    
+    async def _wait_first_completed(self, task1, task2):
+        """Alternative to asyncio.wait for MicroPython"""
+        done = set()
+        pending = set()
+        
+        try:
+            # Try to use done() method if available
+            while True:
+                if hasattr(task1, 'done') and task1.done():
+                    done.add(task1)
+                    pending.add(task2)
+                    break
+                elif hasattr(task2, 'done') and task2.done():
+                    done.add(task2)
+                    pending.add(task1)
+                    break
+                else:
+                    await asyncio.sleep_ms(1) if hasattr(asyncio, 'sleep_ms') else await asyncio.sleep(0.001)
+        except AttributeError:
+            # Fallback: just wait for one task to complete by trying to get results
+            import sys
+            try:
+                await task1
+                done.add(task1)
+                pending.add(task2)
+            except:
+                done.add(task2)
+                pending.add(task1)
+        
+        return done, pending
