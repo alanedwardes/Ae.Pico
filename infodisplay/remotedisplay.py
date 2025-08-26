@@ -12,6 +12,7 @@ class RemoteDisplay:
         self.refresh_period = refresh_period
         self.start_offset = start_offset
         self.is_active = True
+        self.update_flag = asyncio.ThreadSafeFlag()
         
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -32,7 +33,14 @@ class RemoteDisplay:
         while True:
             if self.is_active:
                 await self.fetch_framebuffer()
-            await asyncio.sleep(self.refresh_period)
+                # Wait for either the refresh period or an activation change
+                try:
+                    await asyncio.wait_for(self.update_flag.wait(), self.refresh_period)
+                except asyncio.TimeoutError:
+                    pass
+            else:
+                # Wait for activation change
+                await self.update_flag.wait()
     
     def should_activate(self):
         return True
@@ -40,8 +48,8 @@ class RemoteDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            # Don't call update() here - let the main loop handle it
-            pass
+            # Immediately trigger an update
+            self.update_flag.set()
 
     def update(self):
         # This class doesn't use update() since it streams continuously
