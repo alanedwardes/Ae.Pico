@@ -3,6 +3,11 @@ import utime
 import socket
 import re
 
+try:
+    ThreadSafeFlag = asyncio.ThreadSafeFlag
+except AttributeError:
+    from threadsafeflag import ThreadSafeFlag
+
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 class RemoteDisplay:
@@ -12,7 +17,7 @@ class RemoteDisplay:
         self.refresh_period = refresh_period
         self.start_offset = start_offset
         self.is_active = True
-        self.update_flag = asyncio.ThreadSafeFlag()
+        self.update_flag = ThreadSafeFlag()
         
         self.display_width, self.display_height = self.display.get_bounds()
         
