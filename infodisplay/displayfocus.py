@@ -11,7 +11,7 @@ class DisplayFocus:
         
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['entity_focus']
+        config = provider['config']['displayfocus']
         return DisplayFocus(
             provider['hassws.HassWs'],
             provider['eventbus.EventBus'],
