@@ -117,6 +117,12 @@ class RemoteDisplay:
                 if line == b'\r\n':
                     break
             
+            # Check if still active before reading into framebuffer
+            if not self.is_active:
+                writer.close()
+                await writer.wait_closed()
+                return
+            
             # Get direct access to the display framebuffer with offset
             framebuffer = memoryview(self.display)[self.start_offset:]
             
