@@ -34,7 +34,11 @@ class RainDisplay:
             await asyncio.sleep(300)
         
     def should_activate(self):
-        return True
+        if not self.weather_data:
+            return False
+        
+        # Check if all rain chances are zero
+        return not all(hour_data['r'] == 0 for hour_data in self.weather_data)
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -187,10 +191,11 @@ class RainDisplay:
             
             sy += max_column_height + 30
             
-            precip_color = colors.get_color_for_precip_rate(rate_mmh)
-            self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
-            rate_label = f"{rate_mmh:.0f}"
-            self.draw_text(rate_label, sx, sy, int(column_width), scale=2)
+            if rate_mmh > 0:
+                precip_color = colors.get_color_for_precip_rate(rate_mmh)
+                self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
+                rate_label = f"{rate_mmh:.0f}"
+                self.draw_text(rate_label, sx, sy, int(column_width), scale=2)
 
         chart_y = y_start + 45
         chart_height = 60
