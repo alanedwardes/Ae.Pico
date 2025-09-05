@@ -77,20 +77,27 @@ class ThermostatDisplay:
     def __update(self):
         default_entity = dict(s = '0')
         thermostat_entity = self.entities.get(self.entity_id, default_entity)
-        minimum_temperature = float(thermostat_entity['a']['min_temp'])
-        maximum_temperature = float(thermostat_entity['a']['max_temp'])
         current_target = float(thermostat_entity['a']['temperature'])
         current_temperature = float(thermostat_entity['a']['current_temperature'])
+        minimum_temperature = float(thermostat_entity['a']['min_temp'])
+        maximum_temperature = float(thermostat_entity['a']['max_temp'])
+        hvac_action = thermostat_entity['a'].get('hvac_action', '?')
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, 70, self.display_width, self.display_height - 70)
         
-        gauge.draw_gauge(self.display, (0, 80), (self.display_width / 2, self.display_height - 100), minimum_temperature, maximum_temperature, current_target)
+        groove_color = (136, 64, 25) if hvac_action == 'heating' else (64, 64, 64)
+        notch_outline_color = (255, 111, 34) if hvac_action and hvac_action != 'off' else (0, 0, 0)
+        gauge.draw_gauge_with_secondary(self.display, (0, 70), (self.display_width, self.display_height - 70), minimum_temperature, maximum_temperature, current_target, current_temperature, 1, 1, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
+
+        # HVAC action label just above main temperature
+        self.display.set_font("bitmap8")
+        gauge.draw_text(self.display, hvac_action, 1, 0, 90, self.display_width, 20)
         
         self.display.set_thickness(5)
         self.display.set_font("sans")
-        self.display.text(thermostat_entity['a']['hvac_action'], int(self.display_width / 2), 120, scale=2)
-        self.display.text(f"{current_temperature:.0f}c", int(self.display_width / 2), 200, scale=2)
+        #self.display.text(thermostat_entity['a']['hvac_action'], int(self.display_width / 2), 120, scale=2)
+        #self.display.text(f"{current_temperature:.0f}c", int(self.display_width / 2), 200, scale=2)
         
         self.display.update()
     
