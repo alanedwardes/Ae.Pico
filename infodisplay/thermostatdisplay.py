@@ -13,7 +13,7 @@ class ThermostatDisplay:
         
         self.entities = dict()
         self.alpha = 0
-        self.is_active = False
+        self.is_active = True
         
         # Track previous values for focus detection
         self.prev_temperature = None
@@ -57,26 +57,6 @@ class ThermostatDisplay:
             })
         
         self.update()
-    
-    def test_focus_request(self):
-        """Test method to manually trigger focus request"""
-        if self.event_bus is not None:
-            print("ThermostatDisplay: Manual focus request test...")
-            self.event_bus.publish('focus.request', {
-                'instance': self,
-                'hold_ms': 5000
-            })
-        else:
-            print("ThermostatDisplay: Cannot test - event_bus is None")
-    
-    def simulate_temperature_change(self):
-        """Simulate a temperature change for testing"""
-        if self.entity_id in self.entities:
-            entity = self.entities[self.entity_id].copy()
-            current_temp = entity['a']['temperature']
-            entity['a']['temperature'] = current_temp + 0.5  # Increase by 0.5
-            print(f"ThermostatDisplay: Simulating temperature change from {current_temp} to {entity['a']['temperature']}")
-            self.entity_updated(self.entity_id, entity)
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
