@@ -1,6 +1,7 @@
 import gauge
 import utime
 import asyncio
+import textbox
 
 class ThermostatDisplay:
     def __init__(self, display, hass, entity_id, event_bus=None):
@@ -92,7 +93,7 @@ class ThermostatDisplay:
 
         # HVAC action label just above main temperature
         self.display.set_font("bitmap8")
-        gauge.draw_text(self.display, hvac_action, 1, 0, 90, self.display_width, 20)
+        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, 1)
         
         self.display.set_thickness(5)
         self.display.set_font("sans")

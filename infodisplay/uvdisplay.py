@@ -8,6 +8,7 @@ import utime
 import chart
 import colors
 import re
+import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
@@ -121,17 +122,6 @@ class UvDisplay:
         except Exception as e:
             print(f"Error fetching UV data: {e}")
        
-    def draw_text(self, text, x, y, width, scale=1):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 8
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
         
     def update(self):
         if self.is_active == False:
@@ -174,7 +164,8 @@ class UvDisplay:
             sx = position * label_width
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour:02d}", sx, self.display_height - 15, label_width, scale=1)
+            height = 1 * 8
+            textbox.draw_textbox(self.display, f"{hour:02d}", sx, self.display_height - 15, label_width, height, 1)
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 35  # Make chart fill more space

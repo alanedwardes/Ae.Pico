@@ -8,6 +8,7 @@ import utime
 import chart
 import colors
 import re
+import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
@@ -125,17 +126,6 @@ class RainDisplay:
         except Exception as e:
             print(f"Error fetching weather data: {e}")
        
-    def draw_text(self, text, x, y, width, scale=1):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 8
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
         
     def update(self):
         if self.is_active == False:
@@ -177,7 +167,8 @@ class RainDisplay:
                 self.display.rectangle(sx, sy, 2, self.display_height - y_start)
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour_number}", sx, sy, int(column_width), scale=2)
+            height = 2 * 8
+            textbox.draw_textbox(self.display, f"{hour_number}", sx, sy, int(column_width), height, 2)
             
             sy += 35
             
@@ -185,7 +176,8 @@ class RainDisplay:
             
             rain_color = colors.get_color_for_rain_percentage(rain_chance)
             self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
-            self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, int(column_width), scale=2)
+            height = 2 * 8
+            textbox.draw_textbox(self.display, f"{rain_chance}%", sx, sy + max_column_height + 5, int(column_width), height, 2)
             
             self.display.set_pen(self.display.create_pen(117, 150, 148))
             
@@ -195,7 +187,8 @@ class RainDisplay:
                 precip_color = colors.get_color_for_precip_rate(rate_mmh)
                 self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
                 rate_label = f"{rate_mmh:.0f}"
-                self.draw_text(rate_label, sx, sy, int(column_width), scale=2)
+                height = 2 * 8
+                textbox.draw_textbox(self.display, rate_label, sx, sy, int(column_width), height, 2)
 
         chart_y = y_start + 45
         chart_height = 60

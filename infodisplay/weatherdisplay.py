@@ -8,6 +8,7 @@ import utime
 import colors
 import struct
 import re
+import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
@@ -131,17 +132,6 @@ class WeatherDisplay:
                 else:
                     icon_file.seek(icon_row_bytes, 1)
     
-    def draw_text(self, text, x, y, width, scale=1):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 8
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
         
     def update(self):
         if self.is_active == False:
@@ -233,7 +223,8 @@ class WeatherDisplay:
             else:
                 self.display.set_pen(self.display.create_pen(255, 255, 255))
             
-            self.draw_text(f"{day_names[day_of_week]}", sx, sy, column_width, scale=2)
+            height = 2 * 8
+            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, 2)
             
             sy += 25
             
@@ -243,13 +234,15 @@ class WeatherDisplay:
             sy += 50
 
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_temperature(temperature)))
-            self.draw_text(f"{temperature:.0f}°", sx, sy, column_width, scale=2)
+            height = 2 * 8
+            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, 2)
             
             sy += 30
             
             rain_color = colors.get_color_for_rain_percentage(rain)
             self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
             
-            self.draw_text(f"{rain}%", sx, sy, column_width, scale=2)
+            height = 2 * 8
+            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, 2)
 
         self.display.update()

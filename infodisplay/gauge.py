@@ -1,4 +1,5 @@
 import math
+import textbox
 
 def clamp(value, min_value, max_value):
     return max(min(value, max_value), min_value)
@@ -22,24 +23,6 @@ def get_mapped_range_value_clamped(input_range, output_range, value):
 def point_on_circle(x, y, radius, angle):
     return (x + radius * math.cos(angle), y + radius * math.sin(angle))
 
-def draw_text(display, text, scale, x, y, width, height):
-    thickness = scale * 3
-    
-    display.set_thickness(math.floor(thickness))
-    
-    #text_height = (scale * 20) + thickness
-    #half_height = text_height * 0.5
-
-    #self.display.set_pen(self.highlight)
-    #self.display.rectangle(math.floor(x), math.floor(y), math.ceil(width), math.ceil(height))
-
-    text_width = display.measure_text(text, scale) + thickness
-    text_x = width * 0.5 - text_width * 0.5
-    
-    half_height = height * 0.5
-    
-    #self.display.set_pen(self.white)
-    display.text(text, math.floor(text_x + x + (thickness * 0.5)), math.floor(y + half_height + (thickness * 0.5)), scale=scale)
 
 def circle(display, x, y, radius):
     return display.circle(int(x), int(y), int(radius))
@@ -126,12 +109,12 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
     display.set_font("sans")
     primary_scale = size[1] * (0.015 if secondary_temperature is None else 0.010)
     primary_height = size[1] if secondary_temperature is None else size[1] * 0.85
-    draw_text(display, f"{primary_temperature:.{primary_decimals}f}", primary_scale, position[0], position[1], size[0], primary_height)
+    textbox.draw_textbox(display, f"{primary_temperature:.{primary_decimals}f}", position[0], position[1], size[0], primary_height, primary_scale)
     
     if secondary_temperature is not None:
         secondary_text_y = position[1] + size[1] * 0.65
         secondary_text_height = size[1] * 0.2
-        draw_text(display, f"{secondary_temperature:.{secondary_decimals}f}", size[1] * 0.006, position[0], secondary_text_y, size[0], secondary_text_height)
+        textbox.draw_textbox(display, f"{secondary_temperature:.{secondary_decimals}f}", position[0], secondary_text_y, size[0], secondary_text_height, size[1] * 0.006)
 
     
 
@@ -140,8 +123,8 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         text_y = int(position[1] + size[1] * 0.75)
         text_size_x = size[1] * 0.5
         text_size_y = size[1] * 0.1
-        draw_text(display, f"{minimum_temperature:.0f}", math.ceil(size[1] * 0.02), extent_x[0], text_y, text_size_x, text_size_y)
-        draw_text(display, f"{maximum_temperature:.0f}", math.ceil(size[1] * 0.02), centre[0], text_y, text_size_x, text_size_y)
+        textbox.draw_textbox(display, f"{minimum_temperature:.0f}", extent_x[0], text_y, text_size_x, text_size_y, math.ceil(size[1] * 0.02))
+        textbox.draw_textbox(display, f"{maximum_temperature:.0f}", centre[0], text_y, text_size_x, text_size_y, math.ceil(size[1] * 0.02))
 
 def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, primary_decimals=0, show_min_max=True, groove_color=(128,128,128), notch_outline_color=(0,0,0), notch_fill_color=(255,255,255)):
     _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, current_temperature, primary_decimals, None, 0, show_min_max, groove_color, notch_outline_color, notch_fill_color)

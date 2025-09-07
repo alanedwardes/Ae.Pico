@@ -1,6 +1,7 @@
 import utime
 import colors
 import asyncio
+import textbox
 
 class InfoDisplay:
     def __init__(self, display, middle_row, bottom_row, hass):
@@ -14,18 +15,6 @@ class InfoDisplay:
         self.middle_row = middle_row
         self.bottom_row = bottom_row
     
-    def draw_text(self, text, scale, x, y, width):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 20
-        self.display.set_thickness(int(scale * 3))
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
 
     def draw_rectangle(self, width, height, y):
         x = int(self.display_half_width - width * 0.5)        
@@ -110,9 +99,11 @@ class InfoDisplay:
             if i == 0:
                 y += self.draw_rectangle(320, 8, y) + spacer
             
-            top_text_height = self.draw_text(self._format_entity_value(subscription, value), 1.5, x, y, middle_row_item_width)
+            top_height = 1.5 * 20
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, 1.5)
             self.display.set_pen(self.grey)
-            self.draw_text(subscription.get('label', '?'), 1, x, y + top_text_height, middle_row_item_width)
+            label_height = 1 * 20
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, 1)
             x += middle_row_item_width
         
         x = 0
@@ -125,9 +116,11 @@ class InfoDisplay:
             if i == 0:
                 y += self.draw_rectangle(320, 8, y) + spacer
             
-            top_text_height = self.draw_text(self._format_entity_value(subscription, value), 1.5, x, y, bottom_row_item_width)
+            top_height = 1.5 * 20
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, 1.5)
             self.display.set_pen(self.grey)
-            self.draw_text(subscription.get('label', '?'), 1, x, y + top_text_height, bottom_row_item_width)
+            label_height = 1 * 20
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, 1)
             x += bottom_row_item_width
         
         self.display.update()
