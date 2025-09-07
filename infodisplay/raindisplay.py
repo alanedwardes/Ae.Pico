@@ -102,6 +102,7 @@ class RainDisplay:
             await writer.wait_closed()
             
             raw_data = ujson.loads(content.decode('utf-8'))
+
             
             # Convert flat array to structured data
             # Format: [rain_prob, rate_mmh, rain_prob, rate_mmh, ...]
@@ -146,7 +147,7 @@ class RainDisplay:
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
 
         self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(0, y_start + 35, self.display_width, 2)
+        self.display.rectangle(0, y_start + 20, self.display_width, 2)
         
         column_width = self.display_width / (len(self.weather_data) - 1)
         for i, hour_data in enumerate(self.weather_data):
@@ -175,11 +176,11 @@ class RainDisplay:
             rain_color = colors.get_color_for_rain_percentage(rain_chance)
             self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
             height = 2 * 8
-            textbox.draw_textbox(self.display, f'{rain_chance}%', sx, sy + max_column_height + 5, int(column_width), height, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f'{rain_chance}%', sx, sy + max_column_height + 15, int(column_width), height, font='bitmap8', scale=2)
             
             self.display.set_pen(self.display.create_pen(117, 150, 148))
             
-            sy += max_column_height + 30
+            sy += max_column_height + 40
             
             if rate_mmh > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_mmh)
@@ -188,8 +189,8 @@ class RainDisplay:
                 height = 2 * 8
                 textbox.draw_textbox(self.display, rate_label, sx, sy, int(column_width), height, font='bitmap8', scale=2)
 
-        chart_y = y_start + 45
-        chart_height = 60
+        chart_y = y_start + 24
+        chart_height = 90
 
         self.display.set_pen(self.display.create_pen(64, 64, 64))
         self.display.rectangle(0, chart_y + chart_height, self.display_width, 2)
