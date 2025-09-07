@@ -99,14 +99,14 @@ class InfoDisplay:
                 y += self.draw_rectangle(320, 8, y)
             
             top_height = 1.5 * 30
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, font='sans', scale=1.5, auto_thickness=True)
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, font='sans', scale=1.5)
             self.display.set_pen(self.grey)
             label_height = 1 * 25
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, font='sans', scale=1, auto_thickness=True)
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, font='sans', scale=1)
             x += middle_row_item_width
         
         x = 0
-        y += 80
+        y += 75
             
         bottom_row_item_width = len(self.bottom_row) and self.display_width / len(self.bottom_row) or 0
         for i, subscription in enumerate(self.bottom_row):
@@ -116,10 +116,10 @@ class InfoDisplay:
                 y += self.draw_rectangle(320, 8, y)
             
             top_height = 1.5 * 30
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, font='sans', scale=1.5, auto_thickness=True)
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, font='sans', scale=1.5)
             self.display.set_pen(self.grey)
             label_height = 1 * 25
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, font='sans', scale=1, auto_thickness=True)
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, font='sans', scale=1)
             x += bottom_row_item_width
         
         self.display.update()

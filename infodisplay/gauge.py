@@ -108,12 +108,12 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
     
     primary_scale = size[1] * (0.015 if secondary_temperature is None else 0.010)
     primary_height = size[1] if secondary_temperature is None else size[1] * 0.85
-    textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, font='sans', scale=primary_scale, auto_thickness=True)
+    textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, font='sans', scale=primary_scale)
     
     if secondary_temperature is not None:
         secondary_text_y = position[1] + size[1] * 0.65
         secondary_text_height = size[1] * 0.2
-        textbox.draw_textbox(display, f'{secondary_temperature:.{secondary_decimals}f}', position[0], secondary_text_y, size[0], secondary_text_height, font='sans', scale=size[1] * 0.006, auto_thickness=True)
+        textbox.draw_textbox(display, f'{secondary_temperature:.{secondary_decimals}f}', position[0], secondary_text_y, size[0], secondary_text_height, font='sans', scale=size[1] * 0.006)
 
     
 

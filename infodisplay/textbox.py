@@ -11,7 +11,7 @@ def draw_textbox_outline(display, x, y, w, h):
     display.rectangle(int(x), int(y), 1, int(h))  # left
     display.rectangle(int(x + w - 1), int(y), 1, int(h))  # right
 
-def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, auto_thickness=False, align='center'):
+def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, align='center'):
     """
     Draw text in a textbox with specified dimensions.
     
@@ -24,27 +24,22 @@ def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, auto_thickn
         h: Height of the textbox
         font: Font to use - 'sans' or 'bitmap8' (default: 'sans')
         scale: Text scale factor (default: 1)
-        auto_thickness: If True, calculate thickness from scale (for serif fonts). If False, use 0 (for bitmap fonts)
         align: Text alignment - 'left', 'center', or 'right' (default: 'center')
     """
     # Set font
     display.set_font(font)
+
+    # Set clipping bounds to the textbox area
+    display.set_clip(int(x), int(y), int(w), int(h))
     
     # Calculate text height based on font
     if font == 'bitmap8':
         text_height = 8 * scale
+        thickness = 0  # Bitmap fonts don't use thickness
     else:  # sans font
         text_height = 12 * scale  # Approximate height for sans font
-    
-    if auto_thickness:
-        thickness = scale * 3
-    else:
-        thickness = 0
-    
-    # Set clipping bounds to the textbox area
-    display.set_clip(int(x), int(y), int(w), int(h))
-    
-    display.set_thickness(math.floor(thickness))
+        thickness = scale * 3  # Automatically enable thickness for serif fonts
+        display.set_thickness(math.floor(thickness))
     
     text_width = display.measure_text(text, scale) + thickness
     
