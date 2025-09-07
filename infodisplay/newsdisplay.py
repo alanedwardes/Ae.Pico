@@ -1,5 +1,6 @@
 import utime
 import asyncio
+import textbox
 
 class NewsDisplay:
     def __init__(self, display, entity_id, hass):
@@ -56,36 +57,15 @@ class NewsDisplay:
             story = stories[self.story_index]
         except IndexError:
             story = dict(t='?', p='?')
+
+        label_height = 25
             
         self.display.set_pen(self.grey)
-        self.display.text("%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 0, y_offset + 5, scale=2)
+        textbox.draw_textbox(self.display, "%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 
+                            0, y_offset, self.display_width, label_height, font='bitmap8', scale=2, align='left')
         
-        y_offset += 30
+        y_offset += label_height
         
         self.display.set_pen(self.white)
-        self.display.text(self.__word_wrap(story['t'], self.display_width, 3), 0, y_offset, scale=3)
+        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, font='bitmap8', scale=3, align='left', wrap=True)
         self.display.update()
-        
-    def __word_wrap(self, text, max_width, scale):
-        words = text.split()  # Split the text into words
-        wrapped_lines = []
-        current_line = ""
-
-        for word in words:
-            # Measure the width of the current line with the new word added
-            test_line = f"{current_line} {word}".strip()
-            line_width = self.display.measure_text(test_line, scale)
-
-            if line_width <= max_width:
-                # If the line width is within the limit, add the word to the current line
-                current_line = test_line
-            else:
-                # If the line width exceeds the limit, finalize the current line and start a new one
-                wrapped_lines.append(current_line)
-                current_line = word
-
-        # Add the last line if it exists
-        if current_line:
-            wrapped_lines.append(current_line)
-
-        return "\n".join(wrapped_lines)
