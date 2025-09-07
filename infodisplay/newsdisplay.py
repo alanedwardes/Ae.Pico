@@ -67,5 +67,5 @@ class NewsDisplay:
         y_offset += label_height
         
         self.display.set_pen(self.white)
-        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, font='bitmap8', scale=3, align='left', wrap=True)
+        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, font='bitmap8', scale=3, align='left', wrap=True, valign='top')
         self.display.update()

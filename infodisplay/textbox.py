@@ -47,7 +47,7 @@ def draw_textbox_outline(display, x, y, w, h):
     display.rectangle(int(x), int(y), 1, int(h))  # left
     display.rectangle(int(x + w - 1), int(y), 1, int(h))  # right
 
-def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, align='center', wrap=False):
+def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, align='center', wrap=False, valign='center'):
     """
     Draw text in a textbox with specified dimensions.
     
@@ -62,6 +62,7 @@ def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, align='cent
         scale: Text scale factor (default: 1)
         align: Text alignment - 'left', 'center', or 'right' (default: 'center')
         wrap: Whether to wrap text to fit within the textbox width (default: False)
+        valign: Vertical alignment - 'top', 'center', or 'bottom' (default: 'center')
     """
     # Set font
     display.set_font(font)
@@ -97,13 +98,23 @@ def draw_textbox(display, text, x, y, w, h, *, font='sans', scale=1, align='cent
     else:  # center (default)
         text_x = x + w * 0.5 - text_width * 0.5
     
-    # Calculate vertical position based on font rendering behavior
+    # Calculate vertical position based on font rendering behavior and valign
     if font == 'bitmap8':
-        # Bitmap font: render from top-left, center it vertically in the textbox
-        text_y = y + (h - text_height) * 0.5
+        # Bitmap font: render from top-left
+        if valign == 'top':
+            text_y = y
+        elif valign == 'bottom':
+            text_y = y + h - text_height
+        else:  # center (default)
+            text_y = y + (h - text_height) * 0.5
     else:  # sans font
-        # Sans font: center renders at Y, so move it down to center in textbox
-        text_y = y + h * 0.5
+        # Sans font: center renders at Y
+        if valign == 'top':
+            text_y = y + text_height * 0.5
+        elif valign == 'bottom':
+            text_y = y + h - text_height * 0.5
+        else:  # center (default)
+            text_y = y + h * 0.5
     
     display.text(text, math.floor(text_x), math.floor(text_y), scale=scale)
     
