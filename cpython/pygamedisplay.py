@@ -11,6 +11,7 @@ class PygameDisplay:
         self.pen = None
         self.font = None
         self.thickness = 1
+        self.clip_rect = None
 
         self.serif = HersheyFonts.HersheyFonts()
         self.serif.load_default_font()
@@ -62,6 +63,16 @@ class PygameDisplay:
 
     def get_bounds(self):
         return (self.screen.get_width(), self.screen.get_height())
+
+    def set_clip(self, x, y, width, height):
+        """Set a clipping rectangle to limit drawing operations to a specific area."""
+        self.clip_rect = pygame.Rect(x, y, width, height)
+        self.screen.set_clip(self.clip_rect)
+
+    def remove_clip(self):
+        """Remove the clipping rectangle, allowing drawing anywhere on the screen."""
+        self.clip_rect = None
+        self.screen.set_clip(None)
 
     def __buffer__(self, flags):
         return memoryview(self.screen.get_buffer())

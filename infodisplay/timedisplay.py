@@ -42,7 +42,6 @@ class TimeDisplay:
         height = 70
         width = self.display_width - 64
         
-        self.display.set_font("sans")
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, 0, width, height)
 
@@ -54,9 +53,9 @@ class TimeDisplay:
         time_width = self.display_width - section_width * 2
         
         self.display.set_pen(self.display.create_pen(255, 255, 255))
-        textbox.draw_textbox(self.display, "%02i:%02i" % (now[4], now[5]), 0, 0, time_width, height, 2.25)
+        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='sans', scale=2.25, auto_thickness=True)
         
-        textbox.draw_textbox(self.display, f"{self.DAYS[now[3]-1]}", time_width, 0, section_width, section_height, 1)
-        textbox.draw_textbox(self.display, "%02i" % now[6], time_width, section_height, section_width, section_height, 1.2)
+        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, section_width, section_height, font='sans', scale=1, auto_thickness=True)
+        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, section_width, section_height, font='sans', scale=1.2, auto_thickness=True)
         
         self.display.update()

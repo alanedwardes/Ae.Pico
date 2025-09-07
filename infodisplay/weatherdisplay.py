@@ -194,8 +194,6 @@ class WeatherDisplay:
             30: "thunderstorms",              # Thunder
         }
         
-        self.display.set_font('bitmap8')
-        
         # Calculate number of days from data (each day has 3 values: code, temp, rain)
         num_days = len(self.weather_data) // 3
         column_width = self.display_width // num_days
@@ -224,7 +222,7 @@ class WeatherDisplay:
                 self.display.set_pen(self.display.create_pen(255, 255, 255))
             
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, 2)
+            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, font='bitmap8', scale=2)
             
             sy += 25
             
@@ -235,7 +233,7 @@ class WeatherDisplay:
 
             self.display.set_pen(self.display.create_pen(*colors.get_color_for_temperature(temperature)))
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, 2)
+            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, font='bitmap8', scale=2)
             
             sy += 30
             
@@ -243,6 +241,6 @@ class WeatherDisplay:
             self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
             
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, 2)
+            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, font='bitmap8', scale=2)
 
         self.display.update()

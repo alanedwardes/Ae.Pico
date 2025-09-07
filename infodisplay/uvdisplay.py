@@ -141,8 +141,6 @@ class UvDisplay:
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
 
-        self.display.set_font('bitmap8')
-
         # Display specific hours: 00, 06, 12, 18
         target_hours = [0, 6, 12, 18]
         display_hours = []
@@ -165,7 +163,7 @@ class UvDisplay:
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
             height = 1 * 8
-            textbox.draw_textbox(self.display, f"{hour:02d}", sx, self.display_height - 15, label_width, height, 1)
+            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 15, label_width, height, font='bitmap8', scale=1)
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 35  # Make chart fill more space

@@ -85,11 +85,10 @@ class InfoDisplay:
         
         y = 70
         
-        self.display.set_font("sans")
         self.display.set_pen(self.black)
         self.display.rectangle(0, y, self.display_width, self.display_height - y)
 
-        spacer = 16
+        #spacer = 10
         
         x = 0
         middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0
@@ -97,30 +96,30 @@ class InfoDisplay:
             value = self._get_entity_value(subscription)
             self.display.set_pen(self._get_pen_color(subscription, value))
             if i == 0:
-                y += self.draw_rectangle(320, 8, y) + spacer
+                y += self.draw_rectangle(320, 8, y)
             
-            top_height = 1.5 * 20
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, 1.5)
+            top_height = 1.5 * 30
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, font='sans', scale=1.5, auto_thickness=True)
             self.display.set_pen(self.grey)
-            label_height = 1 * 20
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, 1)
+            label_height = 1 * 25
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, font='sans', scale=1, auto_thickness=True)
             x += middle_row_item_width
         
         x = 0
-        y += 60
+        y += 80
             
         bottom_row_item_width = len(self.bottom_row) and self.display_width / len(self.bottom_row) or 0
         for i, subscription in enumerate(self.bottom_row):
             value = self._get_entity_value(subscription)
             self.display.set_pen(self._get_pen_color(subscription, value))
             if i == 0:
-                y += self.draw_rectangle(320, 8, y) + spacer
+                y += self.draw_rectangle(320, 8, y)
             
-            top_height = 1.5 * 20
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, 1.5)
+            top_height = 1.5 * 30
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, font='sans', scale=1.5, auto_thickness=True)
             self.display.set_pen(self.grey)
-            label_height = 1 * 20
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, 1)
+            label_height = 1 * 25
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, font='sans', scale=1, auto_thickness=True)
             x += bottom_row_item_width
         
         self.display.update()

@@ -106,25 +106,25 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         # Reset pen to white for text and other UI elements
         display.set_pen(display.create_pen(255, 255, 255))
     
-    display.set_font("sans")
     primary_scale = size[1] * (0.015 if secondary_temperature is None else 0.010)
     primary_height = size[1] if secondary_temperature is None else size[1] * 0.85
-    textbox.draw_textbox(display, f"{primary_temperature:.{primary_decimals}f}", position[0], position[1], size[0], primary_height, primary_scale)
+    textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, font='sans', scale=primary_scale, auto_thickness=True)
     
     if secondary_temperature is not None:
         secondary_text_y = position[1] + size[1] * 0.65
         secondary_text_height = size[1] * 0.2
-        textbox.draw_textbox(display, f"{secondary_temperature:.{secondary_decimals}f}", position[0], secondary_text_y, size[0], secondary_text_height, size[1] * 0.006)
+        textbox.draw_textbox(display, f'{secondary_temperature:.{secondary_decimals}f}', position[0], secondary_text_y, size[0], secondary_text_height, font='sans', scale=size[1] * 0.006, auto_thickness=True)
 
     
 
     if has_range and show_min_max:
-        display.set_font("bitmap8")
         text_y = int(position[1] + size[1] * 0.75)
         text_size_x = size[1] * 0.5
-        text_size_y = size[1] * 0.1
-        textbox.draw_textbox(display, f"{minimum_temperature:.0f}", extent_x[0], text_y, text_size_x, text_size_y, math.ceil(size[1] * 0.02))
-        textbox.draw_textbox(display, f"{maximum_temperature:.0f}", centre[0], text_y, text_size_x, text_size_y, math.ceil(size[1] * 0.02))
+        text_scale = max(1, math.ceil(size[1] * 0.02))
+        text_height = 8 * text_scale  # bitmap8 font height
+        text_size_y = text_height + 4  # Add some padding
+        textbox.draw_textbox(display, f'{minimum_temperature:.0f}', extent_x[0], text_y, text_size_x, text_size_y, font='bitmap8', scale=text_scale)
+        textbox.draw_textbox(display, f'{maximum_temperature:.0f}', centre[0], text_y, text_size_x, text_size_y, font='bitmap8', scale=text_scale)
 
 def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, primary_decimals=0, show_min_max=True, groove_color=(128,128,128), notch_outline_color=(0,0,0), notch_fill_color=(255,255,255)):
     _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, current_temperature, primary_decimals, None, 0, show_min_max, groove_color, notch_outline_color, notch_fill_color)

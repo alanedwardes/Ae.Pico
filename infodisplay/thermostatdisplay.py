@@ -93,7 +93,7 @@ class ThermostatDisplay:
 
         # HVAC action label just above main temperature
         self.display.set_font("bitmap8")
-        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, 1)
+        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, scale=1)
         
         self.display.set_thickness(5)
         self.display.set_font("sans")
