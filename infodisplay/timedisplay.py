@@ -47,15 +47,14 @@ class TimeDisplay:
 
         now = self.rtc.datetime()
                 
-        section_width = self.display_width / 5
         section_height = height / 2
         
-        time_width = self.display_width - section_width * 2
-        
+        time_width = 200
         self.display.set_pen(self.display.create_pen(255, 255, 255))
-        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='sans', scale=2.25)
+        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='sans', align='left', scale=2.25)
         
-        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, section_width, section_height, font='sans', scale=1)
-        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, section_width, section_height, font='sans', scale=1.2)
+        date_seconds_width = self.display_width - time_width - 64 # the temp display is 64px        
+        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, date_seconds_width, section_height, font='sans', scale=1)
+        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, date_seconds_width, section_height, font='sans', scale=1.2)
         
         self.display.update()
