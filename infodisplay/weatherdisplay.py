@@ -110,27 +110,31 @@ class WeatherDisplay:
             print(f"Error fetching weather data: {e}")
     
     def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height):
-        with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
-            icon_width, icon_height = struct.unpack('<HH', icon_file.read(4))
-            # Center the icon in the given box
-            icon_x = x + (box_width - icon_width) // 2
-            icon_y = y + (box_height - icon_height) // 2
+        try:
+            with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
+                icon_width, icon_height = struct.unpack('<HH', icon_file.read(4))
+                # Center the icon in the given box
+                icon_x = x + (box_width - icon_width) // 2
+                icon_y = y + (box_height - icon_height) // 2
 
-            # Calculate bytes per pixel from framebuffer size and display dimensions
-            total_pixels = self.display_width * self.display_height
-            bytes_per_pixel = len(framebuffer) // total_pixels
+                # Calculate bytes per pixel from framebuffer size and display dimensions
+                total_pixels = self.display_width * self.display_height
+                bytes_per_pixel = len(framebuffer) // total_pixels
 
-            icon_row_bytes = icon_width * bytes_per_pixel
-            fb_row_bytes = self.display_width * bytes_per_pixel
+                icon_row_bytes = icon_width * bytes_per_pixel
+                fb_row_bytes = self.display_width * bytes_per_pixel
 
-            for row in range(icon_height):
-                fb_y = row + icon_y
-                if 0 <= fb_y < self.display_height:
-                    fb_start = fb_y * fb_row_bytes + icon_x * bytes_per_pixel
-                    mv = memoryview(framebuffer)[fb_start : fb_start + icon_row_bytes]
-                    icon_file.readinto(mv)
-                else:
-                    icon_file.seek(icon_row_bytes, 1)
+                for row in range(icon_height):
+                    fb_y = row + icon_y
+                    if 0 <= fb_y < self.display_height:
+                        fb_start = fb_y * fb_row_bytes + icon_x * bytes_per_pixel
+                        mv = memoryview(framebuffer)[fb_start : fb_start + icon_row_bytes]
+                        icon_file.readinto(mv)
+                    else:
+                        icon_file.seek(icon_row_bytes, 1)
+        except OSError as e:
+            print(f"Warning: Could not load icon '{icon_name}': {e}")
+            return
     
         
     def update(self):
@@ -157,42 +161,6 @@ class WeatherDisplay:
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
         
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-        
-        met_office_codes = {
-            "NA": "not-available",
-            -1: "raindrop",  # Trace rain
-            0: "clear-night",
-            1: "clear-day",  # sunny day
-            2: "partly-cloudy-night",
-            3: "partly-cloudy-day",
-            4: "not-available",  # Not used
-            5: "mist",
-            6: "fog",
-            7: "cloudy",
-            8: "overcast",
-            9: "partly-cloudy-night-rain",  # Light rain shower (night)
-            10: "partly-cloudy-day-rain",   # Light rain shower (day)
-            11: "drizzle",
-            12: "rain",  # Light rain
-            13: "partly-cloudy-night-rain",  # Heavy rain shower (night)
-            14: "partly-cloudy-day-rain",    # Heavy rain shower (day)
-            15: "rain",  # Heavy rain
-            16: "partly-cloudy-night-sleet",  # Sleet shower (night)
-            17: "partly-cloudy-day-sleet",    # Sleet shower (day)
-            18: "sleet",
-            19: "partly-cloudy-night-hail",   # Hail shower (night)
-            20: "partly-cloudy-day-hail",     # Hail shower (day)
-            21: "hail",
-            22: "partly-cloudy-night-snow",   # Light snow shower (night)
-            23: "partly-cloudy-day-snow",     # Light snow shower (day)
-            24: "snow",  # Light snow
-            25: "partly-cloudy-night-snow",   # Heavy snow shower (night)
-            26: "partly-cloudy-day-snow",     # Heavy snow shower (day)
-            27: "snow",  # Heavy snow
-            28: "thunderstorms-night",        # Thunder shower (night)
-            29: "thunderstorms-day",          # Thunder shower (day)
-            30: "thunderstorms",              # Thunder
-        }
         
         # Calculate number of days from data (each day has 3 values: code, temp, rain)
         num_days = len(self.weather_data) // 3
@@ -226,7 +194,7 @@ class WeatherDisplay:
             
             sy += 25
             
-            icon = self.draw_icon(met_office_codes[weather_code], memoryview(self.display), sx, sy, column_width, 50)
+            icon = self.draw_icon(weather_code, memoryview(self.display), sx, sy, column_width, 50)
             self.display.set_pen(self.display.create_pen(255, 255, 255))
             
             sy += 50
