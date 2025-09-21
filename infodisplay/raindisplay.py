@@ -38,8 +38,8 @@ class RainDisplay:
         if not self.weather_data:
             return False
         
-        # Check if all rain chances are zero
-        return not all(hour_data['r'] == 0 for hour_data in self.weather_data)
+        # Check if all rain chances are 5% or below
+        return not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
 
     def activate(self, new_active):
         self.is_active = new_active
