@@ -36,7 +36,12 @@ class UvDisplay:
         
     def should_activate(self):
         if not self.uv_data:
-            return True
+            return False
+        
+        # Check if all UV values are 2 or below
+        if all(uv <= 2 for uv in self.uv_data):
+            return False
+        
         first_idx = None
         last_idx = None
         for i, v in enumerate(self.uv_data):
