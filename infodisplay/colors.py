@@ -156,3 +156,68 @@ def get_color_for_precip_rate(rate_mmh):
         return (0, 0, 254)
     else:
         return (213, 208, 205)
+
+def get_color_for_wind_speed(wind_speed_ms):
+    """
+    Get color for wind speed based on Beaufort scale.
+    Wind speed should be in meters per second (m/s).
+    Returns RGB tuple based on Beaufort scale colors.
+    """
+    if wind_speed_ms is None:
+        return (213, 208, 205)  # Default gray for invalid values
+    
+    # Beaufort scale 12: Hurricane-force (≥ 32.7 m/s)
+    if wind_speed_ms >= 32.7:
+        return (213, 16, 45)  # #D5102D - Dark red
+    
+    # Beaufort scale 11: Violent storm (28.5-32.6 m/s)
+    elif wind_speed_ms >= 28.5:
+        return (237, 41, 18)  # #ED2912 - Red
+    
+    # Beaufort scale 10: Storm (24.5-28.4 m/s)
+    elif wind_speed_ms >= 24.5:
+        return (237, 99, 18)  # #ED6312 - Red-orange
+    
+    # Beaufort scale 9: Strong/severe gale (20.8-24.4 m/s)
+    elif wind_speed_ms >= 20.8:
+        return (237, 143, 18)  # #ED8F12 - Orange-red
+    
+    # Beaufort scale 8: Gale (17.2-20.7 m/s)
+    elif wind_speed_ms >= 17.2:
+        return (237, 194, 18)  # #EDC212 - Orange
+    
+    # Beaufort scale 7: Moderate gale (13.9-17.1 m/s)
+    elif wind_speed_ms >= 13.9:
+        return (218, 237, 18)  # #DAED12 - Yellow
+    
+    # Beaufort scale 6: Strong breeze (10.8-13.8 m/s)
+    elif wind_speed_ms >= 10.8:
+        return (164, 237, 18)  # #A4ED12 - Yellow-green
+    
+    # Beaufort scale 5: Fresh breeze (8-10.7 m/s)
+    elif wind_speed_ms >= 8.0:
+        return (115, 237, 18)  # #73ED12 - Green
+    
+    # Beaufort scale 4: Moderate breeze (5.5-7.9 m/s)
+    elif wind_speed_ms >= 5.5:
+        return (111, 244, 111)  # #6FF46F - Light green
+    
+    # Beaufort scale 3: Gentle breeze (3.4-5.4 m/s)
+    elif wind_speed_ms >= 3.4:
+        return (150, 247, 180)  # #96F7B4 - Green
+    
+    # Beaufort scale 2: Light breeze (1.6-3.3 m/s)
+    elif wind_speed_ms >= 1.6:
+        return (150, 247, 220)  # #96F7DC - Light green
+    
+    # Beaufort scale 1: Light air (0.3-1.5 m/s)
+    elif wind_speed_ms >= 0.3:
+        return (174, 241, 249)  # #AEF1F9 - Light blue
+    
+    # Beaufort scale 0: Calm (< 0.3 m/s)
+    elif wind_speed_ms >= 0:
+        return (255, 255, 255)  # #FFFFFF - White
+    
+    # Invalid negative values
+    else:
+        return (213, 208, 205)  # Default gray for invalid values

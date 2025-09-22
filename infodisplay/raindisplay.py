@@ -38,8 +38,11 @@ class RainDisplay:
         if not self.weather_data:
             return False
         
-        # Check if all rain chances are 5% or below
-        return not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
+        # Check if any rain chances are above 5% OR any wind speeds are over 5 m/s
+        has_rain = not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
+        has_high_wind = any(hour_data['wind'] > 5 for hour_data in self.weather_data)
+        
+        return has_rain or has_high_wind
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -160,19 +163,19 @@ class RainDisplay:
         precip_row_y = y_start + 30
         chart_y = y_start + 60
         wind_row_y = self.display_height - 20  # Position wind speed near bottom of screen
-        chart_height = wind_row_y - chart_y - 10  # Extend chart to fill space before wind speed
+        chart_height = wind_row_y - chart_y - 5
         
         # Draw key labels
         self.display.set_pen(self.display.create_pen(255, 255, 255))
         textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, font='bitmap8', scale=2)
         textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, font='bitmap8', scale=2)
         textbox.draw_textbox(self.display, 'm/s', 0, wind_row_y, key_width, 16, font='bitmap8', scale=2)
         
         # Draw separator lines
         self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(key_width, precip_row_y - 5, data_width, 2)
-        self.display.rectangle(key_width, chart_y - 5, data_width, 2)
-        self.display.rectangle(key_width, wind_row_y - 5, data_width, 2)
+        self.display.rectangle(key_width, precip_row_y - 10, data_width, 2)
+        self.display.rectangle(key_width, chart_y - 10, data_width, 2)
         
         # Draw data for each hour
         for i, hour_data in enumerate(self.weather_data):
@@ -180,7 +183,6 @@ class RainDisplay:
                 continue
 
             hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
-            rain_chance = hour_data['r']
             rate_mmh = hour_data['rate']
             wind_speed = hour_data['wind']
             
@@ -204,14 +206,7 @@ class RainDisplay:
             textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, font='bitmap8', scale=2)
             
             # Wind speed
-            if wind_speed < 5:
-                wind_color = (100, 200, 100)
-            elif wind_speed < 10:
-                wind_color = (200, 200, 100)
-            elif wind_speed < 15:
-                wind_color = (200, 150, 50)
-            else:
-                wind_color = (200, 100, 100)
+            wind_color = colors.get_color_for_wind_speed(wind_speed)
             self.display.set_pen(self.display.create_pen(wind_color[0], wind_color[1], wind_color[2]))
             textbox.draw_textbox(self.display, f"{wind_speed:.0f}", sx, wind_row_y, int(column_width), 16, font='bitmap8', scale=2)
 
