@@ -44,7 +44,21 @@ class SolarDisplay:
         await asyncio.Event().wait()
     
     def should_activate(self):
-        return True
+        # Only show solar display if battery > 10% or solar generation > 1kW
+        try:
+            if self.battery_soc is not None:
+                battery_value = float(self.battery_soc)
+                if battery_value > 10:
+                    return True
+            
+            if self.current_solar is not None:
+                solar_value = float(self.current_solar)
+                if solar_value > 1000:  # 1kW = 1000W
+                    return True
+        except (ValueError, TypeError):
+            pass
+        
+        return False
     
     def activate(self, new_active):
         self.is_active = new_active
