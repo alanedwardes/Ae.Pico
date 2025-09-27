@@ -12,6 +12,29 @@ import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
+def wind_speed_to_beaufort(wind_speed_ms):
+    """
+    Convert wind speed in m/s to Beaufort scale number.
+    Uses the empirical relationship: v = 0.836 * B^(3/2) m/s
+    Solving for B: B = (v / 0.836)^(2/3)
+    """
+    if wind_speed_ms is None or wind_speed_ms < 0:
+        return 0
+    
+    # Calculate Beaufort number using the inverse formula
+    beaufort = (wind_speed_ms / 0.836) ** (2/3)
+    
+    # Round to nearest integer and clamp to valid range
+    beaufort_rounded = round(beaufort)
+    
+    # Clamp to valid Beaufort scale range (0-12, with 12+ for hurricane force)
+    if beaufort_rounded < 0:
+        return 0
+    elif beaufort_rounded > 12:
+        return 12
+    else:
+        return beaufort_rounded
+
 class RainDisplay:
     def __init__(self, display, url, rtc=None):
         self.display = display
@@ -38,9 +61,9 @@ class RainDisplay:
         if not self.weather_data:
             return False
         
-        # Check if any rain chances are above 5% OR any wind speeds are over 5 m/s
+        # Check if any rain chances are above 5% OR any Beaufort scale is 4 or higher (moderate breeze+)
         has_rain = not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
-        has_high_wind = any(hour_data['wind'] > 5 for hour_data in self.weather_data)
+        has_high_wind = any(wind_speed_to_beaufort(hour_data['wind']) >= 4 for hour_data in self.weather_data)
         
         return has_rain or has_high_wind
 
@@ -126,7 +149,8 @@ class RainDisplay:
             
             print(f"Weather data fetched: {len(self.weather_data)} hours")
             for hour_data in self.weather_data:
-                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Rate {hour_data['rate']} mm/h, Wind {hour_data['wind']} m/s")
+                beaufort_number = wind_speed_to_beaufort(hour_data['wind'])
+                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Rate {hour_data['rate']} mm/h, Wind {hour_data['wind']} m/s (Bft {beaufort_number})")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
@@ -170,7 +194,7 @@ class RainDisplay:
         textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, font='bitmap8', scale=2)
         textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, font='bitmap8', scale=2)
         textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, 'm/s', 0, wind_row_y, key_width, 16, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, font='bitmap8', scale=2)
         
         # Draw separator lines
         self.display.set_pen(self.display.create_pen(64, 64, 64))
@@ -205,10 +229,11 @@ class RainDisplay:
             self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
             textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, font='bitmap8', scale=2)
             
-            # Wind speed
-            wind_color = colors.get_color_for_wind_speed(wind_speed)
-            self.display.set_pen(self.display.create_pen(wind_color[0], wind_color[1], wind_color[2]))
-            textbox.draw_textbox(self.display, f"{wind_speed:.0f}", sx, wind_row_y, int(column_width), 16, font='bitmap8', scale=2)
+            # Beaufort scale
+            beaufort_number = wind_speed_to_beaufort(wind_speed)
+            beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
+            self.display.set_pen(self.display.create_pen(beaufort_color[0], beaufort_color[1], beaufort_color[2]))
+            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, int(column_width), 16, font='bitmap8', scale=2)
 
         # Draw chart
         normalized_data = [hour['r'] / 100 for hour in self.weather_data]

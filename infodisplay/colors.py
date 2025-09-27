@@ -221,3 +221,44 @@ def get_color_for_wind_speed(wind_speed_ms):
     # Invalid negative values
     else:
         return (213, 208, 205)  # Default gray for invalid values
+
+def get_color_for_beaufort_scale(beaufort_number):
+    """
+    Get color for Beaufort scale number based on the official Beaufort scale colors.
+    Beaufort number should be 0-12 (or 13-17 for extended scale).
+    Returns RGB tuple based on Beaufort scale colors from Wikipedia.
+    """
+    if beaufort_number is None or beaufort_number < 0:
+        return (213, 208, 205)  # Default gray for invalid values
+    
+    # Beaufort scale colors from Wikipedia
+    if beaufort_number == 0:
+        return (255, 255, 255)  # #FFFFFF - White (Calm)
+    elif beaufort_number == 1:
+        return (174, 241, 249)  # #AEF1F9 - Light air
+    elif beaufort_number == 2:
+        return (150, 247, 220)  # #96F7DC - Light breeze
+    elif beaufort_number == 3:
+        return (150, 247, 180)  # #96F7B4 - Gentle breeze
+    elif beaufort_number == 4:
+        return (111, 244, 111)  # #6FF46F - Moderate breeze
+    elif beaufort_number == 5:
+        return (115, 237, 18)   # #73ED12 - Fresh breeze
+    elif beaufort_number == 6:
+        return (164, 237, 18)   # #A4ED12 - Strong breeze
+    elif beaufort_number == 7:
+        return (218, 237, 18)   # #DAED12 - Moderate gale
+    elif beaufort_number == 8:
+        return (237, 194, 18)   # #EDC212 - Gale
+    elif beaufort_number == 9:
+        return (237, 143, 18)   # #ED8F12 - Strong/severe gale
+    elif beaufort_number == 10:
+        return (237, 99, 18)    # #ED6312 - Storm
+    elif beaufort_number == 11:
+        return (237, 41, 18)    # #ED2912 - Violent storm
+    elif beaufort_number == 12:
+        return (213, 16, 45)    # #D5102D - Hurricane-force
+    elif beaufort_number >= 13:  # Extended scale (13-17)
+        return (213, 16, 45)    # #D5102D - Same as hurricane-force for extended scale
+    else:
+        return (213, 208, 205)  # Default gray for invalid values
