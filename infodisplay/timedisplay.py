@@ -1,6 +1,7 @@
 import math
 import utime
 import asyncio
+import textbox
 
 class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -15,24 +16,6 @@ class TimeDisplay:
         
         self.last_update_time_ms = 0
         
-    def draw_text(self, text, scale, x, y, width, height):
-        thickness = scale * 3
-        
-        self.display.set_thickness(math.floor(thickness))
-        
-        #text_height = (scale * 20) + thickness
-        #half_height = text_height * 0.5
-
-        #self.display.set_pen(self.highlight)
-        #self.display.rectangle(math.floor(x), math.floor(y), math.ceil(width), math.ceil(height))
-
-        text_width = self.display.measure_text(text, scale) + thickness
-        text_x = width * 0.5 - text_width * 0.5
-        
-        half_height = height * 0.5
-        
-        #self.display.set_pen(self.white)
-        self.display.text(text, math.floor(text_x + x + (thickness * 0.5)), math.floor(y + half_height + (thickness * 0.5)), scale=scale)
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -59,21 +42,19 @@ class TimeDisplay:
         height = 70
         width = self.display_width - 64
         
-        self.display.set_font("sans")
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, 0, width, height)
 
         now = self.rtc.datetime()
                 
-        section_width = self.display_width / 5
         section_height = height / 2
         
-        time_width = self.display_width - section_width * 2
-        
+        time_width = 200
         self.display.set_pen(self.display.create_pen(255, 255, 255))
-        self.draw_text("%02i:%02i" % (now[4], now[5]), 2.25, 0, 0, time_width, height)
+        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='sans', align='left', scale=2.25)
         
-        self.draw_text(f"{self.DAYS[now[3]-1]}", 1, time_width, 0, section_width, section_height)
-        self.draw_text("%02i" % now[6], 1.2, time_width, section_height, section_width, section_height)
+        date_seconds_width = self.display_width - time_width - 64 # the temp display is 64px        
+        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, date_seconds_width, section_height, font='sans', scale=1)
+        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, date_seconds_width, section_height, font='sans', scale=1.2)
         
         self.display.update()

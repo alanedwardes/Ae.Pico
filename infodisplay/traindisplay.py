@@ -1,5 +1,6 @@
 import utime
 import asyncio
+import textbox
 
 class TrainDisplay:
     def __init__(self, display, entity_id, hass):
@@ -43,20 +44,26 @@ class TrainDisplay:
         scheduled = departure['std']
         expected = departure['etd']
         platform = departure['plt']
+        
         if departure['can']:
             self.display.set_pen(self.display.create_pen(242, 106, 48))
         elif departure['del']:
             self.display.set_pen(self.display.create_pen(254, 219, 0))
         else:
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-        x_offset = 0
-        self.display.text('{:.5}'.format(scheduled), x_offset, y_offset, scale=2)
-        x_offset += 5 * 10
-        self.display.text('{:.16}'.format(destination), x_offset, y_offset, scale=2)
-        x_offset += 16 * 10
-        self.display.text('{:.1}'.format(platform), x_offset, y_offset, scale=2)
-        x_offset += 2 * 10
-        self.display.text('{:.9}'.format(expected), x_offset, y_offset, scale=2)
+        
+        # Define column widths and positions
+        time_width = 50
+        destination_width = 160
+        platform_width = 20
+        expected_width = 90
+        
+        # Draw each column using textbox
+        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, font='bitmap8', scale=2, align='left')
+        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width, y_offset, expected_width, 20, font='bitmap8', scale=2)
+        
         return 20
     
     def get_departures(self):
@@ -67,11 +74,8 @@ class TrainDisplay:
         
         y_offset = 70
         
-        self.display.set_font("bitmap8")
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
-        
-        y_offset += 8
         
         for row in range(0, len(departures)):
             y_offset += self.__draw_departure_row(departures[row], y_offset)

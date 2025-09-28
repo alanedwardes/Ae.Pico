@@ -8,6 +8,7 @@ import utime
 import chart
 import colors
 import re
+import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
@@ -34,6 +35,28 @@ class UvDisplay:
             await asyncio.sleep(300)
         
     def should_activate(self):
+        if not self.uv_data:
+            return False
+        
+        # Check if all UV values are 2 or below
+        if all(uv <= 2 for uv in self.uv_data):
+            return False
+        
+        first_idx = None
+        last_idx = None
+        for i, v in enumerate(self.uv_data):
+            if v != 0 and first_idx is None:
+                first_idx = i
+            if v != 0:
+                last_idx = i
+        if first_idx is None or last_idx is None:
+            return True
+        now = utime.localtime()
+        current_time = now[3] + (now[4] / 60.0)
+        if current_time < (first_idx - 1.0):
+            return False
+        if current_time > (last_idx + 1.0):
+            return False
         return True
 
     def activate(self, new_active):
@@ -104,17 +127,6 @@ class UvDisplay:
         except Exception as e:
             print(f"Error fetching UV data: {e}")
        
-    def draw_text(self, text, x, y, width, scale=1):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 8
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
         
     def update(self):
         if self.is_active == False:
@@ -133,8 +145,6 @@ class UvDisplay:
                
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
-
-        self.display.set_font('bitmap8')
 
         # Display specific hours: 00, 06, 12, 18
         target_hours = [0, 6, 12, 18]
@@ -157,7 +167,8 @@ class UvDisplay:
             sx = position * label_width
             
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour:02d}", sx, self.display_height - 15, label_width, scale=1)
+            height = 1 * 8
+            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, font='bitmap8', scale=1)
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 35  # Make chart fill more space
@@ -197,7 +208,7 @@ class UvDisplay:
             
             # Draw label on the left
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.display.text(label, 0, int(y_pos - 3), scale=1)
+            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, font='bitmap8', align='left', scale=1)
 
         # Display UV values above the graph
         if self.uv_data:
@@ -209,62 +220,21 @@ class UvDisplay:
                 label_index = i // 2  # Index for positioning
                 x_pos = label_index * label_width
                 self.display.set_pen(self.display.create_pen(255, 255, 255))
-                self.display.text(str(uv), x_pos, y_start + 5, scale=1)
+                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, font='bitmap8', scale=1)
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
         normalized_data = [uv / max_uv_value for uv in self.uv_data]
         
-        # Process chart points directly from generator without storing in list
-        current_polygon = []
-        current_color = None
-        first_point = True
-        
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
-            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
-            uv = self.uv_data[data_index]
-            uv_color = colors.get_color_for_uv(uv)
-            
-            if first_point:
-                # Start at the first chart point
-                first_x = int(px)
-                current_polygon.append((first_x, chart_y + chart_height))
-                current_polygon.append((int(px), int(py)))
-                current_color = uv_color
-                first_point = False
-            else:
-                # If color changes, draw current polygon and start new one
-                if current_color is not None and current_color != uv_color:
-                    # Complete current polygon
-                    current_polygon.append((int(px), int(py)))
-                    current_polygon.append((int(px), chart_y + chart_height))
-                    
-                    # Draw filled polygon with 50% transparency
-                    transparent_color = tuple(c // 2 for c in current_color)
-                    self.display.set_pen(self.display.create_pen(*transparent_color))
-                    self.display.polygon(current_polygon)
-                    
-                    # Start new polygon
-                    current_polygon = [(int(px), chart_y + chart_height), (int(px), int(py))]
-                    current_color = uv_color
-                else:
-                    current_polygon.append((int(px), int(py)))
-                    current_color = uv_color
-        
-        # Draw final polygon
-        if current_polygon:
-            last_x = int(px)
-            current_polygon.append((last_x, chart_y + chart_height))
-            transparent_color = tuple(c // 2 for c in current_color)
-            self.display.set_pen(self.display.create_pen(*transparent_color))
-            self.display.polygon(current_polygon)
-        
-        # Draw chart circles on top using the same generator
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, normalized_data):
-            data_index = min(len(self.uv_data) - 1, int(px / (self.display_width / len(self.uv_data))))
-            uv = self.uv_data[data_index]
-            self.display.set_pen(self.display.create_pen(*colors.get_color_for_uv(uv)))
-            self.display.circle(int(px), int(py), 2)
+        # Shared segmented area and colored points
+        def uv_color_fn(idx, value):
+            return colors.get_color_for_uv(value)
+
+        chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
+                                   self.uv_data, normalized_data, uv_color_fn)
+
+        chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
+                                   self.uv_data, normalized_data, uv_color_fn, radius=2)
 
         # Draw current time vertical line
         if len(self.uv_data) > 0:

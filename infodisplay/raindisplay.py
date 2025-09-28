@@ -8,8 +8,32 @@ import utime
 import chart
 import colors
 import re
+import textbox
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
+
+def wind_speed_to_beaufort(wind_speed_ms):
+    """
+    Convert wind speed in m/s to Beaufort scale number.
+    Uses the empirical relationship: v = 0.836 * B^(3/2) m/s
+    Solving for B: B = (v / 0.836)^(2/3)
+    """
+    if wind_speed_ms is None or wind_speed_ms < 0:
+        return 0
+    
+    # Calculate Beaufort number using the inverse formula
+    beaufort = (wind_speed_ms / 0.836) ** (2/3)
+    
+    # Round to nearest integer and clamp to valid range
+    beaufort_rounded = round(beaufort)
+    
+    # Clamp to valid Beaufort scale range (0-12, with 12+ for hurricane force)
+    if beaufort_rounded < 0:
+        return 0
+    elif beaufort_rounded > 12:
+        return 12
+    else:
+        return beaufort_rounded
 
 class RainDisplay:
     def __init__(self, display, url, rtc=None):
@@ -34,7 +58,14 @@ class RainDisplay:
             await asyncio.sleep(300)
         
     def should_activate(self):
-        return True
+        if not self.weather_data:
+            return False
+        
+        # Check if any rain chances are above 5% OR any Beaufort scale is 4 or higher (moderate breeze+)
+        has_rain = not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
+        has_high_wind = any(wind_speed_to_beaufort(hour_data['wind']) >= 4 for hour_data in self.weather_data)
+        
+        return has_rain or has_high_wind
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -97,41 +128,33 @@ class RainDisplay:
             await writer.wait_closed()
             
             raw_data = ujson.loads(content.decode('utf-8'))
-            
+
             # Convert flat array to structured data
-            # Format: [rain_prob, humidity, rain_prob, humidity, ...]
+            # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
             self.weather_data = []
             current_hour = utime.localtime()[3]  # Get current hour
-            for i in range(0, len(raw_data), 2):
-                if i + 1 < len(raw_data):
+            for i in range(0, len(raw_data), 3):
+                if i + 2 < len(raw_data):
                     rain_prob = raw_data[i]
-                    humidity = raw_data[i + 1]
-                    hour_offset = i // 2
+                    rate_mmh = raw_data[i + 1]
+                    wind_speed = raw_data[i + 2]
+                    hour_offset = i // 3
                     actual_hour = (current_hour + hour_offset) % 24
                     self.weather_data.append({
                         'hour': actual_hour,  # Actual hour
                         'r': rain_prob,  # Rain probability
-                        'humidity': humidity  # Humidity
+                        'rate': rate_mmh,  # Rate mm/h
+                        'wind': wind_speed  # Wind speed 10m
                     })
             
             print(f"Weather data fetched: {len(self.weather_data)} hours")
             for hour_data in self.weather_data:
-                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Humidity {hour_data['humidity']}%")
+                beaufort_number = wind_speed_to_beaufort(hour_data['wind'])
+                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Rate {hour_data['rate']} mm/h, Wind {hour_data['wind']} m/s (Bft {beaufort_number})")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
        
-    def draw_text(self, text, x, y, width, scale=1):
-        text_width = self.display.measure_text(text, scale)
-        text_height = scale * 8
-
-        text_x = int(width * 0.5 - text_width * 0.5)
-        
-        half_height = text_height * 0.5
-        
-        self.display.text(text, int(text_x + x), int(y + half_height), scale=scale)
-        
-        return int(text_height)
         
     def update(self):
         if self.is_active == False:
@@ -146,70 +169,80 @@ class RainDisplay:
         if len(self.weather_data) == 0:
             return
         
+        # Clear the display area
         y_start = 70
-               
+        key_width = 30
+        data_width = self.display_width - key_width
+        column_width = data_width / (len(self.weather_data) - 1)
+        
         self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
-
-        self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(0, y_start + 35, self.display_width, 2)
         
-        self.display.set_font('bitmap8')
-
-        column_width = self.display_width // (len(self.weather_data) - 1)
+        # Draw key column
+        self.display.set_pen(self.display.create_pen(32, 32, 32))
+        self.display.rectangle(0, y_start, key_width, self.display_height - y_start)
+        
+        # Define row positions with proper spacing
+        hour_row_y = y_start
+        precip_row_y = y_start + 30
+        chart_y = y_start + 60
+        wind_row_y = self.display_height - 20  # Position wind speed near bottom of screen
+        chart_height = wind_row_y - chart_y - 5
+        
+        # Draw key labels
+        self.display.set_pen(self.display.create_pen(255, 255, 255))
+        textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, font='bitmap8', scale=2)
+        
+        # Draw separator lines
+        self.display.set_pen(self.display.create_pen(64, 64, 64))
+        self.display.rectangle(key_width, precip_row_y - 10, data_width, 2)
+        self.display.rectangle(key_width, chart_y - 10, data_width, 2)
+        
+        # Draw data for each hour
         for i, hour_data in enumerate(self.weather_data):
             if i == len(self.weather_data) - 1:
                 continue
 
             hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
-            rain_chance = hour_data['r']
-            humidity = hour_data['humidity']
+            rate_mmh = hour_data['rate']
+            wind_speed = hour_data['wind']
             
-            sx = i * column_width
-            sy = y_start
+            sx = int(key_width + i * column_width)
             
+            # Draw vertical separator
             if i > 0:
                 self.display.set_pen(self.display.create_pen(64, 64, 64))
-                self.display.rectangle(sx, sy, 2, self.display_height - y_start)
+                self.display.rectangle(sx, y_start, 2, self.display_height - y_start)
             
+            # Hour numbers
             self.display.set_pen(self.display.create_pen(255, 255, 255))
-            self.draw_text(f"{hour_number}", sx, sy, column_width, scale=2)
+            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, int(column_width), 16, font='bitmap8', scale=2)
             
-            sy += 35
+            # Precipitation amount
+            if rate_mmh > 0:
+                precip_color = colors.get_color_for_precip_rate(rate_mmh)
+            else:
+                precip_color = (100, 100, 100)
+            self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
+            textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, font='bitmap8', scale=2)
             
-            max_column_height = 70
-            
-            rain_color = colors.get_color_for_rain_percentage(rain_chance)
-            self.display.set_pen(self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]))
-            self.draw_text(f"{rain_chance}%", sx, sy + max_column_height + 5, column_width, scale=2)
-            
-            self.display.set_pen(self.display.create_pen(117, 150, 148))
-            
-            sy += max_column_height + 30
-            
-            humidity_color = colors.get_color_for_humidity(humidity)
-            self.display.set_pen(self.display.create_pen(humidity_color[0], humidity_color[1], humidity_color[2]))
-            self.draw_text(f"{humidity:.0f}%", sx, sy, column_width, scale=2)
+            # Beaufort scale
+            beaufort_number = wind_speed_to_beaufort(wind_speed)
+            beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
+            self.display.set_pen(self.display.create_pen(beaufort_color[0], beaufort_color[1], beaufort_color[2]))
+            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, int(column_width), 16, font='bitmap8', scale=2)
 
-        chart_y = y_start + 45
-        chart_height = 60
+        # Draw chart
+        normalized_data = [hour['r'] / 100 for hour in self.weather_data]
+        def rain_color_fn(idx, value):
+            return colors.get_color_for_rain_percentage(int(value))
 
-        self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(0, chart_y + chart_height, self.display_width, 2)
-
-        polygon = []
-        polygon.append((0, chart_y + chart_height))
-
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.weather_data], 32):
-            polygon.append((int(px), int(py)))
-
-        polygon.append((self.display_width, chart_y + chart_height))
-
-        self.display.set_pen(self.display.create_pen(117, 150, 148))
-        self.display.polygon(polygon)
-
-        self.display.set_pen(self.display.create_pen(174, 220, 216))
-        for px, py in chart.draw_chart(0, chart_y, self.display_width, chart_height, [hour['r'] / 100 for hour in self.weather_data]):
-            self.display.circle(int(px), int(py), 2)
+        chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
+                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn)
+        chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
+                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn, radius=2)
 
         self.display.update()
