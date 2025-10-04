@@ -7,7 +7,7 @@ try:
 except AttributeError:
     from threadsafeflag import ThreadSafeFlag
 
-from httpstream import parse_url
+from httpstream import parse_url, stream_reader_to_buffer
 
 class RemoteDisplay:
     def __init__(self, display, url, refresh_period=1, start_offset=0):
@@ -107,25 +107,9 @@ class RemoteDisplay:
             # Get direct access to the display framebuffer with offset
             framebuffer = memoryview(self.display)[self.start_offset:]
             
-            # Stream data directly into framebuffer - read until no more data
-            bytes_read = 0
-            if hasattr(reader, 'readinto'):
-                # MicroPython - keep reading chunks until no more data
-                while bytes_read < len(framebuffer):
-                    remaining_buffer = framebuffer[bytes_read:]
-                    chunk_bytes = await reader.readinto(remaining_buffer)
-                    if chunk_bytes is None or chunk_bytes == 0:
-                        break
-                    bytes_read += chunk_bytes
-            else:
-                # CPython - keep reading until no more data
-                while bytes_read < len(framebuffer):
-                    chunk = await reader.read(len(framebuffer) - bytes_read)
-                    if not chunk:
-                        break
-                    chunk_len = len(chunk)
-                    framebuffer[bytes_read:bytes_read + chunk_len] = chunk
-                    bytes_read += chunk_len
+            # Stream data directly into framebuffer using shared method
+            await stream_reader_to_buffer(reader, framebuffer)
+            
             writer.close()
             await writer.wait_closed()
             

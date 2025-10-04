@@ -47,3 +47,34 @@ def parse_url(url):
         return URI(host, int(port), path if path else '/', secure, protocol)
     raise ValueError('Invalid URL format')
 
+async def stream_reader_to_buffer(reader, framebuffer):
+    """
+    Stream data from a reader directly into a framebuffer.
+    
+    Args:
+        reader: The async reader to read from
+        framebuffer (memoryview): The framebuffer to stream data into
+        
+    Returns:
+        int: Number of bytes read
+    """
+    bytes_read = 0
+    if hasattr(reader, 'readinto'):
+        # MicroPython - keep reading chunks until no more data
+        while bytes_read < len(framebuffer):
+            remaining_buffer = framebuffer[bytes_read:]
+            chunk_bytes = await reader.readinto(remaining_buffer)
+            if chunk_bytes is None or chunk_bytes == 0:
+                break
+            bytes_read += chunk_bytes
+    else:
+        # CPython - keep reading until no more data
+        while bytes_read < len(framebuffer):
+            chunk = await reader.read(len(framebuffer) - bytes_read)
+            if not chunk:
+                break
+            chunk_len = len(chunk)
+            framebuffer[bytes_read:bytes_read + chunk_len] = chunk
+            bytes_read += chunk_len
+    return bytes_read
+
