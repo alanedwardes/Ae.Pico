@@ -2,7 +2,7 @@ import re
 from collections import namedtuple
 
 URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
-URI = namedtuple('URI', ('hostname', 'port', 'path', 'use_ssl'))
+URI = namedtuple('URI', ('hostname', 'port', 'path', 'secure'))
 
 def parse_url(url):
     """
@@ -12,11 +12,11 @@ def parse_url(url):
         url (str): The URL to parse
         
     Returns:
-        URI: Named tuple with (hostname, port, path, use_ssl) where:
+        URI: Named tuple with (hostname, port, path, secure) where:
             - hostname (str): The hostname
             - port (int): The port number
             - path (str): The path (defaults to '/' if None)
-            - use_ssl (bool): True if HTTPS, False if HTTP
+            - secure (bool): True if HTTPS, False if HTTP
             
     Raises:
         ValueError: If the URL format is invalid or scheme is not http/https

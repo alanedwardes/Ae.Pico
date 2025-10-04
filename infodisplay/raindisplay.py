@@ -9,8 +9,8 @@ import chart
 import colors
 import re
 import textbox
+from httpstream import parse_url
 
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
 
 def wind_speed_to_beaufort(wind_speed_ms):
     """
@@ -72,32 +72,14 @@ class RainDisplay:
         if self.is_active:
             self.update()
     
-    def parse_url(self, url):
-        match = URL_RE.match(url)
-        if match:
-            protocol = match.group(1)
-            host = match.group(2)
-            port = match.group(3)
-            path = match.group(4)
-
-            if protocol == 'https':
-                if port is None:
-                    port = 443
-            elif protocol == 'http':
-                if port is None:
-                    port = 80
-            else:
-                raise ValueError('Scheme {} is invalid'.format(protocol))
-
-            return (host, int(port), path if path else '/', protocol == 'https')
-        raise ValueError('Invalid URL format')
     
     async def fetch_weather_data(self):
         try:               
             url = self.url
-            host, port, path, use_ssl = self.parse_url(url)
+            uri = parse_url(url)
+            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
             
-            reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
+            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
             
             # Write HTTP request
             writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))

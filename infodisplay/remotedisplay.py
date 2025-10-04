@@ -7,7 +7,7 @@ try:
 except AttributeError:
     from threadsafeflag import ThreadSafeFlag
 
-from libraries.httpstream import parse_url
+from httpstream import parse_url
 
 class RemoteDisplay:
     def __init__(self, display, url, refresh_period=1, start_offset=0):
@@ -71,9 +71,9 @@ class RemoteDisplay:
         try:
             url = self.url
             uri = parse_url(url)
-            host, port, path, use_ssl = uri.hostname, uri.port, uri.path, uri.use_ssl
+            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
             
-            reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
+            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
             
             # Write HTTP request
             writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))

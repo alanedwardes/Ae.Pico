@@ -6,7 +6,7 @@ try:
 except AttributeError:
     from threadsafeflag import ThreadSafeFlag
 
-from libraries.httpstream import parse_url
+from httpstream import parse_url
 
 class HassMediaDisplay:
     def __init__(self, display, hass, entity_id, background_converter, start_offset=0):
@@ -104,9 +104,9 @@ class HassMediaDisplay:
             # Construct the background converter URL with the image source
             converter_url = f"{self.background_converter}&src={self.current_image_url}"
             uri = parse_url(converter_url)
-            host, port, path, use_ssl = uri.hostname, uri.port, uri.path, uri.use_ssl
+            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
             
-            reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
+            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
             
             # Write HTTP request
             writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
