@@ -1,13 +1,12 @@
 import asyncio
 import utime
-import re
 
 try:
     ThreadSafeFlag = asyncio.ThreadSafeFlag
 except AttributeError:
     from threadsafeflag import ThreadSafeFlag
 
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
+from libraries.httpstream import parse_url
 
 class HassMediaDisplay:
     def __init__(self, display, hass, entity_id, background_converter, start_offset=0):
@@ -90,25 +89,6 @@ class HassMediaDisplay:
         # The main loop in start() handles the refresh timing
         pass
     
-    def parse_url(self, url):
-        match = URL_RE.match(url)
-        if match:
-            protocol = match.group(1)
-            host = match.group(2)
-            port = match.group(3)
-            path = match.group(4)
-
-            if protocol == 'https':
-                if port is None:
-                    port = 443
-            elif protocol == 'http':
-                if port is None:
-                    port = 80
-            else:
-                raise ValueError('Scheme {} is invalid'.format(protocol))
-
-            return (host, int(port), path if path else '/', protocol == 'https')
-        raise ValueError('Invalid URL format')
     
     async def fetch_framebuffer(self):
         if not self.current_image_url:
@@ -123,7 +103,8 @@ class HassMediaDisplay:
         try:
             # Construct the background converter URL with the image source
             converter_url = f"{self.background_converter}&src={self.current_image_url}"
-            host, port, path, use_ssl = self.parse_url(converter_url)
+            uri = parse_url(converter_url)
+            host, port, path, use_ssl = uri.hostname, uri.port, uri.path, uri.use_ssl
             
             reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
             

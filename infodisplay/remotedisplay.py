@@ -1,14 +1,13 @@
 import asyncio
 import utime
 import socket
-import re
 
 try:
     ThreadSafeFlag = asyncio.ThreadSafeFlag
 except AttributeError:
     from threadsafeflag import ThreadSafeFlag
 
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
+from libraries.httpstream import parse_url
 
 class RemoteDisplay:
     def __init__(self, display, url, refresh_period=1, start_offset=0):
@@ -61,25 +60,6 @@ class RemoteDisplay:
         # The main loop in start() handles the refresh timing
         pass
     
-    def parse_url(self, url):
-        match = URL_RE.match(url)
-        if match:
-            protocol = match.group(1)
-            host = match.group(2)
-            port = match.group(3)
-            path = match.group(4)
-
-            if protocol == 'https':
-                if port is None:
-                    port = 443
-            elif protocol == 'http':
-                if port is None:
-                    port = 80
-            else:
-                raise ValueError('Scheme {} is invalid'.format(protocol))
-
-            return (host, int(port), path if path else '/', protocol == 'https')
-        raise ValueError('Invalid URL format')
     
     async def fetch_framebuffer(self):
         start_fetch_ms = utime.ticks_ms()
@@ -90,7 +70,8 @@ class RemoteDisplay:
     async def __fetch_framebuffer(self):
         try:
             url = self.url
-            host, port, path, use_ssl = self.parse_url(url)
+            uri = parse_url(url)
+            host, port, path, use_ssl = uri.hostname, uri.port, uri.path, uri.use_ssl
             
             reader, writer = await asyncio.open_connection(host, port, ssl=use_ssl)
             
