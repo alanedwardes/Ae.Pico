@@ -2,7 +2,7 @@ import re
 from collections import namedtuple
 
 # Support multiple protocols
-URL_RE = re.compile(r'(http|https|ws|wss|ntp)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
+URL_RE = re.compile(r'(http|https|ws|wss|ntp)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(/.*)?')
 URI = namedtuple('URI', ('hostname', 'port', 'path', 'secure', 'protocol'))
 
 def parse_url(url):
