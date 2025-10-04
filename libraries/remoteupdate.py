@@ -1,9 +1,8 @@
 import gc
-import re
 import asyncio
 import os
 import hashlib
-from collections import namedtuple
+from httpstream import parse_url
 
 try:
     from micropython import const
@@ -48,27 +47,6 @@ def path_join(*paths):
         result = result.replace('//', '/')
     return result
 
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
-URI = namedtuple('URI', ('hostname', 'port', 'path'))
-
-def urlparse(uri):
-    match = URL_RE.match(uri)
-    if match:
-        protocol = match.group(1)
-        host = match.group(2)
-        port = match.group(3)
-        path = match.group(4)
-
-        if protocol == 'https':
-            if port is None:
-                port = 443
-        elif protocol == 'http':
-            if port is None:
-                port = 80
-        else:
-            raise ValueError('Scheme {} is invalid'.format(protocol))
-
-        return URI(host.encode('ascii'), int(port), b'/' if path is None else path.encode('utf-8'))
 
 class ManifestDownloader:
     """Handles downloading and parsing manifest files, and downloading individual files."""
@@ -76,8 +54,8 @@ class ManifestDownloader:
     async def get_manifest(self, manifest_url):
         """Download and parse a manifest file, returning a list of (filename, expected_hash, download_url) tuples."""
         # Parse the manifest URL to get the base folder
-        manifest_uri = urlparse(manifest_url)
-        manifest_path = manifest_uri.path.decode('utf-8')
+        manifest_uri = parse_url(manifest_url)
+        manifest_path = manifest_uri.path
         
         # Extract the base folder (everything before the filename)
         path_parts = manifest_path.split('/')
@@ -97,7 +75,7 @@ class ManifestDownloader:
                 filename, expected_hash = parts
                 
                 # Construct the download URL
-                download_url = f"http{'s' if manifest_uri.port == 443 else ''}://{manifest_uri.hostname.decode('ascii')}:{manifest_uri.port}{base_folder}/{filename}"
+                download_url = f"http{'s' if manifest_uri.port == 443 else ''}://{manifest_uri.hostname}:{manifest_uri.port}{base_folder}/{filename}"
                 
                 file_list.append((filename, expected_hash, download_url))
         
@@ -136,7 +114,7 @@ class ManifestDownloader:
     
     async def _download_content(self, url):
         """Download content from a URL and return it as a string."""
-        uri = urlparse(url)
+        uri = parse_url(url)
         
         reader, writer = await asyncio.open_connection(
             uri.hostname, 
@@ -172,9 +150,9 @@ class ManifestDownloader:
             await self.download_file(url, destination_folder, None)
     
     async def download_file(self, url, destination_folder, expected_hash):
-        uri = urlparse(url)
+        uri = parse_url(url)
         
-        path_parts = uri.path.decode('utf-8').split('/')
+        path_parts = uri.path.split('/')
         filename = path_parts[-1]
         
         destination_path = path_join(destination_folder, filename)
@@ -213,8 +191,8 @@ class ManifestDownloader:
         return filename
     
     def _write_http_request(self, writer, uri):
-        writer.write(b'GET %s HTTP/1.0\r\n' % uri.path)
-        writer.write(b'Host: %s\r\n' % uri.hostname)
+        writer.write(b'GET %s HTTP/1.0\r\n' % uri.path.encode('utf-8'))
+        writer.write(b'Host: %s\r\n' % uri.hostname.encode('utf-8'))
         writer.write(b'Connection: close\r\n')
         writer.write(b'\r\n')
     

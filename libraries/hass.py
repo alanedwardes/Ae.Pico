@@ -3,36 +3,13 @@ try:
 except ModuleNotFoundError:
     import json as ujson
 
-import re
 import asyncio
-from collections import namedtuple
-
-URL_RE = re.compile(r'(http|https)://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
-URI = namedtuple('URI', ('hostname', 'port', 'path'))
-
-def urlparse(uri):
-    match = URL_RE.match(uri)
-    if match:
-        protocol = match.group(1)
-        host = match.group(2)
-        port = match.group(3)
-        path = match.group(4)
-
-        if protocol == 'https':
-            if port is None:
-                port = 443
-        elif protocol == 'http':
-            if port is None:
-                port = 80
-        else:
-            raise ValueError('Scheme {} is invalid'.format(protocol))
-
-        return URI(host.encode('ascii'), int(port), b'/' if path is None else path.encode('utf-8'))
+from httpstream import parse_url
 
 class Hass:
     
     def __init__(self, endpoint, token, keep_alive = False):
-        self.uri = urlparse(endpoint)
+        self.uri = parse_url(endpoint)
         self.token = token
         self.keep_alive = keep_alive
         
@@ -111,8 +88,8 @@ class Hass:
         return content
     
     def write_protocol(self, writer, method, path):
-        writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self.uri.path, path))
-        writer.write(b'Host: %s\r\n' % self.uri.hostname)
+        writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self.uri.path.encode('utf-8'), path))
+        writer.write(b'Host: %s\r\n' % self.uri.hostname.encode('utf-8'))
 
     def write_auth_header(self, writer):
         writer.write(b'Authorization: Bearer %s\r\n' % self.token.encode('utf-8'))

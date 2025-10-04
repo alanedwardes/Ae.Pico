@@ -1,28 +1,12 @@
-import re
 import utime
 import struct
 import socket
 import asyncio
-from collections import namedtuple
-
-URL_RE = re.compile(r'ntp://([A-Za-z0-9-\.]+)(?:\:([0-9]+))?(.+)?')
-URI = namedtuple('URI', ('hostname', 'port', 'path'))
-
-def urlparse(uri):
-    match = URL_RE.match(uri)
-    if match:
-        host = match.group(1)
-        port = match.group(2)
-        path = match.group(3)
-
-        if port is None:
-            port = 123
-
-        return URI(host.encode('ascii'), int(port), b'/' if path is None else path.encode('utf-8'))
+from httpstream import parse_url
 
 class RemoteTime:
     def __init__(self, endpoint, update_time_ms, nic):
-        self.uri = urlparse(endpoint)
+        self.uri = parse_url(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
         
