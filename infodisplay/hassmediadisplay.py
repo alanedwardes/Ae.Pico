@@ -4,13 +4,13 @@ import utime
 from httpstream import parse_url, stream_reader_to_buffer
 
 class HassMediaDisplay:
-    def __init__(self, display, hass, entity_id, background_converter, start_offset=0, event_bus=None):
+    def __init__(self, display, hass, event_bus, entity_id, background_converter, start_offset=0):
         self.display = display
         self.hass = hass
+        self.event_bus = event_bus
         self.entity_id = entity_id
         self.background_converter = background_converter
         self.start_offset = start_offset
-        self.event_bus = event_bus
         self.current_image_url = None
         self.entity = None
         self.prev_state = None
@@ -20,14 +20,13 @@ class HassMediaDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['media']
-        event_bus = provider.get('eventbus.EventBus') or provider.get('libraries.eventbus.EventBus')
         return HassMediaDisplay(
             provider['display'],
             provider['hassws.HassWs'],
+            provider['eventbus.EventBus'],
             config['entity_id'],
             config['background_converter'],
-            config.get('start_offset', 0),
-            event_bus
+            config.get('start_offset', 0)
         )
     
     def entity_updated(self, entity_id, entity):
@@ -42,7 +41,7 @@ class HassMediaDisplay:
         # Check if media is playing and has an image
         state = entity.get('s', '')
         attributes = entity.get('a', {})
-        entity_picture = attributes.get('entity_picture')
+        entity_picture = attributes.get('entity_picture_local') or attributes.get('entity_picture')
         
         # Check if media just started playing (state changed to 'playing')
         if self.prev_state is not None and self.prev_state != 'playing' and state == 'playing':
@@ -60,7 +59,7 @@ class HassMediaDisplay:
             self.current_image_url = None
         
         # Request focus if media just started playing
-        if should_request_focus and self.event_bus is not None:
+        if should_request_focus:
             self.event_bus.publish('focus.request', {
                 'instance': self,
                 'hold_ms': 5000  # Show for 5 seconds when media starts
@@ -82,7 +81,7 @@ class HassMediaDisplay:
         # Check if media is playing and has an image
         state = self.entity.get('s', '')
         attributes = self.entity.get('a', {})
-        entity_picture = attributes.get('entity_picture')
+        entity_picture = attributes.get('entity_picture_local') or attributes.get('entity_picture')
         
         return state == 'playing' and entity_picture is not None
 
