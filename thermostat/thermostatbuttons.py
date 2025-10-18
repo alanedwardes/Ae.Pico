@@ -2,9 +2,10 @@ import asyncio
 from machine import Pin
 
 class ThermostatButtons:
-    def __init__(self, hass, thermostat_entity_id):
+    def __init__(self, hass, thermostat_entity_id, default_max_temp = None):
         self.hass = hass
         self.thermostat_entity_id = thermostat_entity_id
+        self.default_max_temp = default_max_temp
         self.debounce_ms = 250
         self.polling_rate_ms = 10
         self.a = Pin(12, Pin.IN, Pin.PULL_UP)
@@ -14,7 +15,12 @@ class ThermostatButtons:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return ThermostatButtons(provider['hassws.HassWs'], provider['config']['thermostat']['entity_id'])
+        thermostat_config = provider['config']['thermostat']
+        return ThermostatButtons(
+            provider['hassws.HassWs'],
+            thermostat_config['entity_id'],
+            thermostat_config.get('default_max_temp')
+        )
     
     async def start(self):
         while True:
@@ -36,7 +42,7 @@ class ThermostatButtons:
         if pin == self.b:
             new_temp = min_temp
         elif pin == self.a:
-            new_temp = max_temp
+            new_temp = self.default_max_temp if self.default_max_temp is not None else max_temp
         elif pin == self.x:
             new_temp += step
         elif pin == self.y:
