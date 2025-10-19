@@ -17,6 +17,18 @@ class SolarDisplay:
         self.current_solar = None
         self.current_load = None
     
+    def format_power(self, value):
+        try:
+            v = float(value)
+        except (ValueError, TypeError):
+            return "?"
+        sign = "-" if v < 0 else ""
+        abs_v = abs(v)
+        if abs_v >= 1000:
+            return f"{sign}{abs_v / 1000:.2f}kW"
+        else:
+            return f"{sign}{abs_v:.0f}W"
+    
     CREATION_PRIORITY = 1
     def create(provider):
         return SolarDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['solar'])
@@ -37,9 +49,9 @@ class SolarDisplay:
     async def start(self):
         # Subscribe to all solar entities
         entity_list = [self.entity_ids['battery_soc'], 
-                      self.entity_ids['current_grid'], 
-                      self.entity_ids['current_solar'],
-                      self.entity_ids['current_load']]
+                    self.entity_ids['current_grid'], 
+                    self.entity_ids['current_solar'],
+                    self.entity_ids['current_load']]
         await self.hass.subscribe(entity_list, self.entity_updated)
         await asyncio.Event().wait()
     
@@ -130,7 +142,7 @@ class SolarDisplay:
             try:
                 solar_value = float(self.current_solar)
                 self.display.set_pen(orange)
-                solar_text = f"{solar_value:.0f}W"
+                solar_text = self.format_power(solar_value)
                 textbox.draw_textbox(self.display, solar_text, x_right, y_top, item_width - 20, 40, font='bitmap8', scale=3)
                 
                 self.display.set_pen(white)
@@ -144,18 +156,19 @@ class SolarDisplay:
         if self.current_grid is not None:
             try:
                 grid_value = float(self.current_grid)
-                # Green for export (negative), red for import (positive)
-                if grid_value < 0:
-                    grid_color = green  # Exporting to grid
+                if grid_value > 0:
+                    grid_color = green
+                elif grid_value < 0:
+                    grid_color = red
                 else:
-                    grid_color = red    # Importing from grid
+                    grid_color = white
                 
                 self.display.set_pen(grid_color)
-                grid_text = f"{abs(grid_value):.0f}W"
+                grid_text = self.format_power(grid_value)
                 textbox.draw_textbox(self.display, grid_text, x_left, y_bottom, item_width - 20, 40, font='bitmap8', scale=3)
                 
                 self.display.set_pen(white)
-                if grid_value < 0:
+                if grid_value > 0:
                     textbox.draw_textbox(self.display, "EXPORT", x_left, y_bottom + 35, item_width - 20, 25, font='bitmap8', scale=2)
                 else:
                     textbox.draw_textbox(self.display, "IMPORT", x_left, y_bottom + 35, item_width - 20, 25, font='bitmap8', scale=2)
@@ -169,7 +182,7 @@ class SolarDisplay:
             try:
                 load_value = float(self.current_load)
                 self.display.set_pen(blue)
-                load_text = f"{load_value:.0f}W"
+                load_text = self.format_power(load_value)
                 textbox.draw_textbox(self.display, load_text, x_right, y_bottom, item_width - 20, 40, font='bitmap8', scale=3)
                 
                 self.display.set_pen(white)
