@@ -44,6 +44,7 @@ class HassGeiger:
         while True:
             await asyncio.sleep_ms(self.update_time_ms)
             
-            value = self.click_tracker.get_clicks_per_minute() / self.cpm_ratio            
-            await self.hass.send_update(value, "μSv/h", None, self.friendly_name, self.sensor)
+            cpm = self.click_tracker.get_clicks_per_minute()
+            await self.hass.send_update(cpm / self.cpm_ratio, "μSv/h", None, self.friendly_name, self.sensor)
+            await self.hass.send_update(cpm, "CPM", None, self.friendly_name + " CPM", self.sensor + "_cpm")
             self.click_tracker = ClickTracker()
