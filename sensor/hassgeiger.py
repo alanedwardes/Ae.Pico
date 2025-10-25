@@ -10,8 +10,8 @@ class ClickTracker:
     def get_ms_since_start(self):
         return utime.ticks_diff(utime.ticks_ms(), self.started_time)
     
-    # To derive the μSv/h value, multiply this value by tube's
-    # specific CPM ratio (e.g. 153.8 for the tube M4011)
+    # To derive the μSv/h value, divide CPM by the tube's
+    # CPM-per-μSv/h ratio (e.g. 153.8 for the tube M4011)
     def get_clicks_per_minute(self):
         total_time = self.get_ms_since_start()
 
