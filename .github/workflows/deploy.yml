@@ -19,8 +19,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r cpython/requirements.txt
       - name: run unit tests
+        working-directory: tests
         run: |
-          python -m unittest discover -s tests -p "*_tests.py"
+          python -m unittest discover -s . -p "*_tests.py"
   deploy:
     runs-on: ubuntu-latest
     needs: test
