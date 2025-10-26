@@ -96,5 +96,8 @@ def unique_id():
 
 class RTC:
     def datetime(self, *args):
-        now = datetime.datetime.now()
+        if len(args) > 0:
+            print("machine.RTC.datetime called with args: ", args)
+        
+        now = datetime.datetime.utcnow()
         return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, 0)

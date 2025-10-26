@@ -5,10 +5,12 @@ import asyncio
 from httpstream import parse_url
 
 class RemoteTime:
-    def __init__(self, endpoint, update_time_ms, nic):
+    def __init__(self, endpoint, update_time_ms, nic, offset_seconds=0, dst_delegate=None):
         self.uri = parse_url(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
+        self.offset_seconds = offset_seconds
+        self.dst_delegate = dst_delegate
         
         tm = utime.gmtime(0)
         self.last_update = utime.ticks_ms()
@@ -16,15 +18,23 @@ class RemoteTime:
 
     def create(provider):
         config = provider['config']['remotetime']
-        return RemoteTime(config['endpoint'], config['update_time_ms'], provider['nic'])
+        tz = config.get('timezone', {})
+
+        return RemoteTime(
+            config['endpoint'],
+            config['update_time_ms'],
+            provider.get('nic'),
+            tz.get('offset_seconds', 0),
+            tz.get('dst_delegate')
+        )
 
     async def start(self):
-        while not self.nic.isconnected():
-            await asyncio.sleep_ms(100)
+        while self.nic and not self.nic.isconnected():
+            await asyncio.sleep(0.1)
         
         while True:
             await self.update_time()
-            await asyncio.sleep_ms(self.update_time_ms)
+            await asyncio.sleep(self.update_time_ms / 1000)
 
     async def acquire_time(self):
         NTP_QUERY = bytearray(48)
@@ -88,3 +98,32 @@ class RemoteTime:
         self.last_update = utime.ticks_ms()
         import machine
         machine.RTC().datetime(self.last_timestamp)
+
+def last_sunday(year, month):
+    # March and October both have 31 days; this works generically
+    if month == 2:
+        y = int(year)
+        is_leap = (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0))
+        last_day = 29 if is_leap else 28
+    elif month in (1, 3, 5, 7, 8, 10, 12):
+        last_day = 31
+    else:
+        last_day = 30
+
+    for day in range(last_day, last_day - 7, -1):
+        # weekday: 0=Monday .. 6=Sunday
+        wd = utime.gmtime(utime.mktime((year, month, day, 0, 0, 0, 0, 0)))[6]
+        if wd == 6:
+            return day
+    return last_day
+
+def eu_uk_daylight_savings_offset_seconds(utc_seconds):
+    tm = utime.gmtime(utc_seconds)
+    year = tm[0]
+    # DST start: last Sunday in March at 01:00 UTC
+    start_day = last_sunday(year, 3)
+    start_utc = utime.mktime((year, 3, start_day, 1, 0, 0, 0, 0))
+    # DST end: last Sunday in October at 01:00 UTC
+    end_day = last_sunday(year, 10)
+    end_utc = utime.mktime((year, 10, end_day, 1, 0, 0, 0, 0))
+    return 3600 if (utc_seconds >= start_utc and utc_seconds < end_utc) else 0
