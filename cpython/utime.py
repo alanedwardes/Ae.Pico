@@ -1,4 +1,5 @@
 import time as _time
+import datetime as _dt
 
 
 MICROPY_PY_UTIME_TICKS_PERIOD = 2**30
@@ -12,6 +13,12 @@ clock = _time.process_time()
 
 def gmtime(t):
     return _time.gmtime(t)
+
+def mktime(t):
+    # Interpret the provided tuple as UTC and return seconds since Unix epoch.
+    # Accept an 8-tuple like MicroPython (ignore weekday/yearday fields if present).
+    y, mo, d, hh, mm, ss = t[0], t[1], t[2], t[3], t[4], t[5]
+    return int(_dt.datetime(y, mo, d, hh, mm, ss, tzinfo=_dt.timezone.utc).timestamp())
 
 def sleep_ms(t):
     _time.sleep(t / 1000)
