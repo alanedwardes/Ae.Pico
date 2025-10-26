@@ -13,7 +13,8 @@ class RemoteTime:
         self.dst_delegate = dst_delegate
         
         self.last_update = utime.ticks_ms()
-        self.last_timestamp = 0.0
+        self.base_seconds = 0
+        self.base_milliseconds = 0
 
     def create(provider):
         config = provider['config']['remotetime']
@@ -68,18 +69,20 @@ class RemoteTime:
 
         t = val - NTP_DELTA
 
-        latency_adjust_seconds = receive_milliseconds / 1000.0
+        network_delay_ms = receive_milliseconds // 2
         fractional_ms = (val2 * 1000) // 0x100000000
-
-        return t + (fractional_ms / 1000.0) + latency_adjust_seconds
+        total_ms = fractional_ms + network_delay_ms
+        carry, milliseconds = divmod(total_ms, 1000)
+        seconds = t + carry
+        return seconds, milliseconds
     
     # Provides a method compatible with machine.RTC to obtain the time
     # Provides millisecond resolution (whereas on some ports machine.RTC does not)
     def datetime(self):
         elapsed_ms = utime.ticks_diff(utime.ticks_ms(), self.last_update)
-        ts = self.last_timestamp + (elapsed_ms / 1000.0)
-        seconds_utc = int(ts)
-        milliseconds = int((ts - seconds_utc) * 1000)
+        total_ms = self.base_milliseconds + elapsed_ms
+        carry, milliseconds = divmod(total_ms, 1000)
+        seconds_utc = self.base_seconds + carry
         dst_offset = self.dst_delegate(seconds_utc) if self.dst_delegate else 0
         local_seconds = seconds_utc + self.offset_seconds + dst_offset
         tm = utime.gmtime(local_seconds)
@@ -87,10 +90,10 @@ class RemoteTime:
         return (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], milliseconds)
     
     async def update_time(self):
-        self.last_timestamp = await self.acquire_time()
+        seconds, milliseconds = await self.acquire_time()
+        self.base_seconds = seconds
+        self.base_milliseconds = milliseconds
         self.last_update = utime.ticks_ms()
-        seconds = int(self.last_timestamp)
-        milliseconds = int((self.last_timestamp - seconds) * 1000)
         tm = utime.gmtime(seconds)
         rtc_tuple = (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], milliseconds)
         import machine
