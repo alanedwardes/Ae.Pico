@@ -1,6 +1,6 @@
 import sys
-sys.path.insert(1, '../libraries')
-sys.path.insert(1, '../shims')
+sys.path.insert(1, '../sensor')
+sys.path.insert(1, '../cpython')
 
 import unittest
 import utime

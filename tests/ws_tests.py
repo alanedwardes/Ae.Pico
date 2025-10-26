@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(1, '../shims')
 sys.path.insert(1, '../libraries')
 
 import unittest
