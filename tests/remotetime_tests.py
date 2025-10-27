@@ -37,7 +37,7 @@ class TestRemoteTime(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(29, remotetime.last_sunday(2023, 1))   # 2023-01-29
         self.assertEqual(25, remotetime.last_sunday(2024, 2))   # 2024-02-25 (leap year)
 
-    def test_eu_uk_daylight_savings_offset_seconds_boundaries(self):
+    def test_europe_daylight_saving_boundaries(self):
         for year in (2023, 2024, 2025):
             start_day = remotetime.last_sunday(year, 3)
             start_utc = utime.mktime((year, 3, start_day, 1, 0, 0, 0, 0))
@@ -45,25 +45,57 @@ class TestRemoteTime(unittest.IsolatedAsyncioTestCase):
             end_utc = utime.mktime((year, 10, end_day, 1, 0, 0, 0, 0))
 
             # Just before start => no DST
-            self.assertEqual(0, remotetime.eu_uk_daylight_savings_offset_seconds(start_utc - 1))
+            self.assertEqual(0, remotetime.europe_daylight_saving(start_utc - 1))
             # At start instant => DST
-            self.assertEqual(3600, remotetime.eu_uk_daylight_savings_offset_seconds(start_utc))
+            self.assertEqual(3600, remotetime.europe_daylight_saving(start_utc))
             # Mid-summer => DST
             mid_summer = utime.mktime((year, 7, 1, 12, 0, 0, 0, 0))
-            self.assertEqual(3600, remotetime.eu_uk_daylight_savings_offset_seconds(mid_summer))
+            self.assertEqual(3600, remotetime.europe_daylight_saving(mid_summer))
             # Just before end => DST
-            self.assertEqual(3600, remotetime.eu_uk_daylight_savings_offset_seconds(end_utc - 1))
+            self.assertEqual(3600, remotetime.europe_daylight_saving(end_utc - 1))
             # At end instant => no DST (end is exclusive)
-            self.assertEqual(0, remotetime.eu_uk_daylight_savings_offset_seconds(end_utc))
+            self.assertEqual(0, remotetime.europe_daylight_saving(end_utc))
             # After end => no DST
-            self.assertEqual(0, remotetime.eu_uk_daylight_savings_offset_seconds(end_utc + 1))
+            self.assertEqual(0, remotetime.europe_daylight_saving(end_utc + 1))
             # Mid-winter => no DST
             mid_winter = utime.mktime((year, 1, 15, 12, 0, 0, 0, 0))
-            self.assertEqual(0, remotetime.eu_uk_daylight_savings_offset_seconds(mid_winter))
+            self.assertEqual(0, remotetime.europe_daylight_saving(mid_winter))
 
     def test_last_sunday_extra_edges(self):
         self.assertEqual(31, remotetime.last_sunday(2023, 12))
         self.assertEqual(26, remotetime.last_sunday(2023, 2))
+
+    def test_last_sunday_properties(self):
+        for year in (2023, 2024, 2025):
+            for month in range(1, 13):
+                d = remotetime.last_sunday(year, month)
+                ts = utime.mktime((year, month, d, 0, 0, 0, 0, 0))
+                self.assertEqual(6, utime.gmtime(ts)[6])
+                if month == 12:
+                    ny, nm = year + 1, 1
+                else:
+                    ny, nm = year, month + 1
+                ts_next = utime.mktime((ny, nm, 1, 0, 0, 0, 0, 0))
+                ts_last = ts_next - 86400
+                last_day = utime.gmtime(ts_last)[2]
+                self.assertTrue(1 <= d <= last_day)
+                self.assertTrue(d + 7 > last_day)
+
+    def test_europe_daylight_saving_month_samples(self):
+        for year in (2023, 2024, 2025):
+            samples = [
+                ((1, 15), 0),
+                ((2, 15), 0),
+                ((3, 15), 0),
+                ((4, 15), 3600),
+                ((7, 15), 3600),
+                ((10, 15), 3600),
+                ((11, 15), 0),
+                ((12, 15), 0),
+            ]
+            for (m, d), expected in samples:
+                ts = utime.mktime((year, m, d, 12, 0, 0, 0, 0))
+                self.assertEqual(expected, remotetime.europe_daylight_saving(ts))
 
 if __name__ == '__main__':
     unittest.main()

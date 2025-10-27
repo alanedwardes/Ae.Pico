@@ -112,7 +112,7 @@ def last_sunday(year, month):
     delta = (wd_last - 6) % 7
     return last_day - delta
 
-def eu_uk_daylight_savings_offset_seconds(utc_seconds):
+def europe_daylight_saving(utc_seconds):
     tm = utime.gmtime(utc_seconds)
     year = tm[0]
     start_day = last_sunday(year, 3)
