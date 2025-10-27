@@ -99,16 +99,16 @@ class RemoteTime:
         import machine
         machine.RTC().datetime(rtc_tuple)
 
-def _is_leap(y):
-    return (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0))
-
-def _month_days(y):
-    return (31, 29 if _is_leap(y) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-
 def last_sunday(year, month):
-    last_day = _month_days(year)[month - 1]
-    ts = utime.mktime((year, month, last_day, 0, 0, 0, 0, 0))
-    wd_last = utime.gmtime(ts)[6]
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+    ts_next = utime.mktime((next_year, next_month, 1, 0, 0, 0, 0, 0))
+    ts_last = ts_next - 86400
+    tm_last = utime.gmtime(ts_last)
+    last_day = tm_last[2]
+    wd_last = tm_last[6]
     delta = (wd_last - 6) % 7
     return last_day - delta
 

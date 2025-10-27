@@ -61,5 +61,9 @@ class TestRemoteTime(unittest.IsolatedAsyncioTestCase):
             mid_winter = utime.mktime((year, 1, 15, 12, 0, 0, 0, 0))
             self.assertEqual(0, remotetime.eu_uk_daylight_savings_offset_seconds(mid_winter))
 
+    def test_last_sunday_extra_edges(self):
+        self.assertEqual(31, remotetime.last_sunday(2023, 12))
+        self.assertEqual(26, remotetime.last_sunday(2023, 2))
+
 if __name__ == '__main__':
     unittest.main()
