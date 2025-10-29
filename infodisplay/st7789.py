@@ -74,7 +74,7 @@ class ST7789(framebuf.FrameBuffer):
         super().__init__(buf, width, height, self.mode)
         self._linebuf = bytearray(self.width * 2)
         self._init(disp_mode, orientation, display[3:])
-        self.show()
+        self.update()
 
     # Hardware reset
     def _hwreset(self):
