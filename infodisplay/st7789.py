@@ -8,6 +8,7 @@ from time import sleep_ms
 import framebuf
 import gc
 import micropython
+from machine import PWM
 
 # User orientation constants
 # Waveshare Pico res touch defaults to portrait. Requires PORTRAIT for landscape orientation.
@@ -50,6 +51,7 @@ class ST7789(framebuf.FrameBuffer):
         cs,
         dc,
         rst=None,
+        backlight=None,
         height=240,
         width=240,
         disp_mode=LANDSCAPE,
@@ -62,6 +64,7 @@ class ST7789(framebuf.FrameBuffer):
         self._rst = rst  # Pins
         self._dc = dc
         self._cs = cs
+        self._backlight = backlight  # Backlight pin
         self.height = height  # Required by Writer class
         self.width = width
         self._offset = display[:2]  # display arg is (x, y, orientation)
@@ -75,6 +78,7 @@ class ST7789(framebuf.FrameBuffer):
         self._linebuf = bytearray(self.width * 2)
         self._init(disp_mode, orientation, display[3:])
         self.update()
+        self._backlight_pwm = None
 
     # Hardware reset
     def _hwreset(self):
@@ -208,3 +212,31 @@ class ST7789(framebuf.FrameBuffer):
 
     def __buffer__(self, flags):
         return self.mvb
+
+    def set_backlight(self, brightness):
+        """Set backlight brightness.
+        
+        Args:
+            brightness (float): Brightness level from 0.0 (off) to 1.0 (full brightness)
+        """
+        if self._backlight is None:
+            return  # No backlight pin configured
+            
+        # Clamp brightness to valid range (0.0 to 1.0)
+        brightness = max(0.0, min(1.0, float(brightness)))
+        
+        if brightness == 0.0:
+            # Turn off backlight completely
+            self._backlight.value(0)
+        elif brightness == 1.0:
+            # Full brightness - use digital output
+            self._backlight.value(1)
+        else:
+            # Use PWM for intermediate brightness levels
+            if self._backlight_pwm is None:
+                self._backlight_pwm = PWM(self._backlight)
+                self._backlight_pwm.freq(1000)  # 1kHz PWM frequency
+            
+            # Convert brightness (0.0-1.0) to duty cycle (0-65535)
+            duty = int(brightness * 65535)
+            self._backlight_pwm.duty_u16(duty)

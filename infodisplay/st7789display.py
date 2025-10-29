@@ -28,6 +28,7 @@ class ST7789Display:
             cs=cs,
             dc=dc,
             rst=rst,
+            backlight=backlight,
             height=HEIGHT,
             width=WIDTH,
             disp_mode=LANDSCAPE,
@@ -72,10 +73,6 @@ class ST7789Display:
         def polygon(points):
             display.poly(0, 0, array('h', [point for sublist in points for point in sublist]), display.pen, True)
         display.polygon = polygon
-        
-        def set_backlight(brightness):
-            pass
-        display.set_backlight = set_backlight
         
         def set_thickness(thickness):
             display.thickness = thickness
