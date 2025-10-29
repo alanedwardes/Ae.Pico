@@ -1,7 +1,7 @@
 # Forked from https://github.com/peterhinch/micropython-micro-gui/blob/main/drivers/st7789/st7789_8bit.py
 #
 # To write to the framebuffer directly from ffmpeg, you will need to use e.g.:
-# -vf "negate" -pix_fmt rgb565 (or rgb565le)
+# -pix_fmt rgb565 (or rgb565le)
 #
 
 from time import sleep_ms
