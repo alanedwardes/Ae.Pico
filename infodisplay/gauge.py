@@ -106,14 +106,14 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         # Reset pen to white for text and other UI elements
         display.set_pen(display.create_pen(255, 255, 255))
     
-    primary_scale = size[1] * (0.015 if secondary_temperature is None else 0.010)
+    primary_scale = size[1] * (0.06 if secondary_temperature is None else 0.03)
     primary_height = size[1] if secondary_temperature is None else size[1] * 0.85
-    textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, font='sans', scale=primary_scale)
+    textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, font='bitmap8', scale=primary_scale)
     
     if secondary_temperature is not None:
         secondary_text_y = position[1] + size[1] * 0.65
         secondary_text_height = size[1] * 0.2
-        textbox.draw_textbox(display, f'{secondary_temperature:.{secondary_decimals}f}', position[0], secondary_text_y, size[0], secondary_text_height, font='sans', scale=size[1] * 0.006)
+        textbox.draw_textbox(display, f'{secondary_temperature:.{secondary_decimals}f}', position[0], secondary_text_y, size[0], secondary_text_height, font='bitmap8', scale=size[1] * 0.006)
 
     
 
