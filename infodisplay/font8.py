@@ -1,3 +1,5 @@
+import math
+
 class Font8:
     height = 8
     max_width = 5
@@ -155,7 +157,7 @@ class Font8:
                 if (col_data >> row) & 1:
                     # Draw a scaled pixel (rectangle)
                     surface.rect(
-                        int(x + col * scale), int(y + row * scale), int(scale), int(scale),
+                        math.floor(x + col * scale), math.floor(y + row * scale), math.ceil(scale), math.ceil(scale),
                         color,
                         True
                     )
