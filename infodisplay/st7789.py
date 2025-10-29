@@ -188,7 +188,7 @@ class ST7789(framebuf.FrameBuffer):
         # Row address set
         self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
 
-    def show(self):
+    def update(self):
         wd = self.width
         ht = self.height
         if self._spi_init:
