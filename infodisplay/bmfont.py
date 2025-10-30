@@ -1,4 +1,5 @@
 import struct
+from bitblt import blit_region_scaled
 
 class BMFontChar:
     def __init__(self, char_id, x, y, width, height, xoffset, yoffset, xadvance, page, chnl):
@@ -89,47 +90,9 @@ class _PageBin:
         if self.row_bytes is None:
             self.row_bytes = self.width * bytes_per_pixel
 
-def _blit_glyph_to_fb(framebuffer, display_width, display_height, fb_row_bytes, bpp, page: _PageBin, sx, sy, sw, sh, dx, dy):
-    if sw <= 0 or sh <= 0:
-        return
-    if dx >= display_width or dy >= display_height:
-        return
-    if dx + sw <= 0 or dy + sh <= 0:
-        return
-    start_row = 0
-    if dy < 0:
-        start_row = -dy
-    end_row = sh
-    max_y = display_height - dy
-    if end_row > max_y:
-        end_row = max_y
-    left_clip = 0
-    if dx < 0:
-        left_clip = -dx
-    right_clip = 0
-    over_right = dx + sw - display_width
-    if over_right > 0:
-        right_clip = over_right
-    copy_width = sw - left_clip - right_clip
-    if copy_width <= 0:
-        return
-    for row in range(start_row, end_row):
-        fb_y = dy + row
-        if fb_y < 0 or fb_y >= display_height:
-            continue
-        src_x = sx + left_clip
-        src_y = sy + row
-        fb_x = dx + left_clip
-        src_offset = 4 + src_y * page.row_bytes + src_x * bpp
-        fb_offset = fb_y * fb_row_bytes + fb_x * bpp
-        mv = memoryview(framebuffer)[fb_offset : fb_offset + copy_width * bpp]
-        page.fh.seek(src_offset)
-        page.fh.readinto(mv)
-
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1):
     total_pixels = display_width * display_height
     bytes_per_pixel = len(framebuffer) // total_pixels
-    fb_row_bytes = display_width * bytes_per_pixel
     pages = {}
     if isinstance(page_files, str):
         page_files = [page_files]
@@ -158,10 +121,13 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
                 continue
             if prev_id is not None and kerning:
                 cx += font.kerning.get((prev_id, code), 0)
-            dest_x = cx + c.xoffset
-            dest_y = cy + c.yoffset
-            _blit_glyph_to_fb(framebuffer, display_width, display_height, fb_row_bytes, bytes_per_pixel, pages[c.page], c.x, c.y, c.width, c.height, dest_x, dest_y)
-            cx += c.xadvance
+            dest_x = cx + c.xoffset * scale_up // scale_down
+            dest_y = cy + c.yoffset * scale_up // scale_down
+            blit_region_scaled(framebuffer, display_width, display_height, bytes_per_pixel,
+                               pages[c.page].fh, 4, pages[c.page].row_bytes,
+                               c.x, c.y, c.width, c.height,
+                               dest_x, dest_y, scale_up=scale_up, scale_down=scale_down)
+            cx += (c.xadvance * scale_up) // scale_down
             prev_id = code
     finally:
         for p in pages.values():
@@ -207,6 +173,3 @@ def measure_text(font: BMFont, text: str, kerning=True):
             max_width = w
     height = lines * font.line_height
     return max_width, height
-
-def _bmfont_measure_text(self, text: str, kerning=True):
-    return measure_text(self, text, kerning=kerning)

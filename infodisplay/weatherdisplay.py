@@ -8,6 +8,7 @@ import utime
 import colors
 import struct
 import textbox
+from bitblt import blit_region_scaled
 
 from httpstream import parse_url
 
@@ -90,29 +91,25 @@ class WeatherDisplay:
         except Exception as e:
             print(f"Error fetching weather data: {e}")
     
-    def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height):
+    def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height, scale_up=1, scale_down=1):
         try:
             with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
                 icon_width, icon_height = struct.unpack('<HH', icon_file.read(4))
-                # Center the icon in the given box
-                icon_x = x + (box_width - icon_width) // 2
-                icon_y = y + (box_height - icon_height) // 2
+                # Center the icon in the given box (considering scale)
+                scaled_w = (icon_width // scale_down) * scale_up
+                scaled_h = (icon_height // scale_down) * scale_up
+                icon_x = x + (box_width - scaled_w) // 2
+                icon_y = y + (box_height - scaled_h) // 2
 
                 # Calculate bytes per pixel from framebuffer size and display dimensions
                 total_pixels = self.display_width * self.display_height
                 bytes_per_pixel = len(framebuffer) // total_pixels
 
                 icon_row_bytes = icon_width * bytes_per_pixel
-                fb_row_bytes = self.display_width * bytes_per_pixel
-
-                for row in range(icon_height):
-                    fb_y = row + icon_y
-                    if 0 <= fb_y < self.display_height:
-                        fb_start = fb_y * fb_row_bytes + icon_x * bytes_per_pixel
-                        mv = memoryview(framebuffer)[fb_start : fb_start + icon_row_bytes]
-                        icon_file.readinto(mv)
-                    else:
-                        icon_file.seek(icon_row_bytes, 1)
+                blit_region_scaled(framebuffer, self.display_width, self.display_height, bytes_per_pixel,
+                                   icon_file, 4, icon_row_bytes,
+                                   0, 0, icon_width, icon_height,
+                                   icon_x, icon_y, scale_up=scale_up, scale_down=scale_down)
         except OSError as e:
             print(f"Warning: Could not load icon '{icon_name}': {e}")
             return
