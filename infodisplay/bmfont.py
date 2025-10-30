@@ -1,18 +1,12 @@
 import struct
+import gc
+from collections import namedtuple
 from bitblt import blit_region_scaled
 
-class BMFontChar:
-    def __init__(self, char_id, x, y, width, height, xoffset, yoffset, xadvance, page, chnl):
-        self.char_id = char_id
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.xoffset = xoffset
-        self.yoffset = yoffset
-        self.xadvance = xadvance
-        self.page = page
-        self.chnl = chnl
+BMFontChar = namedtuple('BMFontChar', (
+    'char_id', 'x', 'y', 'width', 'height',
+    'xoffset', 'yoffset', 'xadvance', 'page', 'chnl'
+))
 
 class BMFont:
     def __init__(self):
@@ -35,10 +29,12 @@ class BMFont:
         return tuple(int(v) for v in s.split(","))
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, load_kerning=True):
         font = cls()
         with open(path, "r") as f:
-            for line in f:
+            for i, line in enumerate(f):
+                if (i & 31) == 0:
+                    gc.collect()
                 line = line.strip()
                 if not line:
                     continue
@@ -72,7 +68,7 @@ class BMFont:
                         chnl=int(args.get("chnl", 0)),
                     )
                     font.chars[c.char_id] = c
-                elif kind == "kerning":
+                elif kind == "kerning" and load_kerning:
                     first = int(args.get("first", 0))
                     second = int(args.get("second", 0))
                     amount = int(args.get("amount", 0))
