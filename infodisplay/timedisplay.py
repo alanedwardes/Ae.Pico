@@ -51,7 +51,7 @@ class TimeDisplay:
         
         time_width = 200
         self.display.set_pen(self.display.create_pen(255, 255, 255))
-        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='notosans', scale=1)
+        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, font='numbers64', scale=1)
 
         date_seconds_width = self.display_width - time_width - 64 # the temp display is 64px        
         textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, date_seconds_width, section_height, font='notosans', scale=1)

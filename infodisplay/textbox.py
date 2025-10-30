@@ -3,20 +3,26 @@ import random
 
 from bmfont import BMFont, draw_text, measure_text
 
-NOTO_SANS_FONT = BMFont.load("fonts/notosans.fnt")
-NOTO_SANS_PAGE_FILES = ["fonts/notosans_0.bin"]
+_BM_FONT_CACHE = {}
 
-def _measure_bmfont(text, scale):
-    w, h = measure_text(NOTO_SANS_FONT, text)
+def _get_bmfont(font_name):
+    if font_name not in _BM_FONT_CACHE:
+        font_path = f"fonts/{font_name}.fnt"
+        page_files = [f"fonts/{font_name}_0.bin"]
+        _BM_FONT_CACHE[font_name] = (BMFont.load(font_path), page_files)
+    return _BM_FONT_CACHE[font_name]
+
+def _measure_bmfont(font_obj, text, scale):
+    w, h = measure_text(font_obj, text)
     return w * scale, h * scale
 
-def _word_wrap_bmfont(text, max_width_pixels, scale):
+def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
     words = text.split()
     wrapped_lines = []
     current_line = ""
     for word in words:
         test_line = f"{current_line} {word}".strip()
-        line_width_pixels, _ = _measure_bmfont(test_line, scale)
+        line_width_pixels, _ = _measure_bmfont(font_obj, test_line, scale)
         if line_width_pixels <= max_width_pixels:
             current_line = test_line
         else:
@@ -72,7 +78,7 @@ def draw_textbox_outline(display, x, y, width, height):
     display.rectangle(int(x), int(y), 1, int(height))  # left
     display.rectangle(int(x + width - 1), int(y), 1, int(height))  # right
 
-def draw_textbox(display, text, x, y, width, height, *, font='sans', scale=1, align='center', wrap=False, valign='center'):
+def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
     """
     Draw text in a textbox with specified dimensions.
     
@@ -89,42 +95,40 @@ def draw_textbox(display, text, x, y, width, height, *, font='sans', scale=1, al
         wrap: Whether to wrap text to fit within the textbox width (default: False)
         valign: Vertical alignment - 'top', 'center', or 'bottom' (default: 'center')
     """
-    # Set font for non-bmfont paths
-    if font != 'notosans':
-        display.set_font(font)
+    is_bmfont = font != 'bitmap8'
+    if not is_bmfont:
+        display.set_font('bitmap8')
 
     # Apply word wrapping if requested
     if wrap:
-        text = word_wrap_text(display, text, width, scale)
+        if is_bmfont:
+            bmfont_obj, _bm_pages = _get_bmfont(font)
+            text = _word_wrap_bmfont(bmfont_obj, text, width, scale)
+        else:
+            text = word_wrap_text(display, text, width, scale)
 
     # Set clipping bounds to the textbox area
     display.set_clip(int(x), int(y), int(width), int(height))
     
     # Calculate text dimensions based on font
-    if font == 'bitmap8':
+    if not is_bmfont:
         # For wrapped text, calculate height based on number of lines
         if wrap:
             line_count = text.count('\n') + 1
             text_height_pixels = line_count * 8 * scale
         else:
             text_height_pixels = 8 * scale
-        stroke_thickness = 0  # Bitmap fonts don't use thickness
-    elif font == 'notosans':
-        if wrap:
-            text = _word_wrap_bmfont(text, width, scale)
-        _, text_height_pixels = _measure_bmfont(text if wrap else "A", scale)
         stroke_thickness = 0
-    else:  # sans font
-        if wrap:
-            text = word_wrap_text(display, text, width, scale)
-        text_height_pixels = 12 * scale
-        stroke_thickness = scale * 3
-        display.set_thickness(math.floor(stroke_thickness))
-
-    if font == 'notosans':
-        text_width_pixels, _ = _measure_bmfont(text, scale)
     else:
-        text_width_pixels = display.measure_text(text, scale) + stroke_thickness
+        bmfont_obj, _bm_pages = _get_bmfont(font)
+        _, text_height_pixels = _measure_bmfont(bmfont_obj, text if wrap else "A", scale)
+        stroke_thickness = 0
+
+    if is_bmfont:
+        bmfont_obj, _bm_pages = _get_bmfont(font)
+        text_width_pixels, _ = _measure_bmfont(bmfont_obj, text, scale)
+    else:
+        text_width_pixels = display.measure_text(text, scale)
     
     # Calculate horizontal text position based on alignment
     if align == 'left':
@@ -135,7 +139,7 @@ def draw_textbox(display, text, x, y, width, height, *, font='sans', scale=1, al
         text_x_position = x + width * 0.5 - text_width_pixels * 0.5
     
     # Calculate vertical text position based on font rendering behavior and valign
-    if font == 'bitmap8' or font == 'notosans':
+    if not is_bmfont or is_bmfont:
         # Bitmap font: render from top-left
         if valign == 'top':
             text_y_position = y
@@ -143,19 +147,13 @@ def draw_textbox(display, text, x, y, width, height, *, font='sans', scale=1, al
             text_y_position = y + height - text_height_pixels
         else:  # center (default)
             text_y_position = y + (height - text_height_pixels) * 0.5
-    else:  # sans font
-        # Sans font: center renders at Y
-        if valign == 'top':
-            text_y_position = y + text_height_pixels * 0.5
-        elif valign == 'bottom':
-            text_y_position = y + height - text_height_pixels * 0.5
-        else:  # center (default)
-            text_y_position = y + height * 0.5
+    # bmfont and bitmap8 both render from top-left
     
-    if font == 'notosans':
+    if is_bmfont:
         fb = memoryview(display)
         dw, dh = display.get_bounds()
-        draw_text(fb, dw, dh, NOTO_SANS_FONT, NOTO_SANS_PAGE_FILES, text, math.floor(text_x_position), math.floor(text_y_position), kerning=True, scale_up=scale, scale_down=1)
+        bmfont_obj, bm_pages = _get_bmfont(font)
+        draw_text(fb, dw, dh, bmfont_obj, bm_pages, text, math.floor(text_x_position), math.floor(text_y_position), kerning=True, scale_up=scale, scale_down=1)
     else:
         display.text(text, math.floor(text_x_position), math.floor(text_y_position), scale=scale)
     
