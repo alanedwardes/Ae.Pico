@@ -153,7 +153,23 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
         fb = memoryview(display)
         dw, dh = display.get_bounds()
         bmfont_obj, bm_pages = _get_bmfont(font)
-        draw_text(fb, dw, dh, bmfont_obj, bm_pages, text, math.floor(text_x_position), math.floor(text_y_position), kerning=True, scale_up=scale, scale_down=1)
+        # Convert arbitrary scale to integer up/down factors for blitter
+        # - For fractional scales (e.g. 0.5), use scale_up=1, scale_down=round(1/scale)
+        # - For integer scales, use scale_up=int(round(scale)), scale_down=1
+        # - Guard against invalid/zero scale
+        s = max(0.000001, float(scale))
+        if s < 1.0:
+            scale_up_i = 1
+            scale_down_i = max(1, int(round(1.0 / s)))
+        else:
+            # Prefer nearest integer upscale
+            scale_up_i = max(1, int(round(s)))
+            scale_down_i = 1
+        draw_text(
+            fb, dw, dh, bmfont_obj, bm_pages, text,
+            math.floor(text_x_position), math.floor(text_y_position),
+            kerning=True, scale_up=scale_up_i, scale_down=scale_down_i
+        )
     else:
         display.text(text, math.floor(text_x_position), math.floor(text_y_position), scale=scale)
     
