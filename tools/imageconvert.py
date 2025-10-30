@@ -36,8 +36,8 @@ def convert_image(input_path, output_path, fmt='rgb24'):
             # 24-bit RGB, 8 bits per channel
             for r, g, b in pixels:
                 f.write(bytes([r, g, b]))
-        elif fmt == 'rgb32':
-            # 32-bit BGRA, 8 bits per channel (BGRA with alpha=255)
+        elif fmt == 'bgra8888':
+            # 32-bit BGRA8888, 8 bits per channel (BGRA with alpha=255)
             for r, g, b in pixels:
                 f.write(struct.pack('<BBBB', b, g, r, 255))
         else:
@@ -72,8 +72,8 @@ def main():
     convert_parser = subparsers.add_parser('convert', help='Convert PNG(s) to raw format')
     convert_parser.add_argument('input', help='Input PNG file or directory')
     convert_parser.add_argument('output', help='Output binary file or directory')
-    convert_parser.add_argument('--format', choices=['rgb8', 'rgb565be', 'rgb24', 'rgb32'], default='rgb24',
-                               help='Output format: rgb8, rgb565be, rgb24, or rgb32 (default: rgb24)')
+    convert_parser.add_argument('--format', choices=['rgb8', 'rgb565be', 'rgb24', 'bgra8888'], default='rgb24',
+                               help='Output format: rgb8, rgb565be, rgb24, or bgra8888 (BGRA8888) (default: rgb24)')
 
     info_parser = subparsers.add_parser('info', help='Show info about binary image file')
     info_parser.add_argument('input', help='Input binary file')
