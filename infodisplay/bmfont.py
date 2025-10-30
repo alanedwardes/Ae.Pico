@@ -1,12 +1,10 @@
 import struct
 import gc
-from collections import namedtuple
 from bitblt import blit_region_scaled
 
-BMFontChar = namedtuple('BMFontChar', (
-    'char_id', 'x', 'y', 'width', 'height',
-    'xoffset', 'yoffset', 'xadvance', 'page', 'chnl'
-))
+# Glyphs are stored compactly in a bytearray to minimize RAM.
+# Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
+_GLYPH_FMT = '<HHHHhhhB'
 
 class BMFont:
     def __init__(self):
@@ -15,8 +13,9 @@ class BMFont:
         self.scale_w = 0
         self.scale_h = 0
         self.pages = {}
-        self.chars = {}
+        self.chars = {}  # maps codepoint -> offset into _glyph_data
         self.kerning = {}
+        self._glyph_data = bytearray()
 
     @staticmethod
     def _dequote(s):
@@ -55,19 +54,20 @@ class BMFont:
                     fname = cls._dequote(args.get("file", ""))
                     font.pages[pid] = fname
                 elif kind == "char":
-                    c = BMFontChar(
-                        char_id=int(args.get("id", 0)),
-                        x=int(args.get("x", 0)),
-                        y=int(args.get("y", 0)),
-                        width=int(args.get("width", 0)),
-                        height=int(args.get("height", 0)),
-                        xoffset=int(args.get("xoffset", 0)),
-                        yoffset=int(args.get("yoffset", 0)),
-                        xadvance=int(args.get("xadvance", 0)),
-                        page=int(args.get("page", 0)),
-                        chnl=int(args.get("chnl", 0)),
-                    )
-                    font.chars[c.char_id] = c
+                    char_id = int(args.get("id", 0))
+                    x = int(args.get("x", 0))
+                    y = int(args.get("y", 0))
+                    width = int(args.get("width", 0))
+                    height = int(args.get("height", 0))
+                    xoffset = int(args.get("xoffset", 0))
+                    yoffset = int(args.get("yoffset", 0))
+                    xadvance = int(args.get("xadvance", 0))
+                    page = int(args.get("page", 0))
+                    # pack and store glyph data; map code -> offset
+                    off = len(font._glyph_data)
+                    font._glyph_data.extend(struct.pack(_GLYPH_FMT,
+                        x, y, width, height, xoffset, yoffset, xadvance, page))
+                    font.chars[char_id] = off
                 elif kind == "kerning" and load_kerning:
                     first = int(args.get("first", 0))
                     second = int(args.get("second", 0))
@@ -111,19 +111,20 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
                 prev_id = None
                 continue
             code = ord(ch)
-            c = font.chars.get(code)
-            if c is None:
+            off = font.chars.get(code)
+            if off is None:
                 prev_id = None
                 continue
             if prev_id is not None and kerning:
                 cx += font.kerning.get((prev_id, code), 0)
-            dest_x = cx + c.xoffset * scale_up // scale_down
-            dest_y = cy + c.yoffset * scale_up // scale_down
+            x, y0, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
+            dest_x = cx + xoffset * scale_up // scale_down
+            dest_y = cy + yoffset * scale_up // scale_down
             blit_region_scaled(framebuffer, display_width, display_height, bytes_per_pixel,
-                               pages[c.page].fh, 4, pages[c.page].row_bytes,
-                               c.x, c.y, c.width, c.height,
+                               pages[page].fh, 4, pages[page].row_bytes,
+                               x, y0, width, height,
                                dest_x, dest_y, scale_up=scale_up, scale_down=scale_down)
-            cx += (c.xadvance * scale_up) // scale_down
+            cx += (xadvance * scale_up) // scale_down
             prev_id = code
     finally:
         for p in pages.values():
@@ -149,19 +150,20 @@ def measure_text(font: BMFont, text: str, kerning=True):
             max_x = None
             continue
         code = ord(ch)
-        c = font.chars.get(code)
-        if c is None:
+        off = font.chars.get(code)
+        if off is None:
             prev_id = None
             continue
         if prev_id is not None and kerning:
             cx += font.kerning.get((prev_id, code), 0)
-        glyph_left = cx + c.xoffset
-        glyph_right = glyph_left + c.width
+        _, _, width, _, xoffset, _, xadvance, _ = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
+        glyph_left = cx + xoffset
+        glyph_right = glyph_left + width
         if min_x is None or glyph_left < min_x:
             min_x = glyph_left
         if max_x is None or glyph_right > max_x:
             max_x = glyph_right
-        cx += c.xadvance
+        cx += xadvance
         prev_id = code
     if min_x is not None:
         w = max_x - min_x
