@@ -75,7 +75,7 @@ class TrainDisplay:
         y_offset = 70
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
+        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, self.display.create_pen(0, 0, 0), True)
         
         for row in range(0, len(departures)):
             y_offset += self.__draw_departure_row(departures[row], y_offset)

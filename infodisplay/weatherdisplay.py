@@ -134,7 +134,7 @@ class WeatherDisplay:
         self.display.set_pen(self.display.create_pen(242, 106, 48))
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
         
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
         

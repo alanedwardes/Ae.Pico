@@ -91,7 +91,7 @@ class SolarDisplay:
         
         # Clear the display area below 70px
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
         
         # Set up colors
         white = self.display.create_pen(255, 255, 255)

@@ -50,7 +50,7 @@ class NewsDisplay:
         y_offset = 70
         
         self.display.set_pen(self.black)
-        self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
+        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, self.black, True)
         
         try:
             story = stories[self.story_index]

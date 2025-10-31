@@ -74,10 +74,10 @@ def draw_textbox_outline(display, x, y, width, height):
     debug_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
     display.set_pen(display.create_pen(*debug_color))
     # Draw outline (border only) - top, bottom, left, right lines
-    display.rectangle(int(x), int(y), int(width), 1)  # top
-    display.rectangle(int(x), int(y + height - 1), int(width), 1)  # bottom
-    display.rectangle(int(x), int(y), 1, int(height))  # left
-    display.rectangle(int(x + width - 1), int(y), 1, int(height))  # right
+    display.rect(int(x), int(y), int(width), 1, display.create_pen(*debug_color), True)  # top
+    display.rect(int(x), int(y + height - 1), int(width), 1, display.create_pen(*debug_color), True)  # bottom
+    display.rect(int(x), int(y), 1, int(height), display.create_pen(*debug_color), True)  # left
+    display.rect(int(x + width - 1), int(y), 1, int(height), display.create_pen(*debug_color), True)  # right
 
 def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
     """

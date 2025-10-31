@@ -55,13 +55,6 @@ class Drawing(framebuf.FrameBuffer):
     def clear(self):
         self.rect(0, 0, self.width, self.height, self.pen, True)
 
-    # High-level helpers matching existing usage
-    def rectangle(self, x, y, w, h):
-        x, y, w, h = self._apply_clip_rect(x, y, w, h)
-        if w <= 0 or h <= 0:
-            return
-        super().rect(x, y, w, h, self.pen, True)
-
     def pixel(self, x, y):
         if self._clip is not None:
             cx, cy, cw, ch = self._clip
@@ -76,14 +69,11 @@ class Drawing(framebuf.FrameBuffer):
             return
         # Simple orthogonal thickness approximation
         if x1 == x2:
-            self.rectangle(x1 - thickness // 2, min(y1, y2), thickness, abs(y2 - y1) + 1)
+            super().rect(x1 - thickness // 2, min(y1, y2), thickness, abs(y2 - y1) + 1, self.pen, True)
         elif y1 == y2:
-            self.rectangle(min(x1, x2), y1 - thickness // 2, abs(x2 - x1) + 1, thickness)
+            super().rect(min(x1, x2), y1 - thickness // 2, abs(x2 - x1) + 1, thickness, self.pen, True)
         else:
             super().line(x1, y1, x2, y2, self.pen)
-
-    def circle(self, x, y, radius):
-        super().ellipse(x, y, radius, radius, self.pen, True)
 
     def polygon(self, points):
         # points: list of (x, y)

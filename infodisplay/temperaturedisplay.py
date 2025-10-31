@@ -40,7 +40,7 @@ class TemperatureDisplay:
         current_temperature = float(self.hass.entities.get(self.entity_ids['current_temp_entity_id'], default_entity)['s'])
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(self.display_width - 64, 0, 64, 70)
+        self.display.rect(self.display_width - 64, 0, 64, 70, self.display.create_pen(0, 0, 0), True)
         
         gauge.draw_gauge(self.display, (self.display_width - 64, 0), (64, 64), minimum_temperature, maximum_temperature, current_temperature)
         self.display.update()

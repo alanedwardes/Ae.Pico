@@ -158,11 +158,11 @@ class RainDisplay:
         column_width = data_width / (len(self.weather_data) - 1)
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, y_start, self.display_width, self.display_height - y_start)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
         
         # Draw key column
         self.display.set_pen(self.display.create_pen(32, 32, 32))
-        self.display.rectangle(0, y_start, key_width, self.display_height - y_start)
+        self.display.rect(0, y_start, key_width, self.display_height - y_start, self.display.create_pen(32, 32, 32), True)
         
         # Define row positions with proper spacing
         hour_row_y = y_start
@@ -180,8 +180,8 @@ class RainDisplay:
         
         # Draw separator lines
         self.display.set_pen(self.display.create_pen(64, 64, 64))
-        self.display.rectangle(key_width, precip_row_y - 10, data_width, 2)
-        self.display.rectangle(key_width, chart_y - 10, data_width, 2)
+        self.display.rect(key_width, precip_row_y - 10, data_width, 2, self.display.create_pen(64, 64, 64), True)
+        self.display.rect(key_width, chart_y - 10, data_width, 2, self.display.create_pen(64, 64, 64), True)
         
         # Draw data for each hour
         for i, hour_data in enumerate(self.weather_data):
@@ -197,7 +197,7 @@ class RainDisplay:
             # Draw vertical separator
             if i > 0:
                 self.display.set_pen(self.display.create_pen(64, 64, 64))
-                self.display.rectangle(sx, y_start, 2, self.display_height - y_start)
+                self.display.rect(sx, y_start, 2, self.display_height - y_start, self.display.create_pen(64, 64, 64), True)
             
             # Hour numbers
             self.display.set_pen(self.display.create_pen(255, 255, 255))

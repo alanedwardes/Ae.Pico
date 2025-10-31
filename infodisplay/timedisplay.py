@@ -43,7 +43,7 @@ class TimeDisplay:
         width = self.display_width - 64
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, 0, width, height)
+        self.display.rect(0, 0, width, height, self.display.create_pen(0, 0, 0), True)
 
         now = self.rtc.datetime()
                 

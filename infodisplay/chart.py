@@ -101,7 +101,7 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
         rect_height = max(0, baseline_y - top_y)
         # Draw a vertical strip representing the area under the curve
         draw_x = x_int if last_x_int is None else (last_x_int + 1)
-        display.rectangle(draw_x, top_y, rect_width, rect_height)
+        display.rect(draw_x, top_y, rect_width, rect_height, display.create_pen(*transparent_color), True)
 
         last_x_int = x_int
 
@@ -112,5 +112,4 @@ def draw_colored_points(display, x, y, width, height, raw_values, normalized_val
     for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
         data_index = map_px_to_index(px, x, width, len(raw_values))
         color = color_fn(data_index, raw_values[data_index])
-        display.set_pen(display.create_pen(*color))
-        display.circle(int(px), int(py), radius)
+        display.ellipse(int(px), int(py), int(radius), int(radius), display.create_pen(*color), True)

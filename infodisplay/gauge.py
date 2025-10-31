@@ -24,8 +24,8 @@ def point_on_circle(x, y, radius, angle):
     return (x + radius * math.cos(angle), y + radius * math.sin(angle))
 
 
-def circle(display, x, y, radius):
-    return display.circle(int(x), int(y), int(radius))
+def circle(display, x, y, radius, color):
+    return display.ellipse(int(x), int(y), int(radius), int(radius), color, True)
 
 def polygon(display, points):
     return display.polygon([(int(point[0]), int(point[1])) for point in points])
@@ -40,12 +40,12 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
     display.set_pen(display.create_pen(groove_color[0], groove_color[1], groove_color[2]))
 
     # Outer gauge
-    circle(display, centre[0], centre[1], guage_radius + guage_thickness)
+    circle(display, centre[0], centre[1], guage_radius + guage_thickness, display.create_pen(groove_color[0], groove_color[1], groove_color[2]))
     
     display.set_pen(display.create_pen(0, 0, 0))
 
     # Inner gauge
-    circle(display, centre[0], centre[1], guage_radius - guage_thickness)
+    circle(display, centre[0], centre[1], guage_radius - guage_thickness, display.create_pen(0, 0, 0))
 
     extent_x = [centre[0] - size[1] * 0.5, centre[0] + size[1] * 0.5]
 
@@ -78,9 +78,9 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
     display.set_pen(display.create_pen(groove_color[0], groove_color[1], groove_color[2]))
     epsilon = 0.1 if show_min_max else 0.001
     rounded_cap_start = point_on_circle(centre[0], centre[1], guage_radius, gauge_min_max_radians[0] - epsilon)
-    circle(display, rounded_cap_start[0], rounded_cap_start[1], guage_thickness)
+    circle(display, rounded_cap_start[0], rounded_cap_start[1], guage_thickness, display.create_pen(groove_color[0], groove_color[1], groove_color[2]))
     rounded_cap_end = point_on_circle(centre[0], centre[1], guage_radius, gauge_min_max_radians[1] + epsilon)
-    circle(display, rounded_cap_end[0], rounded_cap_end[1], guage_thickness)
+    circle(display, rounded_cap_end[0], rounded_cap_end[1], guage_thickness, display.create_pen(groove_color[0], groove_color[1], groove_color[2]))
 
     if has_range and secondary_temperature is not None:
         radians_secondary = get_mapped_range_value_clamped(
@@ -90,7 +90,7 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         )
         notch_point_secondary = point_on_circle(centre[0], centre[1], guage_radius, radians_secondary)
         display.set_pen(display.create_pen(200, 200, 200))
-        circle(display, notch_point_secondary[0], notch_point_secondary[1], guage_thickness * 0.75)
+        circle(display, notch_point_secondary[0], notch_point_secondary[1], guage_thickness * 0.75, display.create_pen(200, 200, 200))
 
     if has_range:
         radians = get_mapped_range_value_clamped(
@@ -100,9 +100,9 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         )
         notch_point = point_on_circle(centre[0], centre[1], guage_radius, radians)
         display.set_pen(display.create_pen(notch_outline_color[0], notch_outline_color[1], notch_outline_color[2]))
-        circle(display, notch_point[0], notch_point[1], 1 + guage_thickness * 1.25)
+        circle(display, notch_point[0], notch_point[1], 1 + guage_thickness * 1.25, display.create_pen(notch_outline_color[0], notch_outline_color[1], notch_outline_color[2]))
         display.set_pen(display.create_pen(notch_fill_color[0], notch_fill_color[1], notch_fill_color[2]))
-        circle(display, notch_point[0], notch_point[1], guage_thickness)
+        circle(display, notch_point[0], notch_point[1], guage_thickness, display.create_pen(notch_fill_color[0], notch_fill_color[1], notch_fill_color[2]))
         # Reset pen to white for text and other UI elements
         display.set_pen(display.create_pen(255, 255, 255))
     

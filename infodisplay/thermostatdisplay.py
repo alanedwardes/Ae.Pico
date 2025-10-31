@@ -85,7 +85,7 @@ class ThermostatDisplay:
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
         
         self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.rectangle(0, 70, self.display_width, self.display_height - 70)
+        self.display.rect(0, 70, self.display_width, self.display_height - 70, self.display.create_pen(0, 0, 0), True)
         
         groove_color = (136, 64, 25) if hvac_action == 'heating' else (64, 64, 64)
         notch_outline_color = (255, 111, 34) if hvac_action and hvac_action != 'off' else (0, 0, 0)

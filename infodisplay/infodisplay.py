@@ -16,9 +16,9 @@ class InfoDisplay:
         self.bottom_row = bottom_row
     
 
-    def draw_rectangle(self, width, height, y):
-        x = int(self.display_half_width - width * 0.5)        
-        self.display.rectangle(x, y, width, height)        
+    def draw_rectangle(self, width, height, y, color):
+        x = int(self.display_half_width - width * 0.5)
+        self.display.rect(x, y, width, height, color, True)
         return height
     
     def _get_entity_value(self, subscription):
@@ -86,7 +86,7 @@ class InfoDisplay:
         y = 70
         
         self.display.set_pen(self.black)
-        self.display.rectangle(0, y, self.display_width, self.display_height - y)
+        self.display.rect(0, y, self.display_width, self.display_height - y, self.black, True)
 
         #spacer = 10
         
@@ -96,7 +96,7 @@ class InfoDisplay:
             value = self._get_entity_value(subscription)
             self.display.set_pen(self._get_pen_color(subscription, value))
             if i == 0:
-                y += self.draw_rectangle(320, 8, y)
+                y += self.draw_rectangle(320, 8, y, self.display.pen)
             
             top_height = 1.5 * 30
             textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, font='sans', scale=1.5)
@@ -113,7 +113,7 @@ class InfoDisplay:
             value = self._get_entity_value(subscription)
             self.display.set_pen(self._get_pen_color(subscription, value))
             if i == 0:
-                y += self.draw_rectangle(320, 8, y)
+                y += self.draw_rectangle(320, 8, y, self.display.pen)
             
             top_height = 1.5 * 30
             textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, font='sans', scale=1.5)
