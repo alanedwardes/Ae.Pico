@@ -1,5 +1,4 @@
 import framebuf
-from font8 import Font8
 
 class Drawing(framebuf.FrameBuffer):
     def __init__(self, width, height):
@@ -26,9 +25,6 @@ class Drawing(framebuf.FrameBuffer):
 
     def set_pen(self, pen):
         self.pen = pen
-
-    def set_font(self, font):
-        self.font = font
 
     def set_thickness(self, thickness):
         self.thickness = thickness
@@ -99,22 +95,6 @@ class Drawing(framebuf.FrameBuffer):
             flat.append(px)
             flat.append(py)
         super().poly(0, 0, array('h', flat), self.pen, True)
-
-    def measure_text(self, text, scale=1, spacing=1, fixed_width=False):
-        if self.font == 'bitmap8':
-            return Font8.measure_text(text, scale, spacing)
-        elif self.font == 'sans':
-            return Font8.measure_text(text, scale * 3, spacing)
-        else:
-            raise NotImplementedError(f"Font '{self.font}' not supported for measure_text")
-
-    def text(self, text, x, y, scale=1):
-        if self.font == 'bitmap8':
-            Font8.draw_text(self, text, x, y, self.pen, 1, scale)
-        elif self.font == 'sans':
-            Font8.draw_text(self, text, x, y, self.pen, 1, scale * 3)
-        else:
-            raise NotImplementedError(f"Font '{self.font}' not supported for text")
 
     def update(self):
         if self._driver is None:

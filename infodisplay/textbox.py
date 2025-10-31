@@ -2,6 +2,7 @@ import math
 import random
 
 from bmfont import BMFont, draw_text, measure_text
+from font8 import Font8
 
 _BM_FONT_CACHE = {}
 
@@ -52,7 +53,7 @@ def word_wrap_text(display, text, max_width_pixels, scale):
     for word in words:
         # Measure the width of the current line with the new word added
         test_line = f"{current_line} {word}".strip()
-        line_width_pixels = display.measure_text(test_line, scale)
+        line_width_pixels = Font8.measure_text(test_line, scale)
 
         if line_width_pixels <= max_width_pixels:
             # If the line width is within the limit, add the word to the current line
@@ -96,8 +97,6 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
         valign: Vertical alignment - 'top', 'center', or 'bottom' (default: 'center')
     """
     is_bmfont = font != 'bitmap8'
-    if not is_bmfont:
-        display.set_font('bitmap8')
 
     # Apply word wrapping if requested
     if wrap:
@@ -128,7 +127,7 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
         bmfont_obj, _bm_pages = _get_bmfont(font)
         text_width_pixels, _ = _measure_bmfont(bmfont_obj, text, scale)
     else:
-        text_width_pixels = display.measure_text(text, scale)
+        text_width_pixels = Font8.measure_text(text, scale)
     
     # Calculate horizontal text position based on alignment
     if align == 'left':
@@ -171,7 +170,7 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
             kerning=True, scale_up=scale_up_i, scale_down=scale_down_i
         )
     else:
-        display.text(text, math.floor(text_x_position), math.floor(text_y_position), scale=scale)
+        Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), display.pen, scale=scale)
     
     # DEBUG: Draw outline
     #draw_textbox_outline(display, x, y, width, height)

@@ -49,7 +49,6 @@ class NewsDisplay:
         
         y_offset = 70
         
-        self.display.set_font("bitmap8")
         self.display.set_pen(self.black)
         self.display.rectangle(0, y_offset, self.display_width, self.display_height - y_offset)
         
