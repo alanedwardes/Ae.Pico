@@ -11,6 +11,9 @@ import re
 import textbox
 from httpstream import parse_url
 
+def rain_color_fn(idx, value):
+    # color mapping for rain percentage (expects raw 0-100)
+    return colors.get_color_for_rain_percentage(int(value))
 
 def wind_speed_to_beaufort(wind_speed_ms):
     """
@@ -43,6 +46,11 @@ class RainDisplay:
         self.is_active = True
         
         self.display_width, self.display_height = self.display.get_bounds()
+        # Cached, precomputed arrays to reduce per-frame allocations
+        self._r_values = []
+        self._normalized_r = []
+        self._beaufort_values = []
+        self._rate_ints = []
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -128,6 +136,26 @@ class RainDisplay:
                         'rate': rate_mmh,  # Rate mm/h
                         'wind': wind_speed  # Wind speed 10m
                     })
+            # Precompute and cache arrays for rendering
+            if self.weather_data:
+                self._r_values = [int(h['r']) for h in self.weather_data]
+                self._normalized_r = [r / 100 for r in self._r_values]
+                self._beaufort_values = [wind_speed_to_beaufort(h['wind']) for h in self.weather_data]
+                # Precompute integer mm/h to avoid float formatting during render
+                rate_ints = []
+                for h in self.weather_data:
+                    rate_val = h['rate']
+                    try:
+                        # round to nearest int without creating format strings
+                        rate_ints.append(int(rate_val + 0.5))
+                    except TypeError:
+                        rate_ints.append(int(rate_val))
+                self._rate_ints = rate_ints
+            else:
+                self._r_values = []
+                self._normalized_r = []
+                self._beaufort_values = []
+                self._rate_ints = []
             
             print(f"Weather data fetched: {len(self.weather_data)} hours")
             for hour_data in self.weather_data:
@@ -155,7 +183,10 @@ class RainDisplay:
         y_start = 70
         key_width = 30
         data_width = self.display_width - key_width
-        column_width = data_width / (len(self.weather_data) - 1)
+        # Use integer arithmetic for column positions to avoid float churn
+        num_points = len(self.weather_data)
+        denom = (num_points - 1) if num_points > 1 else 1
+        column_width_int = max(1, data_width // denom)
         
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x0000, True)
         
@@ -186,38 +217,33 @@ class RainDisplay:
                 continue
 
             hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
-            rate_mmh = hour_data['rate']
-            wind_speed = hour_data['wind']
+            rate_int = self._rate_ints[i] if i < len(self._rate_ints) else int(hour_data['rate'])
             
-            sx = int(key_width + i * column_width)
+            sx = key_width + (i * data_width) // denom
             
             # Draw vertical separator
             if i > 0:
                 self.display.rect(sx, y_start, 2, self.display_height - y_start, 0x4208, True)
             
             # Hour numbers
-            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, int(column_width), 16, color=white_pen, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='bitmap8', scale=2)
             
             # Precipitation amount
-            if rate_mmh > 0:
-                precip_color = colors.get_color_for_precip_rate(rate_mmh)
+            if rate_int > 0:
+                precip_color = colors.get_color_for_precip_rate(rate_int)
             else:
                 precip_color = 0x632C
-            textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, color=precip_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='bitmap8', scale=2)
             
             # Beaufort scale
-            beaufort_number = wind_speed_to_beaufort(wind_speed)
+            beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(hour_data['wind'])
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
-            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, int(column_width), 16, color=beaufort_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='bitmap8', scale=2)
 
         # Draw chart
-        normalized_data = [hour['r'] / 100 for hour in self.weather_data]
-        def rain_color_fn(idx, value):
-            return colors.get_color_for_rain_percentage(int(value))
-
         chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
-                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn)
+                                   self._r_values, self._normalized_r, rain_color_fn)
         chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
-                                   [h['r'] for h in self.weather_data], normalized_data, rain_color_fn, radius=2)
+                                   self._r_values, self._normalized_r, rain_color_fn, radius=2)
 
         self.display.update()
