@@ -109,6 +109,9 @@ class ST7789:
     def _init(self, user_mode, orientation, cfg):
         bgr = cfg[0] if len(cfg) else False  # Color mode BGR/RGB
         inv = cfg[1] if len(cfg) else False
+        # Persist configuration needed for runtime rotation changes
+        self._bgr = bgr
+        self._orientation = orientation
         self._hwreset()  # Hardware reset. Blocks 3ms
         if self._spi_init:  # A callback was passed
             self._spi_init(self._spi)  # Bus may be shared
@@ -145,6 +148,35 @@ class ST7789:
         self.set_window(mode)
         wcd(b"\x36", int.to_bytes(mode, 1, "little"))
         cmd(b"\x29")  # DISPON. Adafruit then delay 500ms.
+
+    # Change display rotation at runtime using the same flags as constructor
+    # disp_mode is a value 0..7 composed from LANDSCAPE|REFLECT|USD|PORTRAIT
+    def set_rotation(self, disp_mode):
+        if not 0 <= disp_mode <= 7:
+            raise ValueError("Invalid display mode:", disp_mode)
+        # Map user mode taking panel default orientation into account
+        user_mode = disp_mode
+        if not self._orientation:
+            user_mode ^= PORTRAIT
+        mode = (0x60, 0xE0, 0xA0, 0x20, 0, 0x40, 0xC0, 0x80)[user_mode] | (0x08 if self._bgr else 0)
+        # Update address window and MADCTL
+        self.set_window(mode)
+        self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
+
+    # Convenience: set rotation by degrees: 0, 90, 180, 270
+    def set_rotation_degrees(self, degrees):
+        deg = degrees % 360
+        if deg == 0:
+            mode = LANDSCAPE
+        elif deg == 90:
+            mode = PORTRAIT
+        elif deg == 180:
+            mode = LANDSCAPE | USD
+        elif deg == 270:
+            mode = PORTRAIT | REFLECT
+        else:
+            raise ValueError("Degrees must be one of 0, 90, 180, 270")
+        self.set_rotation(mode)
 
     # Define the mapping between RAM and the display.
     # Datasheet section 8.12 p124.

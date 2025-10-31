@@ -32,6 +32,10 @@ class ST7789Display:
             display=(0, 0, 1, 0, True),
         )
 
+        # Optional rotation from config
+        rotation = config.get('rotate', 0)  # degrees: 0/90/180/270
+        st.set_rotation_degrees(int(rotation))
+
         drawing = Drawing(WIDTH, HEIGHT)
 
         # Pass the hardware driver directly; Drawing will call st.render()
