@@ -7,6 +7,7 @@ import sys
 import asyncio
 import webrepl
 import network
+from machine import WDT
 
 def save_exception(file_name, exception):
     with open(file_name, 'w') as file:
@@ -29,6 +30,12 @@ async def start_application(nic):
     except Exception as e:
         save_exception('application.log', e)
 
+async def watchdog():
+    wdt = WDT()
+    while True:
+        wdt.feed()
+        await asyncio.sleep(1)
+
 async def start():
     nic = network.WLAN(network.STA_IF)
     nic.active(True)
@@ -39,6 +46,13 @@ async def start():
     
     if hasattr(connectivity, 'hostname'):
         nic.config(hostname = connectivity.hostname)
+        
+    while not nic.isconnected():
+        print(f'connecting to {connectivity.ssid} (waiting 30s)')
+        nic.connect(connectivity.ssid, connectivity.key)
+        await asyncio.sleep(30)
+    
+    print(f'connected to {connectivity.ssid}')
     
     async def connect_wifi():
         while True:
@@ -47,7 +61,7 @@ async def start():
                 nic.connect(connectivity.ssid, connectivity.key)
             await asyncio.sleep(30)
             
-    await asyncio.gather(connect_wifi(), start_application(nic))
+    await asyncio.gather(connect_wifi(), start_application(nic), watchdog())
 
 loop = asyncio.get_event_loop()
 loop.set_exception_handler(handle_async_exception)
