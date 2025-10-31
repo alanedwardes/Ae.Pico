@@ -1,25 +1,21 @@
 import pygame
 import asyncio
 import sys
-import HersheyFonts
-import pygamefont8
+from drawing import Drawing
 
 class PygameDisplay:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((320, 240), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=32)
-        self.pen = None
-        self.font = None
-        self.thickness = 1
-        self.clip_rect = None
-
-        self.serif = HersheyFonts.HersheyFonts()
-        self.serif.load_default_font()
+        self._width = 320
+        self._height = 240
 
     def create(provider):
-        display = PygameDisplay()
-        provider['display'] = display
-        return display
+        driver = PygameDisplay()
+        drawing = Drawing(driver._width, driver._height)
+        drawing.set_driver(driver)
+        provider['display'] = drawing
+        return driver
               
     async def start(self):
         while True:
@@ -28,81 +24,25 @@ class PygameDisplay:
                     sys.exit()
             await asyncio.sleep(0.1)
 
-    def update(self):
+    def render(self, framebuffer, width, height):
+        # framebuffer: memoryview/bytes of little-endian RGB565
+        mv = memoryview(framebuffer)
+        num_pixels = width * height
+        rgba = bytearray(num_pixels * 4)
+        j = 0
+        for i in range(0, num_pixels * 2, 2):
+            val = mv[i] | (mv[i + 1] << 8)
+            r5 = (val >> 11) & 0x1F
+            g6 = (val >> 5) & 0x3F
+            b5 = val & 0x1F
+            r = (r5 << 3) | (r5 >> 2)
+            g = (g6 << 2) | (g6 >> 4)
+            b = (b5 << 3) | (b5 >> 2)
+            rgba[j] = r
+            rgba[j + 1] = g
+            rgba[j + 2] = b
+            rgba[j + 3] = 255
+            j += 4
+        surf = pygame.image.frombuffer(rgba, (width, height), 'RGBA')
+        self.screen.blit(surf, (0, 0))
         pygame.display.flip()
-
-    def create_pen(self, r, g, b):
-        return (r, g, b)
-
-    def set_font(self, font):
-        self.font = font
-
-    def set_pen(self, pen):
-        self.pen = pen
-
-    def rectangle(self, x, y, width, height):
-        pygame.draw.rect(self.screen, self.pen, (x, y, width, height))
-
-    def clear(self):
-        self.rectangle(0, 0, self.screen.get_width(), self.screen.get_height())
-
-    def circle(self, x, y, radius):
-        pygame.draw.circle(self.screen, self.pen, (x, y), radius)
-
-    def polygon(self, points):
-        pygame.draw.polygon(self.screen, self.pen, points)
-
-    def pixel(self, x, y):
-        self.rectangle(x, y, 1, 1)
-
-    def line(self, x1, y1, x2, y2, thickness = 1):
-        pygame.draw.line(self.screen, self.pen, (x1, y1), (x2, y2), thickness)
-
-    def set_thickness(self, thickness):
-        self.thickness = thickness
-
-    def get_bounds(self):
-        return (self.screen.get_width(), self.screen.get_height())
-
-    def set_clip(self, x, y, width, height):
-        """Set a clipping rectangle to limit drawing operations to a specific area."""
-        self.clip_rect = pygame.Rect(x, y, width, height)
-        self.screen.set_clip(self.clip_rect)
-
-    def remove_clip(self):
-        """Remove the clipping rectangle, allowing drawing anywhere on the screen."""
-        self.clip_rect = None
-        self.screen.set_clip(None)
-
-    def __buffer__(self, flags):
-        return memoryview(self.screen.get_buffer())
-    
-    def __get_font(self, scale):
-        name, size = self.fonts[self.font]
-        return pygame.font.SysFont(name, int(size * scale))
-    
-    def __get_serif_lines(self, text, scale):
-        return [((x1 * scale, y1 * scale), (x2 * scale, y2 * scale)) for (x1, y1), (x2, y2) in self.serif.lines_for_text(text)]
-
-    def measure_text(self, text, scale = 1, spacing = 1, fixed_width = False):
-        if self.font == 'bitmap8':
-            return pygamefont8.Font8.measure_text(text, scale, spacing)
-        elif self.font == 'sans':
-            lines = self.__get_serif_lines(text, scale)
-            min_x = min(x1 for (x1, y1), (x2, y2) in lines)
-            max_x = max([x2 for (x1, y1), (x2, y2) in lines])
-            return max_x - min_x
-        else:
-            raise NotImplementedError(f"Font '{self.font}' not supported for measure_text")
-
-    def text(self, text, x, y, scale = 1):
-        if self.font == 'bitmap8':
-            pygamefont8.Font8.draw_text(self.screen, text, x, y, self.pen, 1, scale)
-        elif self.font == 'sans':
-            lines = self.__get_serif_lines(text, scale)
-            min_x = min(x1 for (x1, y1), (x2, y2) in lines)
-
-            for (x1, y1), (x2, y2) in lines:
-                self.line(x + x1 - min_x, y + y1, x + x2 - min_x, y + y2, self.thickness)
-        else:
-            raise NotImplementedError(f"Font '{self.font}' not supported for text")

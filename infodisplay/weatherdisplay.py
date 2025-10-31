@@ -93,7 +93,7 @@ class WeatherDisplay:
     
     def draw_icon(self, icon_name, framebuffer, x, y, box_width, box_height):
         try:
-            with open(f'icons/{icon_name}.bin', 'rb') as icon_file:
+            with open(f'icons/weather_{icon_name}.bin', 'rb') as icon_file:
                 icon_width, icon_height = struct.unpack('<HH', icon_file.read(4))
                 # Center the icon in the given box
                 icon_x = x + (box_width - icon_width) // 2
