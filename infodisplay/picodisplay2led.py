@@ -1,12 +1,39 @@
 import asyncio
-try:
-    from pimoroni import RGBLED
-except ImportError:
-    class RGBLED:
-        def __init__(self, *args):
-            pass
-        def set_rgb(self, r, g, b):
-            pass
+from machine import Pin, PWM
+
+class RGBLED:
+    def __init__(self, pin_r, pin_g, pin_b, invert=True, frequency=1000):
+        self.invert = invert  # ACTIVE_LOW default to match previous Pimoroni behavior
+        self._pwm_r = PWM(Pin(pin_r))
+        self._pwm_g = PWM(Pin(pin_g))
+        self._pwm_b = PWM(Pin(pin_b))
+        self._pwm_r.freq(frequency)
+        self._pwm_g.freq(frequency)
+        self._pwm_b.freq(frequency)
+        self.set_rgb(0, 0, 0)
+
+    def set_rgb(self, r, g, b):
+        r = max(0, min(255, int(r)))
+        g = max(0, min(255, int(g)))
+        b = max(0, min(255, int(b)))
+        self._apply((r, g, b))
+
+    @staticmethod
+    def _gamma_u16(x):
+        # 2.8 gamma curve scaled to 16-bit to mirror C++ GAMMA_8BIT table usage
+        return int(pow(x / 255.0, 2.8) * 65535 + 0.5) if x > 0 else 0
+
+    def _apply(self, rgb):
+        r16 = int(self._gamma_u16(rgb[0]))
+        g16 = int(self._gamma_u16(rgb[1]))
+        b16 = int(self._gamma_u16(rgb[2]))
+        if self.invert:
+            r16 = 65535 - r16
+            g16 = 65535 - g16
+            b16 = 65535 - b16
+        self._pwm_r.duty_u16(r16)
+        self._pwm_g.duty_u16(g16)
+        self._pwm_b.duty_u16(b16)
 
 class PicoDisplay2Led:
     def __init__(self, hass, rgb_entity_id, led_pins):
