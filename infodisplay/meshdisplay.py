@@ -61,22 +61,22 @@ def draw_mesh(display, angle, vertices, faces):
         face = faces[face_idx]
         points = [projected[idx] for idx in face]
         color = base_colors[face_idx % len(base_colors)]
-        display.set_pen(display.create_pen(*color))
+        face_pen = display.create_pen(*color)
         flat = []
         for (px, py) in points:
             flat.append(int(px))
             flat.append(int(py))
-        display.poly(0, 0, array('h', flat), display.pen, True)
+        display.poly(0, 0, array('h', flat), face_pen, True)
 
     # Draw edges on top
-    display.set_pen(display.create_pen(255, 255, 255))
+    edge_pen = display.create_pen(255, 255, 255)
     for face in faces:
         for i in range(len(face)):
             start = face[i]
             end = face[(i + 1) % len(face)]
             x1, y1 = projected[start]
             x2, y2 = projected[end]
-            display.line(x1, y1, x2, y2)
+            display.line(x1, y1, x2, y2, edge_pen)
 
 class MeshDisplay:
     def __init__(self, display, mesh_vertices, mesh_faces):
@@ -102,8 +102,7 @@ class MeshDisplay:
             await asyncio.sleep(0.01)
 
     def update(self):
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
-        self.display.clear()
-        self.display.set_pen(self.display.create_pen(255, 255, 255))
+        # Clear with black
+        self.display.fill(self.display.create_pen(0, 0, 0))
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
         self.display.update()

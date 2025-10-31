@@ -85,7 +85,6 @@ class InfoDisplay:
         
         y = 70
         
-        self.display.set_pen(self.black)
         self.display.rect(0, y, self.display_width, self.display_height - y, self.black, True)
 
         #spacer = 10
@@ -94,15 +93,14 @@ class InfoDisplay:
         middle_row_item_width = len(self.middle_row) and self.display_width / len(self.middle_row) or 0
         for i, subscription in enumerate(self.middle_row):
             value = self._get_entity_value(subscription)
-            self.display.set_pen(self._get_pen_color(subscription, value))
+            value_color = self._get_pen_color(subscription, value)
             if i == 0:
-                y += self.draw_rectangle(320, 8, y, self.display.pen)
+                y += self.draw_rectangle(320, 8, y, value_color)
             
             top_height = 1.5 * 30
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, font='sans', scale=1.5)
-            self.display.set_pen(self.grey)
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, middle_row_item_width, top_height, color=value_color, font='sans', scale=1.5)
             label_height = 1 * 25
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, font='sans', scale=1)
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, middle_row_item_width, label_height, color=self.grey, font='sans', scale=1)
             x += middle_row_item_width
         
         x = 0
@@ -111,15 +109,14 @@ class InfoDisplay:
         bottom_row_item_width = len(self.bottom_row) and self.display_width / len(self.bottom_row) or 0
         for i, subscription in enumerate(self.bottom_row):
             value = self._get_entity_value(subscription)
-            self.display.set_pen(self._get_pen_color(subscription, value))
+            value_color = self._get_pen_color(subscription, value)
             if i == 0:
-                y += self.draw_rectangle(320, 8, y, self.display.pen)
+                y += self.draw_rectangle(320, 8, y, value_color)
             
             top_height = 1.5 * 30
-            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, font='sans', scale=1.5)
-            self.display.set_pen(self.grey)
+            textbox.draw_textbox(self.display, self._format_entity_value(subscription, value), x, y, bottom_row_item_width, top_height, color=value_color, font='sans', scale=1.5)
             label_height = 1 * 25
-            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, font='sans', scale=1)
+            textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, color=self.grey, font='sans', scale=1)
             x += bottom_row_item_width
         
         self.display.update()

@@ -72,14 +72,13 @@ def word_wrap_text(display, text, max_width_pixels, scale):
 def draw_textbox_outline(display, x, y, width, height):
     """DEBUG: Draw outline with random color around textbox"""
     debug_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-    display.set_pen(display.create_pen(*debug_color))
     # Draw outline (border only) - top, bottom, left, right lines
     display.rect(int(x), int(y), int(width), 1, display.create_pen(*debug_color), True)  # top
     display.rect(int(x), int(y + height - 1), int(width), 1, display.create_pen(*debug_color), True)  # bottom
     display.rect(int(x), int(y), 1, int(height), display.create_pen(*debug_color), True)  # left
     display.rect(int(x + width - 1), int(y), 1, int(height), display.create_pen(*debug_color), True)  # right
 
-def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
+def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
     """
     Draw text in a textbox with specified dimensions.
     
@@ -167,7 +166,7 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
             kerning=True, scale_up=scale_up_i, scale_down=scale_down_i
         )
     else:
-        Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), display.pen, scale=scale)
+        Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), color, scale=scale)
     
     # DEBUG: Draw outline
     #draw_textbox_outline(display, x, y, width, height)

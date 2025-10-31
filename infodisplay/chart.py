@@ -94,7 +94,6 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
         data_index = map_px_to_index(px, x, width, len(raw_values))
         color = color_fn(data_index, raw_values[data_index])
         transparent_color = tuple(c // max(1, alpha_divisor) for c in color)
-        display.set_pen(display.create_pen(*transparent_color))
 
         rect_width = 1 if last_x_int is None else max(1, x_int - last_x_int)
         top_y = int(py)

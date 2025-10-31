@@ -49,7 +49,6 @@ class NewsDisplay:
         
         y_offset = 70
         
-        self.display.set_pen(self.black)
         self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, self.black, True)
         
         try:
@@ -59,12 +58,10 @@ class NewsDisplay:
 
         label_height = 25
             
-        self.display.set_pen(self.grey)
         textbox.draw_textbox(self.display, "%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 
-                            0, y_offset, self.display_width, label_height, font='bitmap8', scale=2, align='left')
+                            0, y_offset, self.display_width, label_height, color=self.grey, font='bitmap8', scale=2, align='left')
         
         y_offset += label_height
         
-        self.display.set_pen(self.white)
-        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, font='bitmap8', scale=3, align='left', wrap=True, valign='top')
+        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=self.white, font='bitmap8', scale=3, align='left', wrap=True, valign='top')
         self.display.update()

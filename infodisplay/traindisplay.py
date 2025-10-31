@@ -46,11 +46,11 @@ class TrainDisplay:
         platform = departure['plt']
         
         if departure['can']:
-            self.display.set_pen(self.display.create_pen(242, 106, 48))
+            row_pen = self.display.create_pen(242, 106, 48)
         elif departure['del']:
-            self.display.set_pen(self.display.create_pen(254, 219, 0))
+            row_pen = self.display.create_pen(254, 219, 0)
         else:
-            self.display.set_pen(self.display.create_pen(255, 255, 255))
+            row_pen = self.display.create_pen(255, 255, 255)
         
         # Define column widths and positions
         time_width = 50
@@ -59,10 +59,10 @@ class TrainDisplay:
         expected_width = 90
         
         # Draw each column using textbox
-        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, font='bitmap8', scale=2, align='left')
-        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width, y_offset, expected_width, 20, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='bitmap8', scale=2, align='left')
+        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width, y_offset, expected_width, 20, color=row_pen, font='bitmap8', scale=2)
         
         return 20
     
@@ -74,7 +74,6 @@ class TrainDisplay:
         
         y_offset = 70
         
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, self.display.create_pen(0, 0, 0), True)
         
         for row in range(0, len(departures)):

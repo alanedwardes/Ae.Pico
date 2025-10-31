@@ -157,11 +157,9 @@ class RainDisplay:
         data_width = self.display_width - key_width
         column_width = data_width / (len(self.weather_data) - 1)
         
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
         
         # Draw key column
-        self.display.set_pen(self.display.create_pen(32, 32, 32))
         self.display.rect(0, y_start, key_width, self.display_height - y_start, self.display.create_pen(32, 32, 32), True)
         
         # Define row positions with proper spacing
@@ -172,14 +170,13 @@ class RainDisplay:
         chart_height = wind_row_y - chart_y - 5
         
         # Draw key labels
-        self.display.set_pen(self.display.create_pen(255, 255, 255))
-        textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, font='bitmap8', scale=2)
+        white_pen = self.display.create_pen(255, 255, 255)
+        textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
         
         # Draw separator lines
-        self.display.set_pen(self.display.create_pen(64, 64, 64))
         self.display.rect(key_width, precip_row_y - 10, data_width, 2, self.display.create_pen(64, 64, 64), True)
         self.display.rect(key_width, chart_y - 10, data_width, 2, self.display.create_pen(64, 64, 64), True)
         
@@ -196,26 +193,22 @@ class RainDisplay:
             
             # Draw vertical separator
             if i > 0:
-                self.display.set_pen(self.display.create_pen(64, 64, 64))
                 self.display.rect(sx, y_start, 2, self.display_height - y_start, self.display.create_pen(64, 64, 64), True)
             
             # Hour numbers
-            self.display.set_pen(self.display.create_pen(255, 255, 255))
-            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, int(column_width), 16, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, int(column_width), 16, color=white_pen, font='bitmap8', scale=2)
             
             # Precipitation amount
             if rate_mmh > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_mmh)
             else:
                 precip_color = (100, 100, 100)
-            self.display.set_pen(self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]))
-            textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{rate_mmh:.0f}", sx, precip_row_y, int(column_width), 16, color=self.display.create_pen(precip_color[0], precip_color[1], precip_color[2]), font='bitmap8', scale=2)
             
             # Beaufort scale
             beaufort_number = wind_speed_to_beaufort(wind_speed)
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
-            self.display.set_pen(self.display.create_pen(beaufort_color[0], beaufort_color[1], beaufort_color[2]))
-            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, int(column_width), 16, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, int(column_width), 16, color=self.display.create_pen(beaufort_color[0], beaufort_color[1], beaufort_color[2]), font='bitmap8', scale=2)
 
         # Draw chart
         normalized_data = [hour['r'] / 100 for hour in self.weather_data]

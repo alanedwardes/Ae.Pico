@@ -7,7 +7,6 @@ class Drawing(framebuf.FrameBuffer):
         self.mode = framebuf.RGB565
         self._buf = bytearray(width * height * 2)
         super().__init__(self._buf, width, height, self.mode)
-        self.pen = 0
         self._driver = None
 
     @staticmethod
@@ -19,9 +18,6 @@ class Drawing(framebuf.FrameBuffer):
 
     def create_pen(self, r, g, b):
         return Drawing.rgb(r, g, b)
-
-    def set_pen(self, pen):
-        self.pen = pen
 
     def get_bounds(self):
         return (self.width, self.height)

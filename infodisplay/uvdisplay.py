@@ -124,7 +124,6 @@ class UvDisplay:
         
         y_start = 70
                
-        self.display.set_pen(self.display.create_pen(0, 0, 0))
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
 
         # Display specific hours: 00, 06, 12, 18
@@ -147,9 +146,8 @@ class UvDisplay:
             position = hour // 2
             sx = position * label_width
             
-            self.display.set_pen(self.display.create_pen(255, 255, 255))
             height = 1 * 8
-            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, font='bitmap8', scale=1)
+            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, color=self.display.create_pen(255, 255, 255), font='bitmap8', scale=1)
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 35  # Make chart fill more space
@@ -159,7 +157,6 @@ class UvDisplay:
             if i > 0:  # Skip first line
                 position = hour // 2
                 sx = position * label_width
-                self.display.set_pen(self.display.create_pen(64, 64, 64))
                 # Calculate the top of the chart area (UV 12 line)
                 chart_top = chart_y + chart_height - (12 / 12.0) * chart_height  # UV 12 line
                 # Extend to bottom of screen
@@ -171,7 +168,6 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
             # Draw horizontal grid line
-            self.display.set_pen(self.display.create_pen(64, 64, 64))
             self.display.rect(0, int(y_pos), self.display_width, 1, self.display.create_pen(64, 64, 64), True)
         
         # Draw labels for specific UV levels
@@ -188,8 +184,7 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
             # Draw label on the left
-            self.display.set_pen(self.display.create_pen(255, 255, 255))
-            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, font='bitmap8', align='left', scale=1)
+            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, color=self.display.create_pen(255, 255, 255), font='bitmap8', align='left', scale=1)
 
         # Display UV values above the graph
         if self.uv_data:
@@ -200,8 +195,7 @@ class UvDisplay:
                 uv = self.uv_data[i]
                 label_index = i // 2  # Index for positioning
                 x_pos = label_index * label_width
-                self.display.set_pen(self.display.create_pen(255, 255, 255))
-                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, color=self.display.create_pen(255, 255, 255), font='bitmap8', scale=1)
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
@@ -233,7 +227,6 @@ class UvDisplay:
                 time_x = (current_time_decimal / len(self.uv_data)) * self.display_width
                 
                 # Draw 2px light gray vertical line
-                self.display.set_pen(self.display.create_pen(128, 128, 128))
                 self.display.rect(int(time_x - 1), y_start, 2, self.display_height - y_start, self.display.create_pen(128, 128, 128), True)
                 
                 # Find the UV value at current hour (still use hour for data lookup)
