@@ -35,19 +35,19 @@ def polygon(display, points, color):
         flat.append(int(point[1]))
     return display.poly(0, 0, array('h', flat), color, True)
 
-def _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, primary_temperature, primary_decimals=0, secondary_temperature=None, secondary_decimals=0, show_min_max=True, groove_color=(128, 128, 128), notch_outline_color=(0, 0, 0), notch_fill_color=(255, 255, 255)):
+def _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, primary_temperature, primary_decimals=0, secondary_temperature=None, secondary_decimals=0, show_min_max=True, groove_color=0x8410, notch_outline_color=0x0000, notch_fill_color=0xFFFF):
     centre = [size[0] / 2 + position[0], size[1] / 2 + position[1]]
 
     guage_thickness = size[1] * 0.05
     guage_radius = (size[1] * 0.45) if show_min_max else ((size[1] * 0.5) - guage_thickness - 1)
     has_range = (minimum_temperature is not None and maximum_temperature is not None)
     
-    groove_pen = display.create_pen(groove_color[0], groove_color[1], groove_color[2])
+    groove_pen = groove_color
 
     # Outer gauge
     circle(display, centre[0], centre[1], guage_radius + guage_thickness, groove_pen)
     
-    black_pen = display.create_pen(0, 0, 0)
+    black_pen = 0x0000
 
     # Inner gauge
     circle(display, centre[0], centre[1], guage_radius - guage_thickness, black_pen)
@@ -94,7 +94,7 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
             secondary_temperature
         )
         notch_point_secondary = point_on_circle(centre[0], centre[1], guage_radius, radians_secondary)
-        secondary_pen = display.create_pen(200, 200, 200)
+        secondary_pen = 0xCE59
         circle(display, notch_point_secondary[0], notch_point_secondary[1], guage_thickness * 0.75, secondary_pen)
 
     if has_range:
@@ -104,14 +104,14 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
             primary_temperature
         )
         notch_point = point_on_circle(centre[0], centre[1], guage_radius, radians)
-        notch_outline_pen = display.create_pen(notch_outline_color[0], notch_outline_color[1], notch_outline_color[2])
-        notch_fill_pen = display.create_pen(notch_fill_color[0], notch_fill_color[1], notch_fill_color[2])
+        notch_outline_pen = notch_outline_color
+        notch_fill_pen = notch_fill_color
         circle(display, notch_point[0], notch_point[1], 1 + guage_thickness * 1.25, notch_outline_pen)
         circle(display, notch_point[0], notch_point[1], guage_thickness, notch_fill_pen)
     
     primary_scale = size[1] * (0.06 if secondary_temperature is None else 0.03)
     primary_height = size[1] if secondary_temperature is None else size[1] * 0.85
-    white_pen = display.create_pen(255, 255, 255)
+    white_pen = 0xFFFF
     textbox.draw_textbox(display, f'{primary_temperature:.{primary_decimals}f}', position[0], position[1], size[0], primary_height, color=white_pen, font='bitmap8', scale=primary_scale)
     
     if secondary_temperature is not None:
@@ -130,7 +130,7 @@ def _draw_gauge_core(display, position, size, minimum_temperature, maximum_tempe
         textbox.draw_textbox(display, f'{minimum_temperature:.0f}', extent_x[0], text_y, text_size_x, text_size_y, color=white_pen, font='bitmap8', scale=text_scale)
         textbox.draw_textbox(display, f'{maximum_temperature:.0f}', centre[0], text_y, text_size_x, text_size_y, color=white_pen, font='bitmap8', scale=text_scale)
 
-def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, primary_decimals=0, show_min_max=True, groove_color=(128,128,128), notch_outline_color=(0,0,0), notch_fill_color=(255,255,255)):
+def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, primary_decimals=0, show_min_max=True, groove_color=0x8410, notch_outline_color=0x0000, notch_fill_color=0xFFFF):
     _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, current_temperature, primary_decimals, None, 0, show_min_max, groove_color, notch_outline_color, notch_fill_color)
     
 def get_temperature_position(position, size, minimum_temperature, maximum_temperature, temperature):
@@ -148,5 +148,5 @@ def get_temperature_position(position, size, minimum_temperature, maximum_temper
     )
     return point_on_circle(centre[0], centre[1], guage_radius, radians)
 
-def draw_gauge_with_secondary(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, secondary_temperature=0, primary_decimals=0, secondary_decimals=0, show_min_max=True, groove_color=(128,128,128), notch_outline_color=(0,0,0), notch_fill_color=(255,255,255)):
+def draw_gauge_with_secondary(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, secondary_temperature=0, primary_decimals=0, secondary_decimals=0, show_min_max=True, groove_color=0x8410, notch_outline_color=0x0000, notch_fill_color=0xFFFF):
     _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, current_temperature, primary_decimals, secondary_temperature, secondary_decimals, show_min_max, groove_color, notch_outline_color, notch_fill_color)

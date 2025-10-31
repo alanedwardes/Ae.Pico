@@ -16,9 +16,6 @@ class Drawing(framebuf.FrameBuffer):
     def set_driver(self, driver):
         self._driver = driver
 
-    def create_pen(self, r, g, b):
-        return Drawing.rgb(r, g, b)
-
     def get_bounds(self):
         return (self.width, self.height)
 

@@ -84,14 +84,14 @@ class ThermostatDisplay:
         maximum_temperature = float(thermostat_entity['a']['max_temp'])
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
         
-        self.display.rect(0, 70, self.display_width, self.display_height - 70, self.display.create_pen(0, 0, 0), True)
+        self.display.rect(0, 70, self.display_width, self.display_height - 70, 0x0000, True)
         
-        groove_color = (136, 64, 25) if hvac_action == 'heating' else (64, 64, 64)
-        notch_outline_color = (255, 111, 34) if hvac_action and hvac_action != 'off' else (0, 0, 0)
+        groove_color = 0x8A03 if hvac_action == 'heating' else 0x4208
+        notch_outline_color = 0xFB64 if hvac_action and hvac_action != 'off' else 0x0000
         gauge.draw_gauge_with_secondary(self.display, (0, 70), (self.display_width, self.display_height - 70), minimum_temperature, maximum_temperature, current_target, current_temperature, 1, 1, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
 
         # HVAC action label just above main temperature
-        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=self.display.create_pen(255, 255, 255), scale=1, font='bitmap8')
+        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, scale=1, font='bitmap8')
         
         self.display.update()
     

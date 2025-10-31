@@ -61,7 +61,9 @@ def draw_mesh(display, angle, vertices, faces):
         face = faces[face_idx]
         points = [projected[idx] for idx in face]
         color = base_colors[face_idx % len(base_colors)]
-        face_pen = display.create_pen(*color)
+        # Expecting callers to pass ints; here we convert the static palette to ints inline
+        r, g, b = color
+        face_pen = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
         flat = []
         for (px, py) in points:
             flat.append(int(px))
@@ -69,7 +71,7 @@ def draw_mesh(display, angle, vertices, faces):
         display.poly(0, 0, array('h', flat), face_pen, True)
 
     # Draw edges on top
-    edge_pen = display.create_pen(255, 255, 255)
+    edge_pen = 0xFFFF
     for face in faces:
         for i in range(len(face)):
             start = face[i]
@@ -103,6 +105,6 @@ class MeshDisplay:
 
     def update(self):
         # Clear with black
-        self.display.fill(self.display.create_pen(0, 0, 0))
+        self.display.fill(0x0000)
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
         self.display.update()

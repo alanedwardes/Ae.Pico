@@ -1,3 +1,4 @@
+
 def catmull_rom(p0, p1, p2, p3, t):
     return (
         0.5
@@ -93,14 +94,22 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
 
         data_index = map_px_to_index(px, x, width, len(raw_values))
         color = color_fn(data_index, raw_values[data_index])
-        transparent_color = tuple(c // max(1, alpha_divisor) for c in color)
+        # Dim RGB565 color by divisor
+        d = max(1, alpha_divisor)
+        r5 = (color >> 11) & 0x1F
+        g6 = (color >> 5) & 0x3F
+        b5 = color & 0x1F
+        r5 //= d
+        g6 //= d
+        b5 //= d
+        transparent_color = (r5 << 11) | (g6 << 5) | b5
 
         rect_width = 1 if last_x_int is None else max(1, x_int - last_x_int)
         top_y = int(py)
         rect_height = max(0, baseline_y - top_y)
         # Draw a vertical strip representing the area under the curve
         draw_x = x_int if last_x_int is None else (last_x_int + 1)
-        display.rect(draw_x, top_y, rect_width, rect_height, display.create_pen(*transparent_color), True)
+        display.rect(draw_x, top_y, rect_width, rect_height, transparent_color, True)
 
         last_x_int = x_int
 
@@ -111,4 +120,4 @@ def draw_colored_points(display, x, y, width, height, raw_values, normalized_val
     for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
         data_index = map_px_to_index(px, x, width, len(raw_values))
         color = color_fn(data_index, raw_values[data_index])
-        display.ellipse(int(px), int(py), int(radius), int(radius), display.create_pen(*color), True)
+        display.ellipse(int(px), int(py), int(radius), int(radius), color, True)

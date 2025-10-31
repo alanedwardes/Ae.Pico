@@ -90,15 +90,15 @@ class SolarDisplay:
         y_start = 70
         
         # Clear the display area below 70px
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x0000, True)
         
         # Set up colors
-        white = self.display.create_pen(255, 255, 255)
-        green = self.display.create_pen(0, 255, 0)
-        yellow = self.display.create_pen(255, 255, 0)
-        red = self.display.create_pen(255, 0, 0)
-        blue = self.display.create_pen(0, 150, 255)
-        orange = self.display.create_pen(255, 165, 0)
+        white = 0xFFFF
+        green = 0x07E0
+        yellow = 0xFFE0
+        red = 0xF800
+        blue = 0x04BF
+        orange = 0xFD20
         
         # Layout: 2x2 grid
         item_width = self.display_width // 2

@@ -42,10 +42,10 @@ class NewsDisplay:
         
         stories = self.get_stories()
                
-        self.white = self.display.create_pen(255, 255, 255)
-        self.black = self.display.create_pen(0, 0, 0)
-        self.highlight = self.display.create_pen(242, 106, 48)
-        self.grey = self.display.create_pen(128, 128, 128)
+        self.white = 0xFFFF
+        self.black = 0x0000
+        self.highlight = 0xF346
+        self.grey = 0x8410
         
         y_offset = 70
         

@@ -40,13 +40,13 @@ class InfoDisplay:
     def _get_pen_color(self, subscription, value):
         if subscription.get('temperature', False):
             try:
-                return self.display.create_pen(*colors.get_color_for_temperature(float(value)))
+                return colors.get_color_for_temperature(float(value))
             except:
                 pass
             
         if subscription.get('uv', False):
             try:
-                return self.display.create_pen(*colors.get_color_for_uv(int(value)))
+                return colors.get_color_for_uv(int(value))
             except:
                 pass
         
@@ -79,9 +79,9 @@ class InfoDisplay:
         self.__update()
 
     def __update(self):
-        self.white = self.display.create_pen(255, 255, 255)
-        self.black = self.display.create_pen(0, 0, 0)
-        self.grey = self.display.create_pen(128, 128, 128)
+        self.white = 0xFFFF
+        self.black = 0x0000
+        self.grey = 0x8410
         
         y = 70
         

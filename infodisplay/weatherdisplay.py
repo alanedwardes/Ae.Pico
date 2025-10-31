@@ -129,7 +129,7 @@ class WeatherDisplay:
         y_start = 70
         
         palette = []        
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, self.display.create_pen(0, 0, 0), True)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x0000, True)
         
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
         
@@ -156,9 +156,9 @@ class WeatherDisplay:
             day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
             
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
-                day_pen = self.display.create_pen(201, 205, 209)
+                day_pen = 0xCE7A
             else:
-                day_pen = self.display.create_pen(255, 255, 255)
+                day_pen = 0xFFFF
             
             height = 2 * 8
             textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, color=day_pen, font='bitmap8', scale=2)
@@ -172,12 +172,12 @@ class WeatherDisplay:
 
             height = 2 * 8
             temp_color = colors.get_color_for_temperature(temperature)
-            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, color=self.display.create_pen(*temp_color), font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, color=temp_color, font='bitmap8', scale=2)
             
             sy += 30
             
             rain_color = colors.get_color_for_rain_percentage(rain)
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=self.display.create_pen(rain_color[0], rain_color[1], rain_color[2]), font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=rain_color, font='bitmap8', scale=2)
 
         self.display.update()

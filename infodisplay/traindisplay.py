@@ -46,11 +46,11 @@ class TrainDisplay:
         platform = departure['plt']
         
         if departure['can']:
-            row_pen = self.display.create_pen(242, 106, 48)
+            row_pen = 0xF346
         elif departure['del']:
-            row_pen = self.display.create_pen(254, 219, 0)
+            row_pen = 0xFEC0
         else:
-            row_pen = self.display.create_pen(255, 255, 255)
+            row_pen = 0xFFFF
         
         # Define column widths and positions
         time_width = 50
@@ -74,7 +74,7 @@ class TrainDisplay:
         
         y_offset = 70
         
-        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, self.display.create_pen(0, 0, 0), True)
+        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x0000, True)
         
         for row in range(0, len(departures)):
             y_offset += self.__draw_departure_row(departures[row], y_offset)
