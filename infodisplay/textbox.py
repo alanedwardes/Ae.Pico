@@ -105,9 +105,6 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
             text = _word_wrap_bmfont(bmfont_obj, text, width, scale)
         else:
             text = word_wrap_text(display, text, width, scale)
-
-    # Set clipping bounds to the textbox area
-    display.set_clip(int(x), int(y), int(width), int(height))
     
     # Calculate text dimensions based on font
     if not is_bmfont:
@@ -174,6 +171,3 @@ def draw_textbox(display, text, x, y, width, height, *, font='bitmap8', scale=1,
     
     # DEBUG: Draw outline
     #draw_textbox_outline(display, x, y, width, height)
-    
-    # Remove clipping bounds
-    display.remove_clip()
