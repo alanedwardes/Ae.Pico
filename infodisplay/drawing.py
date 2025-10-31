@@ -89,6 +89,6 @@ class Drawing(framebuf.FrameBuffer):
     def update(self):
         if self._driver is None:
             return
-        self._driver.render(self.__buffer__(), self.width, self.height)
+        self._driver.render(self._buf, self.width, self.height)
 
 
