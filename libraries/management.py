@@ -215,6 +215,21 @@ class IndexController:
         
         writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
 
+class MemoryController:
+    def route(self, method, path):
+        return method == b'GET' and path == b'/memory'
+    
+    async def serve(self, method, path, headers, reader, writer):
+        used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
+        free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
+        KB = 1024
+
+        writer.write(OK_STATUS)
+        writer.write(HTML_HEADER)
+        writer.write(HEADER_TERMINATOR)
+        writer.write(MINIMAL_CSS)
+        writer.write(b'<p><b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress></p>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
+
 class EditController:
     def route(self, method, path):
         return path == b'/edit' or path == b'/new'
@@ -522,9 +537,9 @@ class ResetController:
 class ManagementServer:   
     def __init__(self, port = 80):
         self.port = port
-        self.controllers = [IndexController(), EditController(), DownloadController(),
-                            UploadController(), DeleteController(), ResetController(),
-                            TimeController(), ShellController(),
+        self.controllers = [IndexController(), MemoryController(), EditController(),
+                            DownloadController(), UploadController(), DeleteController(),
+                            ResetController(), TimeController(), ShellController(),
                             GPIOController(), PWMController()]
         self.authorization_header = None
         self.server = None
