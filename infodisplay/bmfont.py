@@ -75,20 +75,11 @@ class BMFont:
                     font.kerning[(first, second)] = amount
         return font
 
-class _PageBin:
-    def __init__(self, fh):
-        self.fh = fh
-        header = fh.read(4)
-        self.width, self.height = struct.unpack('<HH', header)
-        self.row_bytes = None
-
-    def ensure_row_bytes(self, bytes_per_pixel):
-        if self.row_bytes is None:
-            self.row_bytes = self.width * bytes_per_pixel
 
 def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1):
     total_pixels = display_width * display_height
     bytes_per_pixel = len(framebuffer) // total_pixels
+    row_bytes = font.scale_w * bytes_per_pixel
     pages = {}
     if isinstance(page_files, str):
         page_files = [page_files]
@@ -98,8 +89,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         iterator = enumerate(page_files)
     for pid, path in iterator:
         fh = open(path, 'rb')
-        pages[pid] = _PageBin(fh)
-        pages[pid].ensure_row_bytes(bytes_per_pixel)
+        pages[pid] = fh
     try:
         cx = x
         cy = y
@@ -121,14 +111,14 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
             dest_x = cx + xoffset * scale_up // scale_down
             dest_y = cy + yoffset * scale_up // scale_down
             blit_region_scaled(framebuffer, display_width, display_height, bytes_per_pixel,
-                               pages[page].fh, 4, pages[page].row_bytes,
+                               pages[page], 4, row_bytes,
                                x, y0, width, height,
                                dest_x, dest_y, scale_up=scale_up, scale_down=scale_down)
             cx += (xadvance * scale_up) // scale_down
             prev_id = code
     finally:
-        for p in pages.values():
-            p.fh.close()
+        for fh in pages.values():
+            fh.close()
 
 def measure_text(font: BMFont, text: str, kerning=True):
     max_width = 0
