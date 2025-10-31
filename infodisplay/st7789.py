@@ -5,7 +5,6 @@
 #
 
 from time import sleep_ms
-import framebuf
 import gc
 import micropython
 from machine import PWM
@@ -38,7 +37,7 @@ def _swapline(dest: ptr8, source: ptr8, length: int):
         n += 2
         length -= 2
 
-class ST7789(framebuf.FrameBuffer):
+class ST7789:
     # Convert r, g, b in range 0-255 to a 16-bit RGB565 colour value
     @staticmethod
     def rgb(r, g, b):
@@ -70,14 +69,9 @@ class ST7789(framebuf.FrameBuffer):
         self._offset = display[:2]  # display arg is (x, y, orientation)
         orientation = display[2]  # where x, y is the RAM offset
         self._spi_init = init_spi  # Possible user callback
-        self.mode = framebuf.RGB565
         gc.collect()
-        buf = bytearray(height * width * 2)
-        self.mvb = memoryview(buf)
-        super().__init__(buf, width, height, self.mode)
         self._linebuf = bytearray(self.width * 2)
         self._init(disp_mode, orientation, display[3:])
-        self.update()
         self._backlight_pwm = None
 
     # Hardware reset
@@ -192,9 +186,11 @@ class ST7789(framebuf.FrameBuffer):
         # Row address set
         self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
 
-    def update(self):
+    def render(self, framebuffer, width, height):
         wd = self.width
         ht = self.height
+        if width != wd or height != ht:
+            return
         if self._spi_init:
             self._spi_init(self._spi)
         self._dc(0)
@@ -202,16 +198,13 @@ class ST7789(framebuf.FrameBuffer):
         self._spi.write(b"\x2c")
         self._dc(1)
         lb = memoryview(self._linebuf)
-        buf = self.mvb
+        src = memoryview(framebuffer)
         row_bytes = wd * 2
         for row in range(ht):
             start = row * row_bytes
-            _swapline(lb, buf[start:], row_bytes)
+            _swapline(lb, src[start:], row_bytes)
             self._spi.write(lb)
         self._cs(1)
-
-    def __buffer__(self, flags):
-        return self.mvb
 
     def set_backlight(self, brightness):
         """Set backlight brightness.

@@ -1,7 +1,6 @@
 import framebuf
 from font8 import Font8
 
-
 class Drawing(framebuf.FrameBuffer):
     def __init__(self, width, height):
         self.width = width
@@ -121,4 +120,5 @@ class Drawing(framebuf.FrameBuffer):
         if self._driver is None:
             return
         self._driver.render(self.__buffer__(), self.width, self.height)
+
 
