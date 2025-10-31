@@ -19,6 +19,11 @@ class Drawing(framebuf.FrameBuffer):
     def get_bounds(self):
         return (self.width, self.height)
 
+    def set_backlight(self, brightness):
+        if self._driver is None:
+            return
+        self._driver.set_backlight(brightness)
+
     def update(self):
         if self._driver is None:
             return
