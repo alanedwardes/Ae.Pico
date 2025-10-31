@@ -1,5 +1,6 @@
 import math
 import textbox
+from array import array
 
 def clamp(value, min_value, max_value):
     return max(min(value, max_value), min_value)
@@ -28,7 +29,11 @@ def circle(display, x, y, radius, color):
     return display.ellipse(int(x), int(y), int(radius), int(radius), color, True)
 
 def polygon(display, points):
-    return display.polygon([(int(point[0]), int(point[1])) for point in points])
+    flat = []
+    for point in points:
+        flat.append(int(point[0]))
+        flat.append(int(point[1]))
+    return display.poly(0, 0, array('h', flat), display.pen, True)
 
 def _draw_gauge_core(display, position, size, minimum_temperature, maximum_temperature, primary_temperature, primary_decimals=0, secondary_temperature=None, secondary_decimals=0, show_min_max=True, groove_color=(128, 128, 128), notch_outline_color=(0, 0, 0), notch_fill_color=(255, 255, 255)):
     centre = [size[0] / 2 + position[0], size[1] / 2 + position[1]]

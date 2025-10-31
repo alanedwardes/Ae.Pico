@@ -26,20 +26,7 @@ class Drawing(framebuf.FrameBuffer):
     def get_bounds(self):
         return (self.width, self.height)
 
-    def polygon(self, points):
-        # points: list of (x, y)
-        if not points:
-            return
-        from array import array
-        flat = []
-        for px, py in points:
-            flat.append(px)
-            flat.append(py)
-        super().poly(0, 0, array('h', flat), self.pen, True)
-
     def update(self):
         if self._driver is None:
             return
         self._driver.render(self._buf, self.width, self.height)
-
-

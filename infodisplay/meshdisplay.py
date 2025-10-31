@@ -1,5 +1,6 @@
 import math
 import asyncio
+from array import array
 
 WIDTH = 320
 HEIGHT = 240
@@ -61,7 +62,11 @@ def draw_mesh(display, angle, vertices, faces):
         points = [projected[idx] for idx in face]
         color = base_colors[face_idx % len(base_colors)]
         display.set_pen(display.create_pen(*color))
-        display.polygon(points)
+        flat = []
+        for (px, py) in points:
+            flat.append(int(px))
+            flat.append(int(py))
+        display.poly(0, 0, array('h', flat), display.pen, True)
 
     # Draw edges on top
     display.set_pen(display.create_pen(255, 255, 255))
