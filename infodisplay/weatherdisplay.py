@@ -8,7 +8,7 @@ import utime
 import colors
 import struct
 import textbox
-from bitblt import blit_region_scaled
+from bitblt import blit_region
 
 from httpstream import parse_url
 
@@ -104,10 +104,10 @@ class WeatherDisplay:
                 bytes_per_pixel = len(framebuffer) // total_pixels
 
                 icon_row_bytes = icon_width * bytes_per_pixel
-                blit_region_scaled(framebuffer, self.display_width, self.display_height, bytes_per_pixel,
-                                   icon_file, 4, icon_row_bytes,
-                                   0, 0, icon_width, icon_height,
-                                   icon_x, icon_y)
+                blit_region(framebuffer, self.display_width, self.display_height, bytes_per_pixel,
+                            icon_file, 4, icon_row_bytes,
+                            0, 0, icon_width, icon_height,
+                            icon_x, icon_y)
         except OSError as e:
             print(f"Warning: Could not load icon '{icon_name}': {e}")
             return

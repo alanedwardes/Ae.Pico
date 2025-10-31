@@ -1,6 +1,6 @@
 import struct
 import gc
-from bitblt import blit_region_scaled
+from bitblt import blit_region
 
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
@@ -110,10 +110,10 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
             x, y0, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
             dest_x = cx + xoffset * scale_up // scale_down
             dest_y = cy + yoffset * scale_up // scale_down
-            blit_region_scaled(framebuffer, display_width, display_height, bytes_per_pixel,
-                               pages[page], 4, row_bytes,
-                               x, y0, width, height,
-                               dest_x, dest_y, scale_up=scale_up, scale_down=scale_down)
+            blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
+                        pages[page], 4, row_bytes,
+                        x, y0, width, height,
+                        dest_x, dest_y)
             cx += (xadvance * scale_up) // scale_down
             prev_id = code
     finally:
