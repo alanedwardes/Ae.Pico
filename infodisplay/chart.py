@@ -85,6 +85,10 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
 
     baseline_y = y + height
     last_x_int = None
+    num_points = len(raw_values)
+    if width <= 0 or num_points <= 0:
+        return
+    max_index = num_points - 1
 
     for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
         x_int = int(px)
@@ -92,7 +96,13 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
         if last_x_int is not None and x_int <= last_x_int:
             continue
 
-        data_index = map_px_to_index(px, x, width, len(raw_values))
+        # Integer mapping from pixel x to data index to avoid float division churn
+        rel_px = x_int - x
+        if rel_px < 0:
+            rel_px = 0
+        data_index = (rel_px * max_index) // width
+        if data_index > max_index:
+            data_index = max_index
         color = color_fn(data_index, raw_values[data_index])
         # Dim RGB565 color by divisor
         d = max(1, alpha_divisor)
@@ -117,7 +127,17 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
 def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
+    num_points = len(raw_values)
+    if width <= 0 or num_points <= 0:
+        return
+    max_index = num_points - 1
     for px, py in draw_chart(x, y, width, height, normalized_values, step=step, smoothing=smoothing):
-        data_index = map_px_to_index(px, x, width, len(raw_values))
+        x_int = int(px)
+        rel_px = x_int - x
+        if rel_px < 0:
+            rel_px = 0
+        data_index = (rel_px * max_index) // width
+        if data_index > max_index:
+            data_index = max_index
         color = color_fn(data_index, raw_values[data_index])
         display.ellipse(int(px), int(py), int(radius), int(radius), color, True)
