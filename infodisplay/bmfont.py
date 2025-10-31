@@ -82,43 +82,40 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
     row_bytes = font.scale_w * bytes_per_pixel
     pages = {}
     if isinstance(page_files, str):
-        page_files = [page_files]
+        raise TypeError("page_files must be file objects (not paths)")
     if hasattr(page_files, 'items'):
         iterator = page_files.items()
     else:
         iterator = enumerate(page_files)
-    for pid, path in iterator:
-        fh = open(path, 'rb')
+    for pid, fh in iterator:
+        if not (hasattr(fh, 'seek') and hasattr(fh, 'readinto')):
+            raise TypeError("page_files values must be file-like with seek and readinto")
         pages[pid] = fh
-    try:
-        cx = x
-        cy = y
-        prev_id = None
-        for ch in text:
-            if ch == "\n":
-                cx = x
-                cy += font.line_height
-                prev_id = None
-                continue
-            code = ord(ch)
-            off = font.chars.get(code)
-            if off is None:
-                prev_id = None
-                continue
-            if prev_id is not None and kerning:
-                cx += font.kerning.get((prev_id, code), 0)
-            x, y0, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
-            dest_x = cx + xoffset * scale_up // scale_down
-            dest_y = cy + yoffset * scale_up // scale_down
-            blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
-                        pages[page], 4, row_bytes,
-                        x, y0, width, height,
-                        dest_x, dest_y)
-            cx += (xadvance * scale_up) // scale_down
-            prev_id = code
-    finally:
-        for fh in pages.values():
-            fh.close()
+    cx = x
+    cy = y
+    prev_id = None
+    for ch in text:
+        if ch == "\n":
+            cx = x
+            cy += font.line_height
+            prev_id = None
+            continue
+        code = ord(ch)
+        off = font.chars.get(code)
+        if off is None:
+            prev_id = None
+            continue
+        if prev_id is not None and kerning:
+            cx += font.kerning.get((prev_id, code), 0)
+        x, y0, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
+        dest_x = cx + xoffset * scale_up // scale_down
+        dest_y = cy + yoffset * scale_up // scale_down
+        blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
+                    pages[page], 4, row_bytes,
+                    x, y0, width, height,
+                    dest_x, dest_y)
+        cx += (xadvance * scale_up) // scale_down
+        prev_id = code
 
 def measure_text(font: BMFont, text: str, kerning=True):
     max_width = 0

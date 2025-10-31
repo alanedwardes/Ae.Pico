@@ -9,7 +9,7 @@ _BM_FONT_CACHE = {}
 def _get_bmfont(font_name):
     if font_name not in _BM_FONT_CACHE:
         font_path = f"fonts/{font_name}.fnt"
-        page_files = [f"fonts/{font_name}_0.bin"]
+        page_files = [open(f"fonts/{font_name}_0.bin", "rb")]
         _BM_FONT_CACHE[font_name] = (BMFont.load(font_path), page_files)
     return _BM_FONT_CACHE[font_name]
 
