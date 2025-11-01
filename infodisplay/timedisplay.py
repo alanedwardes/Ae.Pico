@@ -49,10 +49,10 @@ class TimeDisplay:
         section_height = height / 2
         
         time_width = 200
-        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, color=0xFFFF, font='time', scale=1)
+        textbox.draw_textbox(self.display, '%02i:%02i' % (now[4], now[5]), 0, 0, time_width, height, color=0xFFFF, font='headline', scale=1)
 
         date_seconds_width = self.display_width - time_width - 64 # the temp display is 64px        
-        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='notosans', scale=1)
-        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, date_seconds_width, section_height, color=0xFFFF, font='notosans', scale=1)
+        textbox.draw_textbox(self.display, f'{self.DAYS[now[3]-1]}', time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
+        textbox.draw_textbox(self.display, '%02i' % now[6], time_width, section_height, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
         
         self.display.update()

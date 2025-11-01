@@ -95,13 +95,13 @@ class ThermostatDisplay:
         # Draw primary (target) and secondary (current) temperatures
         white_pen = 0xFFFF
         primary_height = size[1] * 0.85
-        textbox.draw_textbox(self.display, f'{current_target:.1f}', position[0], position[1], size[0], primary_height, color=white_pen, font='notosans')
+        textbox.draw_textbox(self.display, f'{current_target:.0f}°', position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
         secondary_text_y = position[1] + size[1] * 0.65
         secondary_text_height = size[1] * 0.2
-        textbox.draw_textbox(self.display, f'{current_temperature:.1f}', position[0], secondary_text_y, size[0], secondary_text_height, color=white_pen, font='notosans')
+        textbox.draw_textbox(self.display, f'{current_temperature:.1f}°', position[0], secondary_text_y, size[0], secondary_text_height, color=white_pen, font='regular')
 
         # HVAC action label just above main temperature
-        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='notosanssmall')
+        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='small')
         
         self.display.update()
     

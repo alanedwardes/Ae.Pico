@@ -2,10 +2,10 @@
 fileVersion=1
 
 # font settings
-fontName=Momo Trust Display
-fontFile=../../../../Users/alan/Downloads/Momo_Trust_Display/MomoTrustDisplay-Regular.ttf
+fontName=Noto Sans
+fontFile=../../../../Users/alan/Downloads/Momo_Trust_Display,Noto_Sans,Oswald/Noto_Sans/static/regular-Regular.ttf
 charSet=0
-fontSize=-64
+fontSize=-16
 aa=1
 scaleH=100
 useSmoothing=1
@@ -14,7 +14,7 @@ isItalic=0
 useUnicode=1
 disableBoxChars=1
 outputInvalidCharGlyph=0
-dontIncludeKerningPairs=1
+dontIncludeKerningPairs=0
 useHinting=1
 renderFromOutline=0
 useClearType=1
@@ -35,7 +35,7 @@ widthPaddingFactor=0.00
 
 # output file
 outWidth=256
-outHeight=128
+outHeight=64
 outBitDepth=8
 fontDescFormat=0
 fourChnlPacked=0
@@ -54,6 +54,6 @@ invB=0
 outlineThickness=0
 
 # selected chars
-chars=48-58
+chars=0-0,13,32-126,162-163,176,186
 
 # imported icon images

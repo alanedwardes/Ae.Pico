@@ -51,7 +51,7 @@ class TemperatureDisplay:
         white_pen = 0xFFFF
         primary_scale = size[1] * 0.06
         primary_height = size[1]
-        textbox.draw_textbox(self.display, f'{current_temperature:.0f}', position[0], position[1], size[0], primary_height, color=white_pen, font='notosans')
+        textbox.draw_textbox(self.display, f'{current_temperature:.0f}°', position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
         
         # Draw min/max labels under the gauge
         centre_x = size[0] / 2 + position[0]
@@ -62,6 +62,6 @@ class TemperatureDisplay:
         text_scale = max(1, math.ceil(size[1] * 0.02))
         text_height = 8 * text_scale
         text_size_y = text_height + 4
-        textbox.draw_textbox(self.display, f'{minimum_temperature:.0f}', extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='notosanssmall')
-        textbox.draw_textbox(self.display, f'{maximum_temperature:.0f}', centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='notosanssmall')
+        textbox.draw_textbox(self.display, f'{minimum_temperature:.0f}°', extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
+        textbox.draw_textbox(self.display, f'{maximum_temperature:.0f}°', centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
         self.display.update()
