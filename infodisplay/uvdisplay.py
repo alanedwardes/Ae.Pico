@@ -147,7 +147,7 @@ class UvDisplay:
             sx = position * label_width
             
             height = 1 * 8
-            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, color=0xFFFF, font='bitmap8', scale=1)
+            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, color=0xFFFF, font='small')
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 35  # Make chart fill more space
@@ -184,7 +184,7 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
             # Draw label on the left
-            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, color=0xFFFF, font='bitmap8', align='left', scale=1)
+            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, color=0xFFFF, font='small', align='left')
 
         # Display UV values above the graph
         if self.uv_data:
@@ -195,7 +195,7 @@ class UvDisplay:
                 uv = self.uv_data[i]
                 label_index = i // 2  # Index for positioning
                 x_pos = label_index * label_width
-                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, color=0xFFFF, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, color=0xFFFF, font='small')
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
