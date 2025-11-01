@@ -67,17 +67,24 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
     fb_x = dx + left_clip
     # GS8 source: 1 byte per pixel
     linebuf = bytearray(copy_width)
+    source_framebuffer = (linebuf, copy_width, 1, framebuf.GS8)
 
-    # Prepare RGB565 palette for GS8 source (supports tint or grayscale)
-    palette = _build_palette565_bytes(tint_color)
+    # Prepare RGB565 palette only if tinting; omit for white fast path
+    palette = None if tint_color is None else _build_palette565_bytes(tint_color)
     for row in range(start_row, end_row):
         fb_y = dy + row
         src_y = sy + row
         src_offset = 4 + src_y * src_row_bytes + src_x
         fh.seek(src_offset)
         fh.readinto(linebuf)
-        framebuffer.blit((linebuf, copy_width, 1, framebuf.GS8), fb_x, fb_y, -1,
-                         (palette, 256, 1, framebuf.RGB565))
+        if palette is None:
+            # Fast path: GS8 -> grayscale RGB565 (no tint) via blit fallback
+            # 1-bit transparency: treat intensity 0 as transparent via key=0
+            framebuffer.blit(source_framebuffer, fb_x, fb_y, 0)
+        else:
+            # Tinted path: use RGB565 palette
+            # 1-bit transparency: ensure palette[0] == 0 and pass key=0
+            framebuffer.blit(source_framebuffer, fb_x, fb_y, 0, (palette, 256, 1, framebuf.RGB565))
 
 class BMFont:
     def __init__(self):

@@ -184,11 +184,6 @@ class FrameBuffer:
                 self.hline(x_start, yy, x_end - x_start + 1, color)
 
     def blit(self, source, x, y, key=-1, palette=None):
-        # Extended blit with optional color key and palette, and tuple stride support.
-        # Supported sources:
-        # - FrameBuffer (RGB565 only in this shim)
-        # - Tuple (buf, w, h, fmt[, stride]) where fmt can be RGB565 or GS8
-
         # Resolve source buffer/format
         if isinstance(source, FrameBuffer):
             src_mv = source.__buffer__()
