@@ -10,55 +10,42 @@ except ImportError:  # Allow importing under CPython tooling
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
 _GLYPH_FMT = '<HHHHhhhB'
 
-def _build_tint_lut_bytes(color565):
-    """Build a compact 128B LUT (little-endian RGB565 pairs) for 6-bit intensity.
-
-    Source atlas assumed grayscale (intensity in green channel)."""
-    r5 = (color565 >> 11) & 0x1F
-    g6 = (color565 >> 5) & 0x3F
-    b5 = color565 & 0x1F
-    lut = bytearray(128)
-    o = 0
-    for i in range(64):
-        tr = (r5 * i) // 63
-        tg = (g6 * i) // 63
-        tb = (b5 * i) // 63
-        tp = (tr << 11) | (tg << 5) | tb
-        lut[o] = tp & 0xFF
-        lut[o + 1] = (tp >> 8) & 0xFF
-        o += 2
-    return lut
-
 
 def _rgb565_from_tuple(r, g, b):
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
 
-if micropython:
-    @micropython.viper
-    def _tint_line(linebuf: ptr8, length: int, lut: ptr8):
-        n: int = 0
-        while n < length:
-            b0 = linebuf[n]
-            b1 = linebuf[n + 1]
-            px = int(b0) | (int(b1) << 8)
-            intensity = (px >> 5) & 0x3F  # use green channel for grayscale intensity
-            li = intensity << 1
-            linebuf[n] = lut[li]
-            linebuf[n + 1] = lut[li + 1]
-            n += 2
-else:
-    def _tint_line(linebuf, length, lut):
-        lb = linebuf
-        for i in range(0, length, 2):
-            px = lb[i] | (lb[i + 1] << 8)
-            intensity = (px >> 5) & 0x3F
-            li = intensity * 2
-            lb[i] = lut[li]
-            lb[i + 1] = lut[li + 1]
+def _build_palette565_bytes(tint_color):
+    """Build a 256x1 RGB565 palette as bytes for GS8 source.
+
+    If tint_color is None, palette maps grayscale to white (i.e., identity grayscale).
+    If tint_color is RGB565 or (r,g,b), palette maps intensity to the tinted color.
+    """
+    if tint_color is None:
+        r5 = 0x1F
+        g6 = 0x3F
+        b5 = 0x1F
+    else:
+        if isinstance(tint_color, tuple):
+            tint_color = _rgb565_from_tuple(tint_color[0], tint_color[1], tint_color[2])
+        c = int(tint_color) & 0xFFFF
+        r5 = (c >> 11) & 0x1F
+        g6 = (c >> 5) & 0x3F
+        b5 = c & 0x1F
+    pal = bytearray(256 * 2)
+    o = 0
+    for i in range(256):
+        tr5 = (r5 * i) // 255
+        tg6 = (g6 * i) // 255
+        tb5 = (b5 * i) // 255
+        val = (tr5 << 11) | (tg6 << 5) | tb5
+        pal[o] = val & 0xFF
+        pal[o + 1] = (val >> 8) & 0xFF
+        o += 2
+    return pal
 
 
-def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, src_row_bytes,
+def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
                sx, sy, sw, sh, dx, dy, tint_color=None):
     if sw <= 0 or sh <= 0:
         return
@@ -78,23 +65,19 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, src_row_b
 
     src_x = sx + left_clip
     fb_x = dx + left_clip
-    linebuf = bytearray(copy_width * bytes_per_pixel)
+    # GS8 source: 1 byte per pixel
+    linebuf = bytearray(copy_width)
 
-    # Prepare tint LUT if requested
-    tint_lut = None
-    if tint_color is not None:
-        if isinstance(tint_color, tuple):
-            tint_color = _rgb565_from_tuple(tint_color[0], tint_color[1], tint_color[2])
-        tint_lut = _build_tint_lut_bytes(int(tint_color) & 0xFFFF)
+    # Prepare RGB565 palette for GS8 source (supports tint or grayscale)
+    palette = _build_palette565_bytes(tint_color)
     for row in range(start_row, end_row):
         fb_y = dy + row
         src_y = sy + row
-        src_offset = 4 + src_y * src_row_bytes + src_x * bytes_per_pixel
+        src_offset = 4 + src_y * src_row_bytes + src_x
         fh.seek(src_offset)
         fh.readinto(linebuf)
-        if tint_lut is not None and bytes_per_pixel == 2:
-            _tint_line(linebuf, len(linebuf), tint_lut)
-        framebuffer.blit((linebuf, copy_width, 1, framebuf.RGB565), fb_x, fb_y)
+        framebuffer.blit((linebuf, copy_width, 1, framebuf.GS8), fb_x, fb_y, -1,
+                         (palette, 256, 1, framebuf.RGB565))
 
 class BMFont:
     def __init__(self):
@@ -167,9 +150,8 @@ class BMFont:
 
 
 def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1, color=None):
-    total_pixels = display_width * display_height
-    bytes_per_pixel = len(memoryview(framebuffer)) // total_pixels
-    row_bytes = font.scale_w * bytes_per_pixel
+    # GS8 source atlases: one byte per pixel per row
+    row_bytes = font.scale_w * 1
     pages = {}
     if isinstance(page_files, str):
         raise TypeError("page_files must be file objects (not paths)")
@@ -200,7 +182,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         src_x, src_y, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
         dest_x = cx + xoffset * scale_up // scale_down
         dest_y = cy + yoffset * scale_up // scale_down
-        blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
+        blit_region(framebuffer, display_width, display_height,
                     pages[page], row_bytes,
                     src_x, src_y, width, height,
                     dest_x, dest_y, color)

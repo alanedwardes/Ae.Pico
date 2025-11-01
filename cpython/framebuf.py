@@ -184,35 +184,117 @@ class FrameBuffer:
                 self.hline(x_start, yy, x_end - x_start + 1, color)
 
     def blit(self, source, x, y, key=-1, palette=None):
-        # Minimal same-format blit; ignores palette for RGB565
+        # Extended blit with optional color key and palette, and tuple stride support.
+        # Supported sources:
+        # - FrameBuffer (RGB565 only in this shim)
+        # - Tuple (buf, w, h, fmt[, stride]) where fmt can be RGB565 or GS8
+
+        # Resolve source buffer/format
         if isinstance(source, FrameBuffer):
-            src = source
-            src_mv = src.__buffer__()
-            src_w, src_h = src.width, src.height
-            src_stride = src.stride
+            src_mv = source.__buffer__()
+            src_w, src_h = source.width, source.height
+            src_stride = source.stride
+            src_fmt = source.mode
         else:
             try:
-                buf, src_w, src_h, fmt = source[0], int(source[1]), int(source[2]), int(source[3])
+                if len(source) >= 5:
+                    buf, src_w, src_h, src_fmt, src_stride = (
+                        source[0], int(source[1]), int(source[2]), int(source[3]), int(source[4])
+                    )
+                else:
+                    buf, src_w, src_h, src_fmt = (
+                        source[0], int(source[1]), int(source[2]), int(source[3])
+                    )
+                    src_stride = src_w
             except Exception:
                 return
-            if fmt != RGB565:
+            try:
+                src_mv = memoryview(buf)
+            except Exception:
                 return
-            src_mv = memoryview(buf)
-            src_stride = src_w
+
+        # Prepare optional palette (RGB565 expected)
+        pal_mv = None
+        pal_stride = 0
+        pal_fmt = None
+        if palette is not None:
+            if isinstance(palette, FrameBuffer):
+                pal_mv = palette.__buffer__()
+                pal_stride = palette.stride
+                pal_fmt = palette.mode
+            else:
+                try:
+                    if len(palette) >= 5:
+                        pbuf, pw, ph, pal_fmt, pal_stride = (
+                            palette[0], int(palette[1]), int(palette[2]), int(palette[3]), int(palette[4])
+                        )
+                    else:
+                        pbuf, pw, ph, pal_fmt = (
+                            palette[0], int(palette[1]), int(palette[2]), int(palette[3])
+                        )
+                        pal_stride = pw
+                    pal_mv = memoryview(pbuf)
+                except Exception:
+                    pal_mv = None
+            # Only accept RGB565 palettes in this shim
+            if pal_fmt != RGB565:
+                pal_mv = None
+
+        # Trivial reject if completely out of bounds
         if x >= self.width or y >= self.height or -x >= src_w or -y >= src_h:
             return
+
+        # Clip to destination and compute starting source coords
         x0 = max(0, x)
         y0 = max(0, y)
         sx0 = max(0, -x)
         sy0 = max(0, -y)
         x1 = min(self.width, x + src_w)
         y1 = min(self.height, y + src_h)
-        for yy, sy in zip(range(y0, y1), range(sy0, sy0 + (y1 - y0))):
-            dst_off = (yy * self.stride + x0) * 2
-            src_off = (sy * src_stride + sx0) * 2
-            count = (x1 - x0) * 2
-            # No color key/palette support for RGB565 in this shim
-            self._buf[dst_off:dst_off + count] = src_mv[src_off:src_off + count]
+
+        # Fast path: direct row copy for RGB565 without key/palette
+        if src_fmt == RGB565 and pal_mv is None and key == -1:
+            for yy, sy in zip(range(y0, y1), range(sy0, sy0 + (y1 - y0))):
+                dst_off = (yy * self.stride + x0) * 2
+                src_off = (sy * src_stride + sx0) * 2
+                count = (x1 - x0) * 2
+                self._buf[dst_off:dst_off + count] = src_mv[src_off:src_off + count]
+            return
+
+        # Helper to read a source pixel and map via palette if needed
+        def read_src_color(sx, sy):
+            if src_fmt == RGB565:
+                o = (sy * src_stride + sx) * 2
+                return src_mv[o] | (src_mv[o + 1] << 8)
+            elif src_fmt == GS8:
+                o = (sy * src_stride + sx)
+                idx = src_mv[o]
+                if pal_mv is not None:
+                    po = (0 * pal_stride + int(idx)) * 2
+                    return pal_mv[po] | (pal_mv[po + 1] << 8)
+                # Fallback: approximate grayscale mapping to RGB565
+                g = int(idx) & 0xFF
+                r = g >> 3
+                g6 = g >> 2
+                b = g >> 3
+                return (r << 11) | (g6 << 5) | b
+            else:
+                # Unsupported source format in this shim
+                return None
+
+        # Per-pixel loop to support key/palette
+        width = x1 - x0
+        for dy, sy in zip(range(y0, y1), range(sy0, sy0 + (y1 - y0))):
+            sx = sx0
+            dx = x0
+            for _ in range(width):
+                col = read_src_color(sx, sy)
+                if col is not None and (key == -1 or col != key):
+                    off = (dy * self.stride + dx) * 2
+                    self._buf[off] = col & 0xFF
+                    self._buf[off + 1] = (col >> 8) & 0xFF
+                sx += 1
+                dx += 1
 
     def scroll(self, xstep, ystep):
         if xstep == 0 and ystep == 0:
