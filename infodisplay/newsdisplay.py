@@ -13,7 +13,7 @@ class NewsDisplay:
         
         self.last_updated = utime.localtime()
         self.story_index = 0
-   
+
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['news']
@@ -41,7 +41,7 @@ class NewsDisplay:
             return
         
         stories = self.get_stories()
-               
+            
         self.white = 0xFFFF
         self.black = 0x0000
         self.highlight = 0xF346
@@ -59,9 +59,13 @@ class NewsDisplay:
         label_height = 25
             
         textbox.draw_textbox(self.display, "%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 
-                            0, y_offset, self.display_width, label_height, color=self.grey, font='bitmap8', scale=2, align='left')
+                            0, y_offset, self.display_width, label_height, color=self.grey, font='small', align='center')
         
         y_offset += label_height
+        # Red divider between metadata and story
+        divider_height = 4
+        self.display.rect(0, y_offset, self.display_width, divider_height, 0xb000, True)
+        y_offset += divider_height
         
-        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=self.white, font='bitmap8', scale=3, align='left', wrap=True, valign='top')
+        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=self.white, font='regular', wrap=True, valign='top')
         self.display.update()
