@@ -147,7 +147,6 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
     # bmfont and bitmap8 both render from top-left
     
     if is_bmfont:
-        fb = memoryview(display)
         dw, dh = display.get_bounds()
         bmfont_obj, bm_pages = _get_bmfont(font)
         # Convert arbitrary scale to integer up/down factors for blitter
@@ -163,7 +162,7 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
             scale_up_i = max(1, int(round(s)))
             scale_down_i = 1
         draw_text(
-            fb, dw, dh, bmfont_obj, bm_pages, text,
+            display, dw, dh, bmfont_obj, bm_pages, text,
             math.floor(text_x_position), math.floor(text_y_position),
             kerning=True, scale_up=scale_up_i, scale_down=scale_down_i
         )

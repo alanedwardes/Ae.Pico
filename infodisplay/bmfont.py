@@ -78,7 +78,7 @@ class BMFont:
 
 def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1):
     total_pixels = display_width * display_height
-    bytes_per_pixel = len(framebuffer) // total_pixels
+    bytes_per_pixel = len(memoryview(framebuffer)) // total_pixels
     row_bytes = font.scale_w * bytes_per_pixel
     pages = {}
     if isinstance(page_files, str):

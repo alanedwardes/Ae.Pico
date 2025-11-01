@@ -101,7 +101,7 @@ class WeatherDisplay:
 
                 # Calculate bytes per pixel from framebuffer size and display dimensions
                 total_pixels = self.display_width * self.display_height
-                bytes_per_pixel = len(framebuffer) // total_pixels
+                bytes_per_pixel = len(memoryview(framebuffer)) // total_pixels
 
                 icon_row_bytes = icon_width * bytes_per_pixel
                 blit_region(framebuffer, self.display_width, self.display_height, bytes_per_pixel,
@@ -165,7 +165,7 @@ class WeatherDisplay:
             
             sy += 25
             
-            icon = self.draw_icon(weather_code, memoryview(self.display), sx, sy, column_width, 50)
+            icon = self.draw_icon(weather_code, self.display, sx, sy, column_width, 50)
             # icon is blitted directly; no color state
             
             sy += 50
