@@ -107,12 +107,12 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
             continue
         if prev_id is not None and kerning:
             cx += font.kerning.get((prev_id, code), 0)
-        x, y0, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
+        src_x, src_y, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
         dest_x = cx + xoffset * scale_up // scale_down
         dest_y = cy + yoffset * scale_up // scale_down
         blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
                     pages[page], 4, row_bytes,
-                    x, y0, width, height,
+                    src_x, src_y, width, height,
                     dest_x, dest_y)
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
