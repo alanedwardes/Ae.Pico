@@ -14,7 +14,7 @@ def _get_bmfont(font_name):
     return _BM_FONT_CACHE[font_name]
 
 def _measure_bmfont(font_obj, text, scale):
-    w, h = measure_text(font_obj, text)
+    w, h, _min_x, _min_y = measure_text(font_obj, text)
     return w * scale, h * scale
 
 def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
@@ -98,11 +98,12 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
         valign: Vertical alignment - 'top', 'center', or 'bottom' (default: 'center')
     """
     is_bmfont = font != 'bitmap8'
+    if is_bmfont:
+        bmfont_obj, bm_pages = _get_bmfont(font)
 
     # Apply word wrapping if requested
     if wrap:
         if is_bmfont:
-            bmfont_obj, _bm_pages = _get_bmfont(font)
             text = _word_wrap_bmfont(bmfont_obj, text, width, scale)
         else:
             text = word_wrap_text(display, text, width, scale)
@@ -117,13 +118,23 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
             text_height_pixels = 8 * scale
         stroke_thickness = 0
     else:
-        bmfont_obj, _bm_pages = _get_bmfont(font)
-        _, text_height_pixels = _measure_bmfont(bmfont_obj, text if wrap else "A", scale)
+        # We'll compute precise bounds below after scale factors are chosen
         stroke_thickness = 0
 
     if is_bmfont:
-        bmfont_obj, _bm_pages = _get_bmfont(font)
-        text_width_pixels, _ = _measure_bmfont(bmfont_obj, text, scale)
+        # Use tight bounds that include glyph bearings
+        bounds_w, bounds_h, min_x, min_y = measure_text(bmfont_obj, text)
+        # Compute integer scale factors and scaled bounds now (needed for alignment)
+        s = max(0.000001, float(scale))
+        if s < 1.0:
+            scale_up_i = 1
+            scale_down_i = max(1, int(round(1.0 / s)))
+        else:
+            # Prefer nearest integer upscale
+            scale_up_i = max(1, int(round(s)))
+            scale_down_i = 1
+        text_width_pixels = (bounds_w * scale_up_i) // scale_down_i
+        text_height_pixels = (bounds_h * scale_up_i) // scale_down_i
     else:
         text_width_pixels = Font8.measure_text(text, scale)
     
@@ -135,39 +146,26 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
     else:  # center (default)
         text_x_position = x + width * 0.5 - text_width_pixels * 0.5
     
-    # Calculate vertical text position based on font rendering behavior and valign
-    if not is_bmfont or is_bmfont:
-        # Bitmap font: render from top-left
-        if valign == 'top':
-            text_y_position = y
-        elif valign == 'bottom':
-            text_y_position = y + height - text_height_pixels
-        else:  # center (default)
-            text_y_position = y + (height - text_height_pixels) * 0.5
-    # bmfont and bitmap8 both render from top-left
+    # Calculate vertical text position; both fonts render from top-left
+    if valign == 'top':
+        text_y_position = y
+    elif valign == 'bottom':
+        text_y_position = y + height - text_height_pixels
+    else:  # center (default)
+        text_y_position = y + (height - text_height_pixels) * 0.5
     
     if is_bmfont:
         dw, dh = display.get_bounds()
-        bmfont_obj, bm_pages = _get_bmfont(font)
-        # Convert arbitrary scale to integer up/down factors for blitter
-        # - For fractional scales (e.g. 0.5), use scale_up=1, scale_down=round(1/scale)
-        # - For integer scales, use scale_up=int(round(scale)), scale_down=1
-        # - Guard against invalid/zero scale
-        s = max(0.000001, float(scale))
-        if s < 1.0:
-            scale_up_i = 1
-            scale_down_i = max(1, int(round(1.0 / s)))
-        else:
-            # Prefer nearest integer upscale
-            scale_up_i = max(1, int(round(s)))
-            scale_down_i = 1
+        # Use previously computed integer scale factors and scaled bounds
         draw_text(
             display, dw, dh, bmfont_obj, bm_pages, text,
-            math.floor(text_x_position), math.floor(text_y_position),
+            # Shift origin by the tight-bounds min bearings so glyphs don't clip
+            math.floor(text_x_position - (min_x * scale_up_i) // scale_down_i),
+            math.floor(text_y_position - (min_y * scale_up_i) // scale_down_i),
             kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color
         )
     else:
         Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), color, scale=scale)
     
     # DEBUG: Draw outline
-    #draw_textbox_outline(display, x, y, width, height)
+    draw_textbox_outline(display, x, y, width, height)
