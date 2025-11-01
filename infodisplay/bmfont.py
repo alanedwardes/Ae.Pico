@@ -26,8 +26,6 @@ def _build_palette565_bytes(tint_color):
         g6 = 0x3F
         b5 = 0x1F
     else:
-        if isinstance(tint_color, tuple):
-            tint_color = _rgb565_from_tuple(tint_color[0], tint_color[1], tint_color[2])
         c = int(tint_color) & 0xFFFF
         r5 = (c >> 11) & 0x1F
         g6 = (c >> 5) & 0x3F
@@ -43,6 +41,17 @@ def _build_palette565_bytes(tint_color):
         pal[o + 1] = (val >> 8) & 0xFF
         o += 2
     return pal
+
+# Cached palette: only keep white to save memory
+_WHITE_PALETTE = _build_palette565_bytes(None)
+
+def _resolve_palette(tint_color):
+    if tint_color is None:
+        return _WHITE_PALETTE
+    c = int(tint_color) & 0xFFFF
+    if c == 0xFFFF:
+        return _WHITE_PALETTE
+    return _build_palette565_bytes(c)
 
 
 def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
@@ -69,22 +78,17 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
     linebuf = bytearray(copy_width)
     source_framebuffer = (linebuf, copy_width, 1, framebuf.GS8)
 
-    # Prepare RGB565 palette only if tinting; omit for white fast path
-    palette = None if tint_color is None else _build_palette565_bytes(tint_color)
+    # Build/resolve RGB565 palette for GS8 source (white cached when tint is None/white)
+    palette = _resolve_palette(tint_color)
     for row in range(start_row, end_row):
         fb_y = dy + row
         src_y = sy + row
         src_offset = 4 + src_y * src_row_bytes + src_x
         fh.seek(src_offset)
         fh.readinto(linebuf)
-        if palette is None:
-            # Fast path: GS8 -> grayscale RGB565 (no tint) via blit fallback
-            # 1-bit transparency: treat intensity 0 as transparent via key=0
-            framebuffer.blit(source_framebuffer, fb_x, fb_y, 0)
-        else:
-            # Tinted path: use RGB565 palette
-            # 1-bit transparency: ensure palette[0] == 0 and pass key=0
-            framebuffer.blit(source_framebuffer, fb_x, fb_y, 0, (palette, 256, 1, framebuf.RGB565))
+        # Use RGB565 palette for proper grayscale/tint across channels
+        # 1-bit transparency: treat intensity 0 as transparent via key=0
+        framebuffer.blit(source_framebuffer, fb_x, fb_y, 0, (palette, 256, 1, framebuf.RGB565))
 
 class BMFont:
     def __init__(self):
