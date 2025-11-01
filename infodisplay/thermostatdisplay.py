@@ -88,10 +88,20 @@ class ThermostatDisplay:
         
         groove_color = 0x8A03 if hvac_action == 'heating' else 0x4208
         notch_outline_color = 0xFB64 if hvac_action and hvac_action != 'off' else 0x0000
-        gauge.draw_gauge_with_secondary(self.display, (0, 70), (self.display_width, self.display_height - 70), minimum_temperature, maximum_temperature, current_target, current_temperature, 1, 1, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
+        position = (0, 70)
+        size = (self.display_width, self.display_height - 70)
+        gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_target, current_temperature, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
+
+        # Draw primary (target) and secondary (current) temperatures
+        white_pen = 0xFFFF
+        primary_height = size[1] * 0.85
+        textbox.draw_textbox(self.display, f'{current_target:.1f}', position[0], position[1], size[0], primary_height, color=white_pen, font='notosans')
+        secondary_text_y = position[1] + size[1] * 0.65
+        secondary_text_height = size[1] * 0.2
+        textbox.draw_textbox(self.display, f'{current_temperature:.1f}', position[0], secondary_text_y, size[0], secondary_text_height, color=white_pen, font='notosans')
 
         # HVAC action label just above main temperature
-        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, scale=1, font='bitmap8')
+        textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='notosanssmall')
         
         self.display.update()
     
