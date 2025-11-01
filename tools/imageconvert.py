@@ -27,6 +27,11 @@ def convert_image(input_path, output_path, fmt='rgb24'):
             for r, g, b in pixels:
                 rgb8 = ((r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6))
                 f.write(bytes([rgb8]))
+        elif fmt == 'gs8':
+            # 8-bit grayscale (luma ~ Rec.601)
+            for r, g, b in pixels:
+                y = int(0.299 * r + 0.587 * g + 0.114 * b)
+                f.write(bytes([y]))
         elif fmt == 'rgb565be':
             # 16-bit RGB565, big-endian
             for r, g, b in pixels:
@@ -101,6 +106,12 @@ def _decode_pixels(data, width, height, fmt):
             b = _expand_5_to_8(b5)
             pixels.append((r, g, b))
         return pixels
+    elif fmt == 'gs8':
+        pixels = []
+        for i in range(0, len(data)):
+            y = data[i]
+            pixels.append((y, y, y))
+        return pixels
     elif fmt == 'rgb24':
         pixels = []
         for i in range(0, len(data), 3):
@@ -127,6 +138,10 @@ def _encode_pixels(pixels, fmt):
         for r, g, b in pixels:
             rgb8 = ((r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6))
             out.append(rgb8)
+    elif fmt == 'gs8':
+        for r, g, b in pixels:
+            y = int(0.299 * r + 0.587 * g + 0.114 * b)
+            out.append(y & 0xFF)
     elif fmt == 'rgb565be':
         for r, g, b in pixels:
             rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
@@ -174,18 +189,18 @@ def main():
     parser = argparse.ArgumentParser(description="Image format converter utility")
     subparsers = parser.add_subparsers(dest='command', required=True)
 
-    convert_parser = subparsers.add_parser('convert', help='Convert PNG(s) to raw format')
-    convert_parser.add_argument('input', help='Input PNG file or directory')
-    convert_parser.add_argument('output', help='Output binary file or directory')
-    convert_parser.add_argument('--format', choices=['rgb8', 'rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='rgb24',
+    convert_parser = subparsers.add_parser('convert', help='Convert image(s) to raw format')
+    convert_parser.add_argument('input', help='Input image file or directory')
+    convert_parser.add_argument('output', nargs='?', help='Output binary file or directory (default: input name with .bin)')
+    convert_parser.add_argument('--format', choices=['rgb8', 'gs8', 'rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='rgb24',
                                help='Output format: rgb8, rgb565 (LE), rgb565be, rgb24, bgra8888 (default: rgb24)')
 
     convertbin_parser = subparsers.add_parser('convertbin', help='Convert BIN(s) between raw formats')
     convertbin_parser.add_argument('input', help='Input BIN file or directory')
-    convertbin_parser.add_argument('output', help='Output BIN file or directory')
-    convertbin_parser.add_argument('--in-format', choices=['rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='rgb565',
+    convertbin_parser.add_argument('output', nargs='?', help='Output BIN file or directory (default: input name with .bin)')
+    convertbin_parser.add_argument('--in-format', choices=['gs8', 'rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='rgb565',
                                   help='Input pixel format (default: rgb565, little-endian)')
-    convertbin_parser.add_argument('--out-format', choices=['rgb8', 'rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='bgra8888',
+    convertbin_parser.add_argument('--out-format', choices=['rgb8', 'gs8', 'rgb565', 'rgb565be', 'rgb24', 'bgra8888'], default='bgra8888',
                                    help='Output pixel format (default: bgra8888)')
 
     info_parser = subparsers.add_parser('info', help='Show info about binary image file')
@@ -195,14 +210,20 @@ def main():
 
     if args.command == 'convert':
         if os.path.isdir(args.input):
-            convert_images(args.input, args.output, args.format)
+            output_dir = args.output if args.output else args.input
+            convert_images(args.input, output_dir, args.format)
         else:
-            convert_image(args.input, args.output, args.format)
+            default_output = os.path.splitext(args.input)[0] + '.bin'
+            output_file = args.output if args.output else default_output
+            convert_image(args.input, output_file, args.format)
     elif args.command == 'convertbin':
         if os.path.isdir(args.input):
-            convert_bin_images(args.input, args.output, args.in_format, args.out_format)
+            output_dir = args.output if args.output else args.input
+            convert_bin_images(args.input, output_dir, args.in_format, args.out_format)
         else:
-            convert_bin_image(args.input, args.output, args.in_format, args.out_format)
+            default_output = os.path.splitext(args.input)[0] + '.bin'
+            output_file = args.output if args.output else default_output
+            convert_bin_image(args.input, output_file, args.in_format, args.out_format)
     elif args.command == 'info':
         info_image(args.input)
     else:
