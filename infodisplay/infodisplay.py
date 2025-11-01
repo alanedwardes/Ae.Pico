@@ -75,8 +75,10 @@ class InfoDisplay:
     def update(self):
         if self.is_active == False:
             return
-        
+        start_update_ms = utime.ticks_ms()
         self.__update()
+        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+        print(f"InfoDisplay: {update_time_ms}ms")
 
     def __update(self):
         self.white = 0xFFFF

@@ -36,8 +36,10 @@ class TrainDisplay:
     def update(self):
         if self.is_active == False:
             return
-        
+        start_update_ms = utime.ticks_ms()
         self.__update()
+        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+        print(f"TrainDisplay: {update_time_ms}ms")
         
     def __draw_departure_row(self, departure, y_offset):
         destination = departure['dst']

@@ -37,6 +37,7 @@ class TimeDisplay:
         start_update_ms = utime.ticks_ms()
         self.__update()
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
+        print(f"TimeDisplay: {self.last_update_time_ms}ms")
 
     def __update(self):       
         height = 70
