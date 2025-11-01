@@ -161,7 +161,7 @@ class WeatherDisplay:
                 day_pen = 0xFFFF
             
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, color=day_pen, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, color=day_pen, font='small')
             
             sy += 25
             
@@ -172,12 +172,12 @@ class WeatherDisplay:
 
             height = 2 * 8
             temp_color = colors.get_color_for_temperature(temperature)
-            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, color=temp_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, color=temp_color, font='small')
             
             sy += 30
             
             rain_color = colors.get_color_for_rain_percentage(rain)
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=rain_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=rain_color, font='small')
 
         self.display.update()

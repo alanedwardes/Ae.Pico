@@ -164,7 +164,7 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
         draw_text(
             display, dw, dh, bmfont_obj, bm_pages, text,
             math.floor(text_x_position), math.floor(text_y_position),
-            kerning=True, scale_up=scale_up_i, scale_down=scale_down_i
+            kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color
         )
     else:
         Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), color, scale=scale)

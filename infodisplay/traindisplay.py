@@ -59,10 +59,10 @@ class TrainDisplay:
         expected_width = 90
         
         # Draw each column using textbox
-        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='bitmap8', scale=2, align='left')
-        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width, y_offset, expected_width, 20, color=row_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')
+        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='small', align='left')
+        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
+        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width, y_offset, expected_width, 20, color=row_pen, font='small')
         
         return 20
     

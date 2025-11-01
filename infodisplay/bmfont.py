@@ -1,10 +1,100 @@
 import struct
 import gc
-from bitblt import blit_region
+import framebuf
+try:
+    import micropython
+except ImportError:  # Allow importing under CPython tooling
+    micropython = None
 
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
 _GLYPH_FMT = '<HHHHhhhB'
+
+def _build_tint_lut_bytes(color565):
+    """Build a compact 128B LUT (little-endian RGB565 pairs) for 6-bit intensity.
+
+    Source atlas assumed grayscale (intensity in green channel)."""
+    r5 = (color565 >> 11) & 0x1F
+    g6 = (color565 >> 5) & 0x3F
+    b5 = color565 & 0x1F
+    lut = bytearray(128)
+    o = 0
+    for i in range(64):
+        tr = (r5 * i) // 63
+        tg = (g6 * i) // 63
+        tb = (b5 * i) // 63
+        tp = (tr << 11) | (tg << 5) | tb
+        lut[o] = tp & 0xFF
+        lut[o + 1] = (tp >> 8) & 0xFF
+        o += 2
+    return lut
+
+
+def _rgb565_from_tuple(r, g, b):
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+
+
+if micropython:
+    @micropython.viper
+    def _tint_line(linebuf: ptr8, length: int, lut: ptr8):
+        n: int = 0
+        while n < length:
+            b0 = linebuf[n]
+            b1 = linebuf[n + 1]
+            px = int(b0) | (int(b1) << 8)
+            intensity = (px >> 5) & 0x3F  # use green channel for grayscale intensity
+            li = intensity << 1
+            linebuf[n] = lut[li]
+            linebuf[n + 1] = lut[li + 1]
+            n += 2
+else:
+    def _tint_line(linebuf, length, lut):
+        lb = linebuf
+        for i in range(0, length, 2):
+            px = lb[i] | (lb[i + 1] << 8)
+            intensity = (px >> 5) & 0x3F
+            li = intensity * 2
+            lb[i] = lut[li]
+            lb[i + 1] = lut[li + 1]
+
+
+def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, src_row_bytes,
+               sx, sy, sw, sh, dx, dy, tint_color=None):
+    if sw <= 0 or sh <= 0:
+        return
+    if dx >= fb_width or dy >= fb_height:
+        return
+    if dx + sw <= 0 or dy + sh <= 0:
+        return
+
+    start_row = max(0, -dy)
+    end_row = min(sh, fb_height - dy)
+
+    left_clip = max(0, -dx)
+    right_clip = max(0, dx + sw - fb_width)
+    copy_width = sw - left_clip - right_clip
+    if copy_width <= 0:
+        return
+
+    src_x = sx + left_clip
+    fb_x = dx + left_clip
+    linebuf = bytearray(copy_width * bytes_per_pixel)
+
+    # Prepare tint LUT if requested
+    tint_lut = None
+    if tint_color is not None:
+        if isinstance(tint_color, tuple):
+            tint_color = _rgb565_from_tuple(tint_color[0], tint_color[1], tint_color[2])
+        tint_lut = _build_tint_lut_bytes(int(tint_color) & 0xFFFF)
+    for row in range(start_row, end_row):
+        fb_y = dy + row
+        src_y = sy + row
+        src_offset = 4 + src_y * src_row_bytes + src_x * bytes_per_pixel
+        fh.seek(src_offset)
+        fh.readinto(linebuf)
+        if tint_lut is not None and bytes_per_pixel == 2:
+            _tint_line(linebuf, len(linebuf), tint_lut)
+        framebuffer.blit((linebuf, copy_width, 1, framebuf.RGB565), fb_x, fb_y)
 
 class BMFont:
     def __init__(self):
@@ -76,7 +166,7 @@ class BMFont:
         return font
 
 
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1, color=None):
     total_pixels = display_width * display_height
     bytes_per_pixel = len(memoryview(framebuffer)) // total_pixels
     row_bytes = font.scale_w * bytes_per_pixel
@@ -111,9 +201,9 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         dest_x = cx + xoffset * scale_up // scale_down
         dest_y = cy + yoffset * scale_up // scale_down
         blit_region(framebuffer, display_width, display_height, bytes_per_pixel,
-                    pages[page], 4, row_bytes,
+                    pages[page], row_bytes,
                     src_x, src_y, width, height,
-                    dest_x, dest_y)
+                    dest_x, dest_y, color)
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
 

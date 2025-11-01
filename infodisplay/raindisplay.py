@@ -202,10 +202,10 @@ class RainDisplay:
         
         # Draw key labels
         white_pen = 0xFFFF
-        textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='bitmap8', scale=2)
-        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='bitmap8', scale=2)
+        textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='small')
+        textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='small')
+        textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='small')
+        textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='small')
         
         # Draw separator lines
         self.display.rect(key_width, precip_row_y - 10, data_width, 2, 0x4208, True)
@@ -226,19 +226,19 @@ class RainDisplay:
                 self.display.rect(sx, y_start, 2, self.display_height - y_start, 0x4208, True)
             
             # Hour numbers
-            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='small')
             
             # Precipitation amount
             if rate_int > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_int)
             else:
                 precip_color = 0x632C
-            textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='small')
             
             # Beaufort scale
             beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(hour_data['wind'])
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
-            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='bitmap8', scale=2)
+            textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
 
         # Draw chart
         chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,

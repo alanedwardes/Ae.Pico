@@ -126,24 +126,24 @@ class SolarDisplay:
                     soc_color = red
                 
                 soc_text = f"{soc_value:.0f}%"
-                textbox.draw_textbox(self.display, soc_text, x_left, y_top, item_width - 20, 40, color=soc_color, font='bitmap8', scale=3)
+                textbox.draw_textbox(self.display, soc_text, x_left, y_top, item_width - 20, 40, color=soc_color, font='regular')
                 
-                textbox.draw_textbox(self.display, "BAT", x_left, y_top + 35, item_width - 20, 25, color=white, font='bitmap8', scale=2)
+                textbox.draw_textbox(self.display, "BAT", x_left, y_top + 35, item_width - 20, 25, color=white, font='small')
                 
             except (ValueError, TypeError):
-                textbox.draw_textbox(self.display, "BAT: ?", x_left, y_top, item_width - 20, 30, color=white, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, "BAT: ?", x_left, y_top, item_width - 20, 30, color=white, font='regular')
         
         # Current Solar (top-right)
         if self.current_solar is not None:
             try:
                 solar_value = float(self.current_solar)
                 solar_text = self.format_power(solar_value)
-                textbox.draw_textbox(self.display, solar_text, x_right, y_top, item_width - 20, 40, color=orange, font='bitmap8', scale=3)
+                textbox.draw_textbox(self.display, solar_text, x_right, y_top, item_width - 20, 40, color=orange, font='regular')
                 
-                textbox.draw_textbox(self.display, "SOLAR", x_right, y_top + 35, item_width - 20, 25, color=white, font='bitmap8', scale=2)
+                textbox.draw_textbox(self.display, "SOLAR", x_right, y_top + 35, item_width - 20, 25, color=white, font='small')
                 
             except (ValueError, TypeError):
-                textbox.draw_textbox(self.display, "SOLAR: ?", x_right, y_top, item_width - 20, 30, color=white, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, "SOLAR: ?", x_right, y_top, item_width - 20, 30, color=white, font='regular')
         
         # Current Grid (bottom-left)
         if self.current_grid is not None:
@@ -157,26 +157,26 @@ class SolarDisplay:
                     grid_color = white
                 
                 grid_text = self.format_power(grid_value)
-                textbox.draw_textbox(self.display, grid_text, x_left, y_bottom, item_width - 20, 40, color=grid_color, font='bitmap8', scale=3)
+                textbox.draw_textbox(self.display, grid_text, x_left, y_bottom, item_width - 20, 40, color=grid_color, font='regular')
                 
                 if grid_value > 0:
-                    textbox.draw_textbox(self.display, "EXPORT", x_left, y_bottom + 35, item_width - 20, 25, color=white, font='bitmap8', scale=2)
+                    textbox.draw_textbox(self.display, "EXPORT", x_left, y_bottom + 35, item_width - 20, 25, color=white, font='small')
                 else:
-                    textbox.draw_textbox(self.display, "IMPORT", x_left, y_bottom + 35, item_width - 20, 25, color=white, font='bitmap8', scale=2)
+                    textbox.draw_textbox(self.display, "IMPORT", x_left, y_bottom + 35, item_width - 20, 25, color=white, font='small')
                 
             except (ValueError, TypeError):
-                textbox.draw_textbox(self.display, "GRID: ?", x_left, y_bottom, item_width - 20, 30, color=white, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, "GRID: ?", x_left, y_bottom, item_width - 20, 30, color=white, font='regular')
         
         # Current Load (bottom-right)
         if self.current_load is not None:
             try:
                 load_value = float(self.current_load)
                 load_text = self.format_power(load_value)
-                textbox.draw_textbox(self.display, load_text, x_right, y_bottom, item_width - 20, 40, color=blue, font='bitmap8', scale=3)
+                textbox.draw_textbox(self.display, load_text, x_right, y_bottom, item_width - 20, 40, color=blue, font='regular')
                 
-                textbox.draw_textbox(self.display, "LOAD", x_right, y_bottom + 35, item_width - 20, 25, color=white, font='bitmap8', scale=2)
+                textbox.draw_textbox(self.display, "LOAD", x_right, y_bottom + 35, item_width - 20, 25, color=white, font='small')
                 
             except (ValueError, TypeError):
-                textbox.draw_textbox(self.display, "LOAD: ?", x_right, y_bottom, item_width - 20, 30, color=white, font='bitmap8', scale=1)
+                textbox.draw_textbox(self.display, "LOAD: ?", x_right, y_bottom, item_width - 20, 30, color=white, font='regular')
         
         self.display.update()
