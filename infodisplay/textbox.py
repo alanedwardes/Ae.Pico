@@ -168,4 +168,4 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
         Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), color, scale=scale)
     
     # DEBUG: Draw outline
-    draw_textbox_outline(display, x, y, width, height)
+    #draw_textbox_outline(display, x, y, width, height)

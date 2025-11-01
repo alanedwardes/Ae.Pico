@@ -68,7 +68,7 @@ class NewsDisplay:
         self.display.rect(0, y_offset, self.display_width, divider_height, 0xb000, True)
         y_offset += divider_height
         
-        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=self.white, font='regular', wrap=True, valign='top')
+        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=self.white, font='regular', wrap=True)
         self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"NewsDisplay: {update_time_ms}ms")
