@@ -39,6 +39,16 @@ async def start():
     
     if hasattr(connectivity, 'hostname'):
         nic.config(hostname = connectivity.hostname)
+
+    while not nic.isconnected():
+        print(f'connecting to {connectivity.ssid}')
+        nic.connect(connectivity.ssid, connectivity.key)
+        for _ in range(30):
+            if nic.isconnected():
+                break
+            await asyncio.sleep(1)
+    
+    print(f'connected to {connectivity.ssid}')
     
     async def connect_wifi():
         while True:
