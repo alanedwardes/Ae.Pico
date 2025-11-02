@@ -2,9 +2,8 @@ import binascii
 import network
 import machine
 import asyncio
-from hashlib import sha1
 import utime
-import os
+import uos
 import gc
 
 HEADER_TERMINATOR = b'\r\n'
@@ -119,15 +118,7 @@ async def readchunks(writer, length, source, chunk_processor = None, chunksize =
         writer.write(chunk)
         await writer.drain()
 
-def hashfile(filename, length, chunksize = 512):
-    hasher = sha1()
-    with open(filename, 'rb') as reader:
-        remaining = length
-        while remaining > 0:
-            chunk = reader.read(min(chunksize, remaining))
-            remaining -= chunksize
-            hasher.update(chunk)
-    return binascii.hexlify(hasher.digest())
+ 
 
 class IndexController:
     def route(self, method, path):
@@ -135,7 +126,7 @@ class IndexController:
     
     async def serve(self, method, path, headers, reader, writer):
         started_ticks_ms = utime.ticks_ms()
-        statvfs = os.statvfs("/")
+        statvfs = uos.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
         used_space = total_space - free_space
@@ -158,7 +149,7 @@ class IndexController:
         
         KB = 1024
         
-        uname = os.uname()
+        uname = uos.uname()
         mac = mac_address().encode('utf-8')
         ip = ifconfig[0].encode('utf-8')
 
@@ -175,13 +166,30 @@ class IndexController:
         writer.write(b'</p>')
         writer.write(b'<p><b>CPU:</b> %.0f MHz <b>ID:</b> %s <b>Mac:</b> %s <b>IP:</b> %s</p>' % (machine.freq() / 1_000_000, unique_id().encode('utf-8'), mac, ip))
         writer.write(b'<h2>System</h2>')
+        try:
+            with open('initial_time.txt', 'rb') as f:
+                boot_ts = int(f.read())
+            boot_time = utime.localtime(boot_ts)[0:6]
+            writer.write(b'<p><b>Last boot:</b> %04u-%02u-%02uT%02u:%02u:%02u</p>' % boot_time)
+        except Exception:
+            pass
+        reset_cause = machine.reset_cause()
+        reset_map = {
+            machine.PWRON_RESET: b'Power-on reset',
+            machine.HARD_RESET: b'Hard reset',
+            machine.WDT_RESET: b'Watchdog reset',
+            machine.DEEPSLEEP_RESET: b'Deep sleep reset',
+            machine.SOFT_RESET: b'Soft reset',
+        }
+        reset_label = reset_map.get(reset_cause, b'Unknown (%i)' % reset_cause)
+        writer.write(b'<p><b>Reset cause:</b> %s</p>' % reset_label)
         writer.write(b'<form action="reset" method="post"><button>Reset</button></form>')
         writer.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
         writer.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
         writer.write(b'<h2>Filesystem</h2>')
         writer.write(b'<p>Create file: <form action="new" enctype="multipart/form-data" method="post"><input type="text" name="filename" placeholder="newfile.txt"><button>Create</button></form></p>')
         writer.write(b'<table>')
-        writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Hash</th><th>Actions</th></tr></thead>')
+        writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
         writer.write(b'<tbody>')
         
         def write_file(parent, node):
@@ -190,9 +198,8 @@ class IndexController:
             writer.write(b'<tr>')
             writer.write(b'<td>%s</td>' % (path))
             writer.write(b'<td>%.2f KB</td>' % (size / KB))
-            writer.write(b'<td><code>%s</code></td>' % (hashfile(path, size) if node[1] == 0x8000 else b'n/a'))
             writer.write(b'<td>')
-            writer.write(b'<form action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
+            writer.write(b'<form onsubmit="return confirm(\'Delete \' + this.filename.value + \'?\')" action="delete" method="post"><input type="hidden" name="filename" value="%s"/><button>Delete</button></form>' % (path))
             if node[1] == 0x8000:
                 writer.write(b' <form action="edit" enctype="multipart/form-data" method="post"><input type="hidden" name="filename" value="%s"/><button>Edit</button></form>' % (path))
                 writer.write(b' <form action="download" method="post"><input type="hidden" name="filename" value="%s"/><button>Download</button></form>' % (path))
@@ -200,7 +207,7 @@ class IndexController:
             writer.write(b'</tr>')
         
         def list_contents_recursive(start):
-            for node in os.ilistdir(start):
+            for node in uos.ilistdir(start):
                 write_file(start, node)
                 if node[1] == 0x4000:
                     list_contents_recursive(start + node[0] + b'/')
@@ -283,7 +290,7 @@ class EditController:
                 pass
         
         with open(filename, 'rb') as f:
-            stat = os.stat(filename)
+            stat = uos.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(HTML_HEADER)
@@ -308,7 +315,7 @@ class DeleteController:
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
 
-        os.unlink(filename)
+        uos.unlink(filename)
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
@@ -489,7 +496,7 @@ class DownloadController:
         filename = form[b'filename']
         
         with open(filename, 'rb') as f:
-            stat = os.stat(filename)
+            stat = uos.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(b'Content-Length: %i' % (content_size) + HEADER_TERMINATOR)

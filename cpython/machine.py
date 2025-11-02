@@ -1,5 +1,11 @@
 import datetime
 
+PWRON_RESET = 0
+HARD_RESET = 1
+WDT_RESET = 2
+DEEPSLEEP_RESET = 3
+SOFT_RESET = 4
+
 class I2C:
     def __init__(self, id, **kwargs):
         from smbus2 import SMBus
@@ -93,6 +99,9 @@ def freq():
 
 def unique_id():
     return b'\xe6c8a\xa3x/,'
+
+def reset_cause():
+    return PWRON_RESET
 
 class RTC:
     def datetime(self, *args):
