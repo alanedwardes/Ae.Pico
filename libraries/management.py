@@ -3,7 +3,7 @@ import network
 import machine
 import asyncio
 import utime
-import os
+import uos
 import gc
 
 HEADER_TERMINATOR = b'\r\n'
@@ -126,7 +126,7 @@ class IndexController:
     
     async def serve(self, method, path, headers, reader, writer):
         started_ticks_ms = utime.ticks_ms()
-        statvfs = os.statvfs("/")
+        statvfs = uos.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
         used_space = total_space - free_space
@@ -149,7 +149,7 @@ class IndexController:
         
         KB = 1024
         
-        uname = os.uname()
+        uname = uos.uname()
         mac = mac_address().encode('utf-8')
         ip = ifconfig[0].encode('utf-8')
 
@@ -189,9 +189,22 @@ class IndexController:
         reset_label = reset_map.get(reset_cause, b'Unknown (%i)' % reset_cause)
         writer.write(b'<p><b>Reset cause:</b> %s</p>' % reset_label)
         writer.write(b'<form action="reset" method="post"><button>Reset</button></form>')
-        writer.write(b' <form onsubmit="this.datetime.value = new Date().toISOString()" action="time" method="post"><input type="hidden" name="datetime" value=""/><button>Set Time from Browser</button></form>')
-        writer.write(b' <form action="shell" method="post"><button>Open Shell</button></form>')
-        writer.write(b'<h2>Filesystem</h2>')
+        writer.write(b' <form action="shell" method="post"><button>Shell</button></form>')
+        writer.write(b' <form action="filesystem" method="post"><button>Filesystem</button></form>')
+        
+        writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
+
+class FilesystemController:
+    def route(self, method, path):
+        return path == b'/filesystem'
+    
+    async def serve(self, method, path, headers, reader, writer):
+        KB = 1024
+        writer.write(OK_STATUS)
+        writer.write(HTML_HEADER)
+        writer.write(HEADER_TERMINATOR)
+        writer.write(MINIMAL_CSS)
+        writer.write(b'<h1>Filesystem</h1>')
         writer.write(b'<p>Create file: <form action="new" enctype="multipart/form-data" method="post"><input type="text" name="filename" placeholder="newfile.txt"><button>Create</button></form></p>')
         writer.write(b'<table>')
         writer.write(b'<thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>')
@@ -212,7 +225,7 @@ class IndexController:
             writer.write(b'</tr>')
         
         def list_contents_recursive(start):
-            for node in os.ilistdir(start):
+            for node in uos.ilistdir(start):
                 write_file(start, node)
                 if node[1] == 0x4000:
                     list_contents_recursive(start + node[0] + b'/')
@@ -224,23 +237,7 @@ class IndexController:
         
         writer.write(b'<h3>Upload File</h3>')        
         writer.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
-        
-        writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
-
-class MemoryController:
-    def route(self, method, path):
-        return method == b'GET' and path == b'/memory'
-    
-    async def serve(self, method, path, headers, reader, writer):
-        used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
-        free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
-        KB = 1024
-
-        writer.write(OK_STATUS)
-        writer.write(HTML_HEADER)
-        writer.write(HEADER_TERMINATOR)
-        writer.write(MINIMAL_CSS)
-        writer.write(b'<p><b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress></p>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
+        writer.write(BACK_LINK)
 
 class EditController:
     def route(self, method, path):
@@ -295,7 +292,7 @@ class EditController:
                 pass
         
         with open(filename, 'rb') as f:
-            stat = os.stat(filename)
+            stat = uos.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(HTML_HEADER)
@@ -320,7 +317,7 @@ class DeleteController:
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
 
-        os.unlink(filename)
+        uos.unlink(filename)
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
@@ -328,32 +325,6 @@ class DeleteController:
         writer.write(b'<p>Deleted %s</p>' % (filename))            
         writer.write(BACK_LINK)
         
-class TimeController:
-    def route(self, method, path):
-        return method == b'POST' and path == b'/time'
-    
-    async def serve(self, method, path, headers, reader, writer):
-        content_length = int(headers.get(b'content-length', '0'))
-        form = parse_form(await reader.readexactly(content_length))
-        form_datetime = form[b'datetime']
-        
-        parts = form_datetime.split(b'T')
-        date = parts[0].split(b'-')
-        time = parts[1].split(b':')
-        seconds = time[2].split(b'.')
-        
-        # (year, month, day, weekday, hours, minutes, seconds, subseconds)
-        datetime = (int(date[0]), int(date[1]), int(date[2]), 1, int(time[0]), int(time[1]), int(seconds[0]), 0)
-        
-        machine.RTC().datetime(datetime)
-
-        writer.write(OK_STATUS)
-        writer.write(HTML_HEADER)
-        writer.write(HEADER_TERMINATOR)
-        writer.write(MINIMAL_CSS)
-        writer.write(b'<p>Time set %s</p>' % (str(machine.RTC().datetime())))
-        writer.write(BACK_LINK)
-
 class ShellController:
     def __init__(self):
         self.clear()
@@ -501,7 +472,7 @@ class DownloadController:
         filename = form[b'filename']
         
         with open(filename, 'rb') as f:
-            stat = os.stat(filename)
+            stat = uos.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(b'Content-Length: %i' % (content_size) + HEADER_TERMINATOR)
@@ -549,9 +520,9 @@ class ResetController:
 class ManagementServer:   
     def __init__(self, port = 80):
         self.port = port
-        self.controllers = [IndexController(), MemoryController(), EditController(),
+        self.controllers = [IndexController(), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
-                            ResetController(), TimeController(), ShellController(),
+                            ResetController(), ShellController(),
                             GPIOController(), PWMController()]
         self.authorization_header = None
         self.server = None
