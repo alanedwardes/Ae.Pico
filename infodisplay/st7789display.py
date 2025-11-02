@@ -7,8 +7,6 @@ WIDTH = 320
 HEIGHT = 240
 
 class ST7789Display:
-    CREATION_PRIORITY = 0
-
     def __init__(self, st, drawing):
         self.st = st
         self.drawing = drawing

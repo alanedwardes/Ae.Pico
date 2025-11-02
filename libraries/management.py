@@ -432,35 +432,6 @@ class PWMController:
         writer.write(HEADER_TERMINATOR)
         writer.write('frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / DUTY_MAX * 100))
 
-class FramebufferStreamController:
-    def __init__(self, display):
-        self.display = display
-    
-    def route(self, method, path):
-        return method == b'GET' and path == b'/framebuffer'
-    
-    async def serve(self, method, path, headers, reader, writer):
-        # Raw, continuous RGB565 stream (little-endian). No Content-Length; keep-alive until client closes.
-        writer.write(OK_STATUS)
-        writer.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
-        writer.write(HEADER_TERMINATOR)
-        
-        try:
-            while True:
-                mv = memoryview(self.display)
-                # Write the whole framebuffer in reasonable chunks to avoid large single writes
-                total = len(mv)
-                offset = 0
-                chunk = 8192
-                while offset < total:
-                    end = offset + chunk
-                    writer.write(mv[offset:end])
-                    offset = end
-                    await writer.drain()
-                await asyncio.sleep(1)
-        except Exception:
-            # Client closed or write failed; end stream
-            pass
 
 class UploadController:    
     def route(self, method, path):
@@ -563,12 +534,7 @@ class ManagementServer:
         
     def create(provider):
         config = provider['config'].get('management', {})
-        server = ManagementServer(config.get('port', 80))
-        # If a display framebuffer is available, expose a streaming endpoint
-        display = provider.get('display', None)
-        if display is not None:
-            server.controllers.append(FramebufferStreamController(display))
-        return server
+        return ManagementServer(config.get('port', 80))
     
     async def start(self):
         try:
