@@ -3,7 +3,7 @@ import network
 import machine
 import asyncio
 import utime
-import uos
+import os
 import gc
 
 HEADER_TERMINATOR = b'\r\n'
@@ -126,7 +126,7 @@ class IndexController:
     
     async def serve(self, method, path, headers, reader, writer):
         started_ticks_ms = utime.ticks_ms()
-        statvfs = uos.statvfs("/")
+        statvfs = os.statvfs("/")
         total_space = statvfs[0] * statvfs[2]
         free_space = statvfs[0] * statvfs[3]
         used_space = total_space - free_space
@@ -149,7 +149,7 @@ class IndexController:
         
         KB = 1024
         
-        uname = uos.uname()
+        uname = os.uname()
         mac = mac_address().encode('utf-8')
         ip = ifconfig[0].encode('utf-8')
 
@@ -174,13 +174,18 @@ class IndexController:
         except Exception:
             pass
         reset_cause = machine.reset_cause()
-        reset_map = {
-            machine.PWRON_RESET: b'Power-on reset',
-            machine.HARD_RESET: b'Hard reset',
-            machine.WDT_RESET: b'Watchdog reset',
-            machine.DEEPSLEEP_RESET: b'Deep sleep reset',
-            machine.SOFT_RESET: b'Soft reset',
-        }
+        reset_causes = [
+            ('PWRON_RESET', b'Power-on reset'),
+            ('HARD_RESET', b'Hard reset'),
+            ('WDT_RESET', b'Watchdog reset'),
+            ('DEEPSLEEP_RESET', b'Deep sleep reset'),
+            ('SOFT_RESET', b'Soft reset'),
+            ('BROWNOUT_RESET', b'Brownout reset'),
+        ]
+        reset_map = {}
+        for attr, label in reset_causes:
+            if hasattr(machine, attr):
+                reset_map[getattr(machine, attr)] = label
         reset_label = reset_map.get(reset_cause, b'Unknown (%i)' % reset_cause)
         writer.write(b'<p><b>Reset cause:</b> %s</p>' % reset_label)
         writer.write(b'<form action="reset" method="post"><button>Reset</button></form>')
@@ -207,7 +212,7 @@ class IndexController:
             writer.write(b'</tr>')
         
         def list_contents_recursive(start):
-            for node in uos.ilistdir(start):
+            for node in os.ilistdir(start):
                 write_file(start, node)
                 if node[1] == 0x4000:
                     list_contents_recursive(start + node[0] + b'/')
@@ -290,7 +295,7 @@ class EditController:
                 pass
         
         with open(filename, 'rb') as f:
-            stat = uos.stat(filename)
+            stat = os.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(HTML_HEADER)
@@ -315,7 +320,7 @@ class DeleteController:
         form = parse_form(await reader.readexactly(content_length))
         filename = form[b'filename']
 
-        uos.unlink(filename)
+        os.unlink(filename)
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
@@ -496,7 +501,7 @@ class DownloadController:
         filename = form[b'filename']
         
         with open(filename, 'rb') as f:
-            stat = uos.stat(filename)
+            stat = os.stat(filename)
             content_size = stat[6]
             writer.write(OK_STATUS)
             writer.write(b'Content-Length: %i' % (content_size) + HEADER_TERMINATOR)
