@@ -5,12 +5,14 @@ import asyncio
 from httpstream import parse_url
 
 class RemoteTime:
-    def __init__(self, endpoint, update_time_ms, nic, offset_seconds=0, dst_delegate=None):
+    def __init__(self, endpoint, update_time_ms, nic, offset_seconds=0, dst_delegate=None, write_initial_time=False):
         self.uri = parse_url(endpoint)
         self.update_time_ms = update_time_ms
         self.nic = nic
         self.offset_seconds = offset_seconds
         self.dst_delegate = dst_delegate
+        self.write_initial_time = write_initial_time
+        self.initial_time_written = False
         
         self.last_update = utime.ticks_ms()
         self.base_seconds = 0
@@ -25,7 +27,8 @@ class RemoteTime:
             config['update_time_ms'],
             provider.get('nic'),
             tz.get('offset_seconds', 0),
-            tz.get('dst_delegate')
+            tz.get('dst_delegate'),
+            config.get('write_initial_time', False)
         )
 
     async def start(self):
@@ -96,8 +99,16 @@ class RemoteTime:
         self.last_update = utime.ticks_ms()
         tm = utime.gmtime(seconds)
         rtc_tuple = (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], milliseconds)
+        
         import machine
         machine.RTC().datetime(rtc_tuple)
+
+        if self.write_initial_time and not self.initial_time_written:
+            try:
+                with open('initial_time.txt', 'w') as f:
+                    f.write(str(self.base_seconds))
+            finally:
+                self.initial_time_written = True
 
 def last_sunday(year, month):
     if month == 12:
