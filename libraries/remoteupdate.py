@@ -275,6 +275,9 @@ class RemoteUpdate:
                 return False
         return False
     
+    def widget(self):
+        return b' <form action="remoteupdate" method="post"><button>Remote Update</button></form>'
+
     async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))

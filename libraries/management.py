@@ -121,6 +121,9 @@ async def readchunks(writer, length, source, chunk_processor = None, chunksize =
  
 
 class IndexController:
+    def __init__(self, server = None):
+        self.server = server
+    
     def route(self, method, path):
         return method == b'GET' and path == b'/'
     
@@ -188,15 +191,23 @@ class IndexController:
                 reset_map[getattr(machine, attr)] = label
         reset_label = reset_map.get(reset_cause, b'Unknown (%i)' % reset_cause)
         writer.write(b'<p><b>Reset cause:</b> %s</p>' % reset_label)
-        writer.write(b'<form action="reset" method="post"><button>Reset</button></form>')
-        writer.write(b' <form action="shell" method="post"><button>Shell</button></form>')
-        writer.write(b' <form action="filesystem" method="post"><button>Filesystem</button></form>')
+        # Inject index fragments from controllers that implement `widget()`
+        if self.server is not None:
+            for controller in self.server.controllers:
+                fragment_factory = getattr(controller, 'widget', None)
+                if callable(fragment_factory):
+                    fragment = fragment_factory()
+                    if fragment:
+                        writer.write(fragment)
         
         writer.write(b'<p>Generated in %i ms. System time is %04u-%02u-%02uT%02u:%02u:%02u.</p>' % ((utime.ticks_diff(utime.ticks_ms(), started_ticks_ms),) + utime.localtime()[0:6]))
 
 class FilesystemController:
     def route(self, method, path):
         return path == b'/filesystem'
+    
+    def widget(self):
+        return b' <form action="filesystem" method="post"><button>Filesystem</button></form>'
     
     async def serve(self, method, path, headers, reader, writer):
         KB = 1024
@@ -335,6 +346,9 @@ class ShellController:
     
     def route(self, method, path):
         return path == b'/shell'
+    
+    def widget(self):
+        return b' <form action="shell" method="post"><button>Shell</button></form>'
     
     async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
@@ -517,11 +531,14 @@ class ResetController:
             writer.write(b'</select>')
             writer.write(b'<input type="submit"/>')
             writer.write(b'</form>')
+    
+    def widget(self):
+        return b'<form action="reset" method="post"><button>Reset</button></form>'
 
 class ManagementServer:   
     def __init__(self, port = 80):
         self.port = port
-        self.controllers = [IndexController(), FilesystemController(), EditController(),
+        self.controllers = [IndexController(self), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
                             ResetController(), ShellController(),
                             GPIOController(), PWMController()]

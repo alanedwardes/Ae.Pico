@@ -22,6 +22,9 @@ class FramebufferController:
     def route(self, method, path):
         return method == b'GET' and path == b'/framebuffer'
 
+    def widget(self):
+        return b'<p><img src="/framebuffer" alt="Framebuffer"/></p>'
+
     async def serve(self, method, path, headers, reader, writer):
         # BMP snapshot (RGB565 with BI_BITFIELDS masks). One image per request.
         # Determine framebuffer geometry
