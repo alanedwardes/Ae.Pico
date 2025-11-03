@@ -19,7 +19,7 @@ class TrainDisplay:
     
     def entity_updated(self, entity_id, entity):
         self.departures_last_updated = utime.ticks_ms()
-        asyncio.create_task(self.update())
+        self.update()
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
@@ -31,14 +31,13 @@ class TrainDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            asyncio.create_task(self.update())
+            self.update()
 
-    async def update(self):
+    def update(self):
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
         self.__update()
-        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"TrainDisplay: {update_time_ms}ms")
         
@@ -82,4 +81,4 @@ class TrainDisplay:
         for row in range(0, len(departures)):
             y_offset += self.__draw_departure_row(departures[row], y_offset)
             
-        # display updated by caller
+        self.display.update()

@@ -57,7 +57,7 @@ class ThermostatDisplay:
                 'hold_ms': 8000  # Show for 8 seconds when thermostat changes
             })
         
-        asyncio.create_task(self.update())
+        self.update()
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
@@ -67,12 +67,11 @@ class ThermostatDisplay:
         #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
-    async def update(self):
+    def update(self):
         if not self.is_active:
             return
         start_update_ms = utime.ticks_ms()
         self.__update()
-        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"ThermostatDisplay: {update_time_ms}ms")
 
@@ -104,12 +103,12 @@ class ThermostatDisplay:
         # HVAC action label just above main temperature
         textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='small')
         
-        # display updated by caller
+        self.display.update()
     
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            asyncio.create_task(self.update())
+            self.update()
     
     def should_activate(self):
         return True

@@ -31,7 +31,7 @@ class WeatherDisplay:
     async def start(self):
         while True:
             await self.fetch_weather_data()
-            await self.update()
+            self.update()
             await asyncio.sleep(300)
         
     def should_activate(self):
@@ -40,7 +40,7 @@ class WeatherDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            asyncio.create_task(self.update())
+            self.update()
     
     
     async def fetch_weather_data(self):
@@ -113,13 +113,12 @@ class WeatherDisplay:
             return
     
         
-    async def update(self):
+    def update(self):
         if self.is_active == False:
             return
         
         start_update_ms = utime.ticks_ms()
         self.__update()
-        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"WeatherDisplay: {update_time_ms}ms")
     
@@ -181,4 +180,4 @@ class WeatherDisplay:
             height = 2 * 8
             textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=rain_color, font='small')
 
-        # display updated by caller
+        self.display.update()

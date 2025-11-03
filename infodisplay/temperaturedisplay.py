@@ -19,7 +19,7 @@ class TemperatureDisplay:
         return TemperatureDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['temperature'])
     
     def entity_updated(self, entity_id, entity):
-        asyncio.create_task(self.update())
+        self.update()
     
     async def start(self):
         await self.hass.subscribe(self.entity_ids.values(), self.entity_updated)
@@ -29,10 +29,9 @@ class TemperatureDisplay:
         #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
-    async def update(self):
+    def update(self):
         start_update_ms = utime.ticks_ms()
         self.__update()
-        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"TemperatureDisplay: {update_time_ms}ms")
 
@@ -65,4 +64,4 @@ class TemperatureDisplay:
         text_size_y = text_height + 4
         textbox.draw_textbox(self.display, f'{minimum_temperature:.0f}°', extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
         textbox.draw_textbox(self.display, f'{maximum_temperature:.0f}°', centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
-        # display updated by caller
+        self.display.update()

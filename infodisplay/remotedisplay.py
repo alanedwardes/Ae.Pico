@@ -114,7 +114,7 @@ class RemoteDisplay:
             await writer.wait_closed()
             
             # Tell display to update the screen
-            await self.display.update()
+            self.display.update()
                 
         except Exception as e:
             print(f"Error streaming framebuffer data: {e}")

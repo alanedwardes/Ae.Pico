@@ -1,5 +1,4 @@
 import framebuf
-import asyncio
 
 class Drawing(framebuf.FrameBuffer):
     def __init__(self, width, height):
@@ -25,7 +24,7 @@ class Drawing(framebuf.FrameBuffer):
             return
         self._driver.set_backlight(brightness)
 
-    async def update(self):
+    def update(self):
         if self._driver is None:
             return
-        await self._driver.render(self._buf, self.width, self.height)
+        self._driver.render(self._buf, self.width, self.height)

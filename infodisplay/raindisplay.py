@@ -62,7 +62,7 @@ class RainDisplay:
     async def start(self):
         while True:
             await self.fetch_weather_data()
-            await self.update()
+            self.update()
             await asyncio.sleep(300)
         
     def should_activate(self):
@@ -78,7 +78,7 @@ class RainDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            asyncio.create_task(self.update())
+            self.update()
     
     
     async def fetch_weather_data(self):
@@ -166,17 +166,16 @@ class RainDisplay:
             print(f"Error fetching weather data: {e}")
        
         
-    async def update(self):
+    def update(self):
         if self.is_active == False:
             return
         
         start_update_ms = utime.ticks_ms()
-        await self.__update()
-        await self.display.update()
+        self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"RainDisplay: {update_time_ms}ms")
     
-    async def __update(self):
+    def __update(self):
         if len(self.weather_data) == 0:
             return
         
@@ -241,16 +240,10 @@ class RainDisplay:
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
             textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
 
-            # Yield periodically to keep the event loop responsive during heavy loops
-            await asyncio.sleep(0)
-
         # Draw chart
-        await asyncio.sleep(0)
         chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
                                    self._r_values, self._normalized_r, rain_color_fn)
-        await asyncio.sleep(0)
         chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
                                    self._r_values, self._normalized_r, rain_color_fn, radius=2)
-        await asyncio.sleep(0)
 
-        # display updated by caller
+        self.display.update()

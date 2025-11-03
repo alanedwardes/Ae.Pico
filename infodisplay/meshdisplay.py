@@ -101,14 +101,14 @@ class MeshDisplay:
     async def start(self):
         while True:
             self.angle += 0.05
-            await self.update()
+            self.update()
             await asyncio.sleep(0.01)
 
-    async def update(self):
+    def update(self):
         start_update_ms = utime.ticks_ms()
         # Clear with black
         self.display.fill(0x0000)
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
-        await self.display.update()
+        self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"MeshDisplay: {update_time_ms}ms")

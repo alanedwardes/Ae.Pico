@@ -44,7 +44,7 @@ class SolarDisplay:
         elif entity_id == self.entity_ids.get('current_load'):
             self.current_load = entity.get('s')
         
-        asyncio.create_task(self.update())
+        self.update()
     
     async def start(self):
         # Subscribe to all solar entities
@@ -75,15 +75,14 @@ class SolarDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            asyncio.create_task(self.update())
+            self.update()
     
-    async def update(self):
+    def update(self):
         if self.is_active == False:
             return
         
         start_update_ms = utime.ticks_ms()
         self.__update()
-        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"SolarDisplay: {update_time_ms}ms")
     
@@ -180,4 +179,4 @@ class SolarDisplay:
             except (ValueError, TypeError):
                 textbox.draw_textbox(self.display, "LOAD: ?", x_right, y_bottom, item_width - 20, 30, color=white, font='regular')
         
-        # display updated by caller
+        self.display.update()
