@@ -21,7 +21,7 @@ class NewsDisplay:
     
     def entity_updated(self, entity_id, entity):
         self.last_updated = utime.localtime()
-        self.update()
+        asyncio.create_task(self.update())
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
@@ -30,13 +30,13 @@ class NewsDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            asyncio.create_task(self.update())
             self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
     
     def get_stories(self):
         return self.hass.entities.get(self.entity_id, {}).get('a', {}).get('stories', [])
 
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
@@ -61,6 +61,6 @@ class NewsDisplay:
         y_offset += label_height
         
         textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
-        self.display.update()
+        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"NewsDisplay: {update_time_ms}ms")

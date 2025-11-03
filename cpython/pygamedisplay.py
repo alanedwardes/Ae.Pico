@@ -24,7 +24,7 @@ class PygameDisplay:
                     sys.exit()
             await asyncio.sleep(0.1)
 
-    def render(self, framebuffer, width, height):
+    async def render(self, framebuffer, width, height):
         # framebuffer: memoryview/bytes of little-endian RGB565
         mv = memoryview(framebuffer)
         num_pixels = width * height

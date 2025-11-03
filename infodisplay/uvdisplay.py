@@ -30,7 +30,7 @@ class UvDisplay:
     async def start(self):
         while True:
             await self.fetch_uv_data()
-            self.update()
+            await self.update()
             await asyncio.sleep(300)
         
     def should_activate(self):
@@ -61,7 +61,7 @@ class UvDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            asyncio.create_task(self.update())
     
     
     async def fetch_uv_data(self):
@@ -109,12 +109,13 @@ class UvDisplay:
             print(f"Error fetching UV data: {e}")
        
         
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
         
         start_update_ms = utime.ticks_ms()
         self.__update()
+        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"UvDisplay: {update_time_ms}ms")
    
@@ -240,4 +241,4 @@ class UvDisplay:
                 self.display.ellipse(int(time_x), int(uv_y), 5, 5, 0x0000, True)
                 self.display.ellipse(int(time_x), int(uv_y), 2, 2, 0xFFFF, True)
 
-        self.display.update()
+        # display updated by caller

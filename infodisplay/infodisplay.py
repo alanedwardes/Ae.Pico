@@ -58,7 +58,7 @@ class InfoDisplay:
         return InfoDisplay(provider['display'], config.get('middle_row', []), config.get('bottom_row', []), provider['hassws.HassWs'])
     
     def entity_updated(self, entity_id, entity):
-        self.update()
+        asyncio.create_task(self.update())
     
     async def start(self):
         await self.hass.subscribe([item['entity_id'] for item in self.middle_row + self.bottom_row], self.entity_updated)
@@ -70,13 +70,14 @@ class InfoDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            asyncio.create_task(self.update())
 
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
         self.__update()
+        await self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"InfoDisplay: {update_time_ms}ms")
 
@@ -121,4 +122,4 @@ class InfoDisplay:
             textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, color=self.grey, font='sans', scale=1)
             x += bottom_row_item_width
         
-        self.display.update()
+        # display updated by caller

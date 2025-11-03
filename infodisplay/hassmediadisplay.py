@@ -66,7 +66,7 @@ class HassMediaDisplay:
             })
         
         # Always call update when entity changes
-        self.update()
+        asyncio.create_task(self.update())
     
     async def start(self):
         # Subscribe to the media entity
@@ -88,7 +88,7 @@ class HassMediaDisplay:
     def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            asyncio.create_task(self.update())
 
     def update(self):
         if not self.is_active:
@@ -154,4 +154,4 @@ class HassMediaDisplay:
         await writer.wait_closed()
         
         # Tell display to update the screen
-        self.display.update()
+        await self.display.update()

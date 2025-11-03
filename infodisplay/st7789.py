@@ -8,6 +8,7 @@ from time import sleep_ms
 import gc
 import micropython
 from machine import PWM
+import asyncio
 
 # User orientation constants
 # Waveshare Pico res touch defaults to portrait. Requires PORTRAIT for landscape orientation.
@@ -218,7 +219,7 @@ class ST7789:
         # Row address set
         self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
 
-    def render(self, framebuffer, width, height):
+    async def render(self, framebuffer, width, height):
         wd = self.width
         ht = self.height
         if width != wd or height != ht:
@@ -236,6 +237,7 @@ class ST7789:
             start = row * row_bytes
             _swapline(lb, src[start:], row_bytes)
             self._spi.write(lb)
+            await asyncio.sleep(0)
         self._cs(1)
 
     def set_backlight(self, brightness):
