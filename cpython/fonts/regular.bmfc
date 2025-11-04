@@ -3,7 +3,7 @@ fileVersion=1
 
 # font settings
 fontName=Noto Sans
-fontFile=../../../../Users/alan/Downloads/Momo_Trust_Display,Noto_Sans,Oswald/Noto_Sans/static/regular-Regular.ttf
+fontFile=NotoSans-Regular.ttf
 charSet=0
 fontSize=-28
 aa=1
@@ -54,6 +54,6 @@ invB=0
 outlineThickness=0
 
 # selected chars
-chars=0-0,13,32-126,162-163,176,186
+chars=32-126,162-163,176,186
 
 # imported icon images

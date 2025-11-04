@@ -3,7 +3,7 @@ fileVersion=1
 
 # font settings
 fontName=Momo Trust Display
-fontFile=../../../../Users/alan/Downloads/Momo_Trust_Display/MomoTrustDisplay-Regular.ttf
+fontFile=MomoTrustDisplay-Regular.ttf
 charSet=0
 fontSize=-64
 aa=1
