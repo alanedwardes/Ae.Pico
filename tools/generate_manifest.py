@@ -21,11 +21,20 @@ def generate_manifest(source_dir, output_file):
         return False
     
     manifest_entries = []
+    # Exclude the manifest file itself and the default name if present
+    excluded_filenames = {
+        os.path.normcase(os.path.basename(output_file)),
+        os.path.normcase('manifest.txt')
+    }
     
     for filename in os.listdir(source_dir):
         file_path = os.path.join(source_dir, filename)
         
         if os.path.isdir(file_path):
+            continue
+        
+        # Skip files that should not be included in the manifest
+        if os.path.normcase(filename) in excluded_filenames:
             continue
         
         try:
@@ -39,6 +48,10 @@ def generate_manifest(source_dir, output_file):
     manifest_entries.sort(key=lambda x: x[0])
     
     try:
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(os.path.abspath(output_file))
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         with open(output_file, 'w') as f:
             for filename, file_hash in manifest_entries:
                 f.write(f"{filename} {file_hash}\n")
@@ -55,15 +68,21 @@ def main():
     parser = argparse.ArgumentParser(description="Generate SHA256 manifest for files in a directory")
     parser.add_argument('source_dir', help='Source directory to scan for files')
     parser.add_argument('output_file', nargs='?', default='manifest.txt', 
-                       help='Output manifest file (default: manifest.txt)')
+                       help='Output manifest filename or path (relative to source_dir). Default: manifest.txt')
     
     args = parser.parse_args()
     
+    # Place the manifest inside the source directory when a relative path/filename is provided
+    if os.path.isabs(args.output_file):
+        output_path = args.output_file
+    else:
+        output_path = os.path.join(args.source_dir, args.output_file)
+    
     print(f"Generating manifest for: {args.source_dir}")
-    print(f"Output file: {args.output_file}")
+    print(f"Output file: {output_path}")
     print()
     
-    success = generate_manifest(args.source_dir, args.output_file)
+    success = generate_manifest(args.source_dir, output_path)
     
     if success:
         print("\nManifest generation completed successfully!")
