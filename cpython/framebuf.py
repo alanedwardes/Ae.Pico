@@ -76,112 +76,164 @@ class FrameBuffer:
         self.fill_rect(x, y, 1, h, color)
 
     def line(self, x0, y0, x1, y1, color):
-        dx = abs(x1 - x0)
-        dy = -abs(y1 - y0)
-        sx = 1 if x0 < x1 else -1
-        sy = 1 if y0 < y1 else -1
-        err = dx + dy
-        while True:
-            self._put_pixel(x0, y0, color)
-            if x0 == x1 and y0 == y1:
-                break
-            e2 = 2 * err
-            if e2 >= dy:
-                err += dy
-                x0 += sx
-            if e2 <= dx:
-                err += dx
+        dx = x1 - x0
+        sx = 1 if dx > 0 else -1
+        dx = abs(dx)
+
+        dy = y1 - y0
+        sy = 1 if dy > 0 else -1
+        dy = abs(dy)
+
+        steep = False
+        if dy > dx:
+            # swap axes
+            x0, y0 = y0, x0
+            x1, y1 = y1, x1
+            dx, dy = dy, dx
+            sx, sy = sy, sx
+            steep = True
+
+        e = 2 * dy - dx
+        for _ in range(dx):
+            if steep:
+                self._put_pixel(y0, x0, color)
+            else:
+                self._put_pixel(x0, y0, color)
+            while e >= 0:
                 y0 += sy
+                e -= 2 * dx
+            x0 += sx
+            e += 2 * dy
+        # final endpoint
+        if steep:
+            self._put_pixel(y1, x1, color)
+        else:
+            self._put_pixel(x1, y1, color)
 
     def ellipse(self, x0, y0, rx, ry, color, fill=False, mask=0x0F):
-        if rx <= 0 or ry <= 0:
+        if rx < 0 or ry < 0:
             return
-        x = 0
-        y = ry
-        rx2 = rx * rx
-        ry2 = ry * ry
-        tworx2 = 2 * rx2
-        twory2 = 2 * ry2
-        px = 0
-        py = tworx2 * y
+        if rx == 0 and ry == 0:
+            if mask & 0x0F:
+                self._put_pixel(x0, y0, color)
+            return
+
+        def draw_points(cx, cy, x, y):
+            if fill:
+                # Q1 (top-right)
+                if mask & 0x01:
+                    self.hline(cx, cy - y, x + 1, color)
+                # Q2 (top-left)
+                if mask & 0x02:
+                    self.hline(cx - x, cy - y, x + 1, color)
+                # Q3 (bottom-left)
+                if mask & 0x04:
+                    self.hline(cx - x, cy + y, x + 1, color)
+                # Q4 (bottom-right)
+                if mask & 0x08:
+                    self.hline(cx, cy + y, x + 1, color)
+            else:
+                if mask & 0x01:
+                    self._put_pixel(cx + x, cy - y, color)
+                if mask & 0x02:
+                    self._put_pixel(cx - x, cy - y, color)
+                if mask & 0x04:
+                    self._put_pixel(cx - x, cy + y, color)
+                if mask & 0x08:
+                    self._put_pixel(cx + x, cy + y, color)
+
+        two_asquare = 2 * rx * rx
+        two_bsquare = 2 * ry * ry
 
         # Region 1
-        p = round(ry2 - (rx2 * ry) + (0.25 * rx2))
-        while px < py:
-            if fill:
-                if mask & 0x01: self.hline(x0, y0 + y, x + 1, color)
-                if mask & 0x02: self.hline(x0 - x, y0 + y, x + 1, color)
-                if mask & 0x04: self.hline(x0 - x, y0 - y, x + 1, color)
-                if mask & 0x08: self.hline(x0, y0 - y, x + 1, color)
-            else:
-                if mask & 0x01: self._put_pixel(x0 + x, y0 + y, color)
-                if mask & 0x02: self._put_pixel(x0 - x, y0 + y, color)
-                if mask & 0x04: self._put_pixel(x0 - x, y0 - y, color)
-                if mask & 0x08: self._put_pixel(x0 + x, y0 - y, color)
-            x += 1
-            px += twory2
-            if p < 0:
-                p += ry2 + px
-            else:
-                y -= 1
-                py -= tworx2
-                p += ry2 + px - py
+        x = rx
+        y = 0
+        xchange = ry * ry * (1 - 2 * rx)
+        ychange = rx * rx
+        ellipse_error = 0
+        stoppingx = two_bsquare * rx
+        stoppingy = 0
+        while stoppingx >= stoppingy:
+            draw_points(x0, y0, x, y)
+            y += 1
+            stoppingy += two_asquare
+            ellipse_error += ychange
+            ychange += two_asquare
+            if (2 * ellipse_error + xchange) > 0:
+                x -= 1
+                stoppingx -= two_bsquare
+                ellipse_error += xchange
+                xchange += two_bsquare
 
         # Region 2
-        p = round(ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2)
-        while y >= 0:
-            if fill:
-                if mask & 0x01: self.hline(x0, y0 + y, x + 1, color)
-                if mask & 0x02: self.hline(x0 - x, y0 + y, x + 1, color)
-                if mask & 0x04: self.hline(x0 - x, y0 - y, x + 1, color)
-                if mask & 0x08: self.hline(x0, y0 - y, x + 1, color)
-            else:
-                if mask & 0x01: self._put_pixel(x0 + x, y0 + y, color)
-                if mask & 0x02: self._put_pixel(x0 - x, y0 + y, color)
-                if mask & 0x04: self._put_pixel(x0 - x, y0 - y, color)
-                if mask & 0x08: self._put_pixel(x0 + x, y0 - y, color)
-            y -= 1
-            py -= tworx2
-            if p > 0:
-                p += rx2 - py
-            else:
-                x += 1
-                px += twory2
-                p += rx2 - py + px
+        x = 0
+        y = ry
+        xchange = ry * ry
+        ychange = rx * rx * (1 - 2 * ry)
+        ellipse_error = 0
+        stoppingx = 0
+        stoppingy = two_asquare * ry
+        while stoppingx <= stoppingy:
+            draw_points(x0, y0, x, y)
+            x += 1
+            stoppingx += two_bsquare
+            ellipse_error += xchange
+            xchange += two_bsquare
+            if (2 * ellipse_error + ychange) > 0:
+                y -= 1
+                stoppingy -= two_asquare
+                ellipse_error += ychange
+                ychange += two_asquare
 
     def poly(self, x, y, points, color, fill=False):
         # points: array('h') with [x1,y1,x2,y2,...]
+        # Build absolute coordinate list for simplicity
         pts = [(x + points[i], y + points[i + 1]) for i in range(0, len(points), 2)]
+        n = len(pts)
+        if n == 0:
+            return
         if not fill:
-            for i in range(len(pts)):
+            for i in range(n):
                 x1, y1 = pts[i]
-                x2, y2 = pts[(i + 1) % len(pts)]
+                x2, y2 = pts[(i + 1) % n]
                 self.line(x1, y1, x2, y2, color)
             return
 
-        # Scanline fill (even-odd rule)
-        min_y = max(0, min(p[1] for p in pts))
-        max_y = min(self.height - 1, max(p[1] for p in pts))
-        for yy in range(min_y, max_y + 1):
-            intersections = []
-            for i in range(len(pts)):
-                (x1, y1) = pts[i]
-                (x2, y2) = pts[(i + 1) % len(pts)]
-                if y1 == y2:
-                    continue
-                if yy < min(y1, y2) or yy >= max(y1, y2):
-                    continue
-                # Compute x intersection
-                t = (yy - y1) / (y2 - y1)
-                xi = x1 + t * (x2 - x1)
-                intersections.append(int(xi))
-            intersections.sort()
-            for i in range(0, len(intersections), 2):
-                x_start = intersections[i]
-                if i + 1 >= len(intersections):
-                    break
-                x_end = intersections[i + 1]
-                self.hline(x_start, yy, x_end - x_start + 1, color)
+        # Integer scanline fill with fixed-point rounding and vertex fixes
+        min_y = max(0, min(py for _, py in pts))
+        max_y = min(self.height - 1, max(py for _, py in pts))
+        for row in range(min_y, max_y + 1):
+            nodes = []
+            px1, py1 = pts[0]
+            i = n * 2 - 1  # mirror C loop order (not strictly required)
+            idx = n - 1
+            while idx >= 0:
+                px2, py2 = pts[idx]
+                # Crossing test excluding bottom pixels
+                if py1 != py2 and ((py1 > row and py2 <= row) or (py1 <= row and py2 > row)):
+                    # Fixed-point rounding to nearest as per C implementation
+                    temp = (32 * (px2 - px1) * (row - py1)) // (py2 - py1)
+                    node = (32 * px1 + temp + 16) // 32
+                    nodes.append(node)
+                elif row == max(py1, py2):
+                    # Patch local minima/horizontal edges
+                    if py1 < py2:
+                        self._put_pixel(px2, py2, color)
+                    elif py2 < py1:
+                        self._put_pixel(px1, py1, color)
+                    else:
+                        self.line(px1, py1, px2, py2, color)
+                px1, py1 = px2, py2
+                idx -= 1
+
+            if not nodes:
+                continue
+
+            nodes.sort()
+            for j in range(0, len(nodes) - 1, 2):
+                x_start = nodes[j]
+                x_end = nodes[j + 1]
+                self.fill_rect(x_start, row, (x_end - x_start) + 1, 1, color)
 
     def blit(self, source, x, y, key=-1, palette=None):
         # Resolve source buffer/format
