@@ -81,12 +81,13 @@ class WeatherDisplay:
             
             self.weather_data = ujson.loads(content.decode('utf-8'))
             print(f"Weather data fetched: {len(self.weather_data)} data points")
-            for i in range(0, len(self.weather_data), 3):
-                if i + 2 < len(self.weather_data):
+            for i in range(0, len(self.weather_data), 4):
+                if i + 3 < len(self.weather_data):
                     code = self.weather_data[i]
-                    temp = self.weather_data[i + 1]
-                    rain = self.weather_data[i + 2]
-                    print(f"  Day {i//3}: Code {code}, Temp {temp}°C, Rain {rain}%")
+                    max_temp = self.weather_data[i + 1]
+                    min_temp = self.weather_data[i + 2]
+                    rain = self.weather_data[i + 3]
+                    print(f"  Day {i//4}: Code {code}, Max {max_temp}°C, Min {min_temp}°C, Rain {rain}%")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
@@ -133,21 +134,29 @@ class WeatherDisplay:
         
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
         
-        # Calculate number of days from data (each day has 3 values: code, temp, rain)
-        num_days = len(self.weather_data) // 3
-        column_width = self.display_width // num_days
+        # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
+        num_days = len(self.weather_data) // 4
         
+        day_row_y = y_start
+        icon_row_y = day_row_y + 15
+        max_row_y = icon_row_y + 54
+        min_row_y = max_row_y + 32
+        rain_row_y = min_row_y + 32
+               
         for i in range(num_days):
-            data_index = i * 3
-            if data_index + 2 >= len(self.weather_data):
+            data_index = i * 4
+            if data_index + 3 >= len(self.weather_data):
                 break
                 
             weather_code = self.weather_data[data_index]
-            temperature = self.weather_data[data_index + 1]
-            rain = self.weather_data[data_index + 2]
+            max_temperature = self.weather_data[data_index + 1]
+            min_temperature = self.weather_data[data_index + 2]
+            rain = self.weather_data[data_index + 3]
             
-            sx = i * column_width
-            sy = y_start + 10
+            # Calculate column position and width to fill the screen evenly
+            sx = (i * self.display_width) // num_days
+            next_sx = ((i + 1) * self.display_width) // num_days
+            column_width = next_sx - sx
             
             # Get current day of week (0 = Monday, 6 = Sunday)
             # Use utime to get current time and calculate day of week
@@ -161,23 +170,25 @@ class WeatherDisplay:
                 day_pen = 0xFFFF
             
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, sy, column_width, height, color=day_pen, font='small')
+            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')
             
-            sy += 25
-            
-            icon = self.draw_icon(weather_code, self.display, sx, sy, column_width, 50)
+            icon = self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, 50)
             # icon is blitted directly; no color state
-            
-            sy += 50
+
+            # Format temperatures, avoiding "-0" display
+            max_temp_rounded = round(max_temperature)
+            min_temp_rounded = round(min_temperature)
+            max_temp_str = f"{abs(max_temp_rounded) if max_temp_rounded == 0 else max_temp_rounded:.0f}°"
+            min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
 
             height = 2 * 8
-            temp_color = colors.get_color_for_temperature(temperature)
-            textbox.draw_textbox(self.display, f"{temperature:.0f}°", sx, sy, column_width, height, color=temp_color, font='small')
+            textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, height, color=colors.get_color_for_temperature(max_temperature), font='small')
             
-            sy += 30
+            height = 2 * 8
+            textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, height, color=colors.get_color_for_temperature(min_temperature), font='small')
             
             rain_color = colors.get_color_for_rain_percentage(rain)
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{rain}%", sx, sy, column_width, height, color=rain_color, font='small')
+            textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
 
         self.display.update()
