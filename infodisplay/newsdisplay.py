@@ -13,7 +13,6 @@ class NewsDisplay:
         self.display = display
         self.url = url
         self.is_active = True
-        self.news_data = []
         self.stories = []
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -81,19 +80,8 @@ class NewsDisplay:
             writer.close()
             await writer.wait_closed()
             
-            self.news_data = ujson.loads(content.decode('utf-8'))
-            print(f"News data fetched: {len(self.news_data)} items")
-            
-            # Parse flat array into stories
-            # Format: [title1, date1, title2, date2, ...]
-            self.stories = []
-            for i in range(0, len(self.news_data), 2):
-                if i + 1 < len(self.news_data):
-                    title = self.news_data[i]
-                    pub_date = self.news_data[i + 1]
-                    self.stories.append({'t': title, 'p': pub_date})
-                    
-            print(f"Parsed {len(self.stories)} stories")
+            self.stories = ujson.loads(content.decode('utf-8'))
+            print(f"News data fetched: {len(self.stories)} stories")
                 
         except Exception as e:
             print(f"Error fetching news data: {e}")
@@ -112,17 +100,11 @@ class NewsDisplay:
         try:
             story = stories[self.story_index]
         except IndexError:
-            story = dict(t='?', p='?')
+            story = '?'
 
-        label_height = 24
+        label_height = 16
 
-        self.display.rect(0, y_offset, self.display_width, label_height, 0xb000, True)
-        textbox.draw_textbox(self.display, "%i/%i %s" % (self.story_index + 1, len(stories), story['p']), 
-                            0, y_offset, self.display_width, label_height, color=0xFFFF, font='small')
-        
-        y_offset += label_height
-        
-        textbox.draw_textbox(self.display, story['t'], 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
+        textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
         self.display.update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"NewsDisplay: {update_time_ms}ms")
