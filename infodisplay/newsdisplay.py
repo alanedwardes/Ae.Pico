@@ -1,13 +1,20 @@
+try:
+    import ujson
+except ModuleNotFoundError:
+    import json as ujson
+
 import utime
 import asyncio
 import textbox
+from httpstream import parse_url
 
 class NewsDisplay:
-    def __init__(self, display, entity_id, hass):
+    def __init__(self, display, url):
         self.display = display
-        self.entity_id = entity_id
-        self.hass = hass
+        self.url = url
         self.is_active = True
+        self.news_data = []
+        self.stories = []
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -17,15 +24,17 @@ class NewsDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['news']
-        return NewsDisplay(provider['display'], config['entity_id'], provider['hassws.HassWs'])
+        return NewsDisplay(provider['display'], config['url'])
     
     def entity_updated(self, entity_id, entity):
         self.last_updated = utime.localtime()
         self.update()
     
     async def start(self):
-        await self.hass.subscribe([self.entity_id], self.entity_updated)
-        await asyncio.Event().wait()
+        while True:
+            await self.fetch_news_data()
+            self.update()
+            await asyncio.sleep(300)  # Fetch every 5 minutes
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -34,7 +43,60 @@ class NewsDisplay:
             self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
     
     def get_stories(self):
-        return self.hass.entities.get(self.entity_id, {}).get('a', {}).get('stories', [])
+        return self.stories
+    
+    async def fetch_news_data(self):
+        try:
+            url = self.url
+            uri = parse_url(url)
+            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
+            
+            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
+            
+            # Write HTTP request
+            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
+            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
+            writer.write(b'\r\n')
+            await writer.drain()
+            
+            # Read response
+            line = await reader.readline()
+            status = line.split(b' ', 2)
+            status_code = int(status[1])
+            
+            if status_code != 200:
+                print(f"Failed to fetch news data: {status_code}")
+                writer.close()
+                await writer.wait_closed()
+                return
+            
+            # Skip headers
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+            
+            # Read content
+            content = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            
+            self.news_data = ujson.loads(content.decode('utf-8'))
+            print(f"News data fetched: {len(self.news_data)} items")
+            
+            # Parse flat array into stories
+            # Format: [title1, date1, title2, date2, ...]
+            self.stories = []
+            for i in range(0, len(self.news_data), 2):
+                if i + 1 < len(self.news_data):
+                    title = self.news_data[i]
+                    pub_date = self.news_data[i + 1]
+                    self.stories.append({'t': title, 'p': pub_date})
+                    
+            print(f"Parsed {len(self.stories)} stories")
+                
+        except Exception as e:
+            print(f"Error fetching news data: {e}")
 
     def update(self):
         if self.is_active == False:
