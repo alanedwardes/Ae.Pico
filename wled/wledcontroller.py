@@ -100,23 +100,7 @@ class WLEDController:
         self.palettes = ["Default", "Random Cycle", "Rainbow", "Party", "Ocean"]
         
         self.presets = {
-            "0": {},
-            "1": {
-                "n": "Orange", "on": True, "bri": 128,
-                "seg": [{"id": 0, "grp": 1, "spc": 0, "of": 0, "on": True, "frz": False, "bri": 255, "cct": 127, "col": [[255, 160, 0], [0, 0, 0], [0, 0, 0]], "fx": 0, "sx": 128, "ix": 128, "pal": 0, "sel": True, "rev": False, "mi": False}]
-            },
-            "2": {
-                "n": "Blink Red", "on": True, "bri": 255,
-                "seg": [{"id": 0, "grp": 1, "spc": 0, "of": 0, "on": True, "frz": False, "bri": 255, "cct": 127, "col": [[255, 0, 0], [0, 0, 0], [0, 0, 0]], "fx": 1, "sx": 128, "ix": 128, "pal": 0, "sel": True, "rev": False, "mi": False}]
-            },
-            "3": {
-                "n": "Rainbow Cycle", "on": True, "bri": 200,
-                "seg": [{"id": 0, "fx": 8, "sx": 100, "ix": 150, "pal": 0, "col": [[255,255,255]]}]
-            },
-            "4": {
-                "n": "Blue Solid", "on": True, "bri": 150,
-                "seg": [{"id": 0, "fx": 0, "col": [[0, 0, 255]]}]
-            }
+            "0": {}
         }
         self.current_preset = -1
         
@@ -396,7 +380,7 @@ class WLEDController:
                 "fps": 0,
                 "maxpwr": 0, # Auto-brightness limiter disabled
                 "maxseg": 16,
-                "seglc": [False] * 16
+                "seglc": [1] * 16
             },
             "str": False,
             "name": "WLED-Pico",
@@ -668,12 +652,14 @@ class WLEDController:
                  speed_ms = (255 - seg['sx']) * 5 + 200
                  if (now // speed_ms) % 2 == 0:
                      final_bri = 0
+                 else:
+                     final_bri = int(final_bri * (seg['ix'] / 255.0))
              elif seg['fx'] == 2: # Breathe
                  now = utime.ticks_ms()
                  speed_ms = (255 - seg['sx']) * 10 + 500
                  t = (now % speed_ms) / speed_ms
                  val = t * 2 if t < 0.5 else (1.0 - t) * 2
-                 final_bri = int(final_bri * (0.1 + 0.9*val))
+                 final_bri = int(final_bri * (0.1 + 0.9*val) * (seg['ix'] / 255.0))
              elif seg['fx'] == 3: # Color Wipe
                 self._effect_color_wipe(seg)
                 return
@@ -801,10 +787,10 @@ class WLEDController:
             # Get the color from the palette
             color = self._get_palette_color(seg['pal'], hue)
             
-            # Apply brightness
-            r = int(color[0] * factor)
-            g = int(color[1] * factor)
-            b = int(color[2] * factor)
+            # Apply brightness and intensity
+            r = int(color[0] * factor * (intensity / 255.0))
+            g = int(color[1] * factor * (intensity / 255.0))
+            b = int(color[2] * factor * (intensity / 255.0))
             
             self.pixel_buffer[i] = (r, g, b)
         
@@ -822,6 +808,7 @@ class WLEDController:
         
         effective_bri = seg['_current_bri']
         factor = effective_bri / 255.0
+        intensity = seg['ix'] / 255.0
         
         for i in range(seg['len']):
             idx = seg['start'] + i
@@ -832,9 +819,9 @@ class WLEDController:
             color = self._get_palette_color(seg['pal'], (remapped_i * (255//seg['len'])) & 255 )
             
             if (i <= wipe_pos and not seg['rev']) or (i > (seg['len'] - wipe_pos) and seg['rev']):
-                r = int(color[0] * factor)
-                g = int(color[1] * factor)
-                b = int(color[2] * factor)
+                r = int(color[0] * factor * intensity)
+                g = int(color[1] * factor * intensity)
+                b = int(color[2] * factor * intensity)
                 self.pixel_buffer[idx] = (r, g, b)
             else:
                 self.pixel_buffer[idx] = (0,0,0)
@@ -853,11 +840,12 @@ class WLEDController:
         
         effective_bri = seg['_current_bri']
         factor = effective_bri / 255.0
+        intensity = seg['ix'] / 255.0
         
         color = self._get_palette_color(seg['pal'], 0)
-        r = int(color[0] * factor)
-        g = int(color[1] * factor)
-        b = int(color[2] * factor)
+        r = int(color[0] * factor * intensity)
+        g = int(color[1] * factor * intensity)
+        b = int(color[2] * factor * intensity)
         
         for i in range(seg['len']):
             idx = seg['start'] + i
@@ -878,11 +866,12 @@ class WLEDController:
 
         effective_bri = seg['_current_bri']
         factor = effective_bri / 255.0
+        intensity = seg['ix'] / 255.0
         
         color = self._get_palette_color(seg['pal'], 0)
-        r = int(color[0] * factor)
-        g = int(color[1] * factor)
-        b = int(color[2] * factor)
+        r = int(color[0] * factor * intensity)
+        g = int(color[1] * factor * intensity)
+        b = int(color[2] * factor * intensity)
 
         for i in range(seg['len']):
             idx = seg['start'] + i
