@@ -2,6 +2,7 @@ import os
 import subprocess
 import shutil
 import sys
+import time
 
 # Determine project root relative to this script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +15,7 @@ LIB_SOURCE_DIRS = [
     "scrollclock",
     "sensor",
     "thermostat",
+    "wled"
 ]
 
 # Other files/folders to sync to root
@@ -95,6 +97,17 @@ def deploy():
 
     print("\nDeployment complete. Soft resetting...")
     run_mpremote(["reset"], ignore_error=True)
+
+    print("Waiting for device to reconnect...")
+    time.sleep(2)
+
+    print("\nMonitoring device output... (Ctrl+C to exit)")
+    try:
+        run_mpremote(["repl"])
+    except (subprocess.CalledProcessError, KeyboardInterrupt):
+        # mpremote repl exits with an error on Ctrl+C, which is normal.
+        print("\nExited monitor.")
+
 
 if __name__ == "__main__":
     try:

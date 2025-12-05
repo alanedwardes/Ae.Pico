@@ -576,6 +576,7 @@ class ManagementServer:
             
             # HTTP Basic Authentication
             if self.authorization_header and headers.get(b'authorization', None) != self.authorization_header:
+                print(b'401 Unauthorized: %s' % (b' '.join(requestline),))
                 writer.write(UNAUTHORIZED_STATUS)
                 writer.write(b'WWW-Authenticate: Basic realm="Management Server"' + HEADER_TERMINATOR)
                 writer.write(HTML_HEADER)
@@ -585,6 +586,7 @@ class ManagementServer:
             else:
                 await self.__route(requestline[0], requestline[1], headers, reader, writer)
         except Exception as e:
+            print(b'500 Internal Server Error handling %s: %s' % (b' '.join(requestline), str(e).encode('utf-8')))
             writer.write(ERROR_STATUS)
             writer.write(HTML_HEADER)
             writer.write(HEADER_TERMINATOR)
@@ -605,6 +607,7 @@ class ManagementServer:
                 await controller.serve(method, path, headers, reader, writer)
                 return
         
+        print(b'404 Not Found: %s %s' % (method, path))
         writer.write(NOT_FOUND_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
