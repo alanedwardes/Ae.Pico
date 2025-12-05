@@ -108,11 +108,17 @@ class WLEDController:
             "2": {
                 "n": "Blink Red", "on": True, "bri": 255,
                 "seg": [{"id": 0, "grp": 1, "spc": 0, "of": 0, "on": True, "frz": False, "bri": 255, "cct": 127, "col": [[255, 0, 0], [0, 0, 0], [0, 0, 0]], "fx": 1, "sx": 128, "ix": 128, "pal": 0, "sel": True, "rev": False, "mi": False}]
+            },
+            "3": {
+                "n": "Rainbow Cycle", "on": True, "bri": 200,
+                "seg": [{"id": 0, "fx": 9, "sx": 100, "ix": 150, "pal": 0, "col": [[255,255,255]]}]
+            },
+            "4": {
+                "n": "Blue Solid", "on": True, "bri": 150,
+                "seg": [{"id": 0, "fx": 0, "col": [[0, 0, 255]]}]
             }
         }
         self.current_preset = -1
-        
-        self._load_presets()
         
         self.np = neopixel.NeoPixel(self.pin, self.num_leds)
         
@@ -380,22 +386,6 @@ class WLEDController:
         if update:
             await self._update_state(update)
 
-    def _load_presets(self):
-        try:
-            with open('presets.json', 'r') as f:
-                self.presets = ujson.load(f)
-        except (OSError, ValueError):
-            # If file doesn't exist or is invalid, use defaults
-            pass
-
-    def _save_presets(self):
-        try:
-            with open('presets.json', 'w') as f:
-                ujson.dump(self.presets, f)
-        except OSError:
-            # Handle potential file system errors
-            print("Error: Could not save presets.")
-            
     def _get_info_response(self):
         return {
             "ver": self.VERSION,
@@ -483,13 +473,11 @@ class WLEDController:
                 preset_state.pop('transition', None)
                 preset_state.pop('ps', None)
                 self.presets[preset_id] = preset_state
-                self._save_presets()
 
         if 'pdel' in data:
             preset_id = str(data['pdel'])
             if preset_id in self.presets:
                 del self.presets[preset_id]
-                self._save_presets()
 
         if 'mainseg' in data:
             self.mainseg = int(data['mainseg'])
