@@ -7,7 +7,11 @@
 # For more information, please see the WLED project at:
 # https://github.com/Aircoookie/WLED
 
-import ujson
+try:
+    import ujson
+except ModuleNotFoundError:
+    import json as ujson
+
 try:
     import machine
     import neopixel
@@ -26,8 +30,8 @@ class WLEDController:
     VERSION = "0.15.3"
     VID = 2305090
     
-    def __init__(self, pin_number, num_leds):
-        self.pin_number = pin_number
+    def __init__(self, pin, num_leds):
+        self.pin = pin
         self.num_leds = num_leds
         self.on = True
         self.brightness = 128
@@ -110,12 +114,7 @@ class WLEDController:
         
         self._load_presets()
         
-        self.np = None
-        if machine and neopixel:
-            try:
-                self.np = neopixel.NeoPixel(machine.Pin(pin_number), num_leds)
-            except Exception:
-                pass
+        self.np = neopixel.NeoPixel(self.pin, self.num_leds)
         
         self.mac = "00:00:00:00:00:00"
         self.ip = "0.0.0.0"
