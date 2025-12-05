@@ -163,12 +163,10 @@ class WLEDController:
         pin = config.get('pin')
         count = config.get('count')
         mgmt = provider.get('management.ManagementServer')
-        
-        if pin is None or count is None or mgmt is None:
-            return
             
         controller = WLEDController(pin, count)
         mgmt.controllers.append(controller)
+        return controller
 
     async def start(self):
         while True:
