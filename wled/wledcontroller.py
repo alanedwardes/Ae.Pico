@@ -111,7 +111,7 @@ class WLEDController:
             },
             "3": {
                 "n": "Rainbow Cycle", "on": True, "bri": 200,
-                "seg": [{"id": 0, "fx": 9, "sx": 100, "ix": 150, "pal": 0, "col": [[255,255,255]]}]
+                "seg": [{"id": 0, "fx": 8, "sx": 100, "ix": 150, "pal": 0, "col": [[255,255,255]]}]
             },
             "4": {
                 "n": "Blue Solid", "on": True, "bri": 150,
