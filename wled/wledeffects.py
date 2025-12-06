@@ -647,3 +647,74 @@ def effect_running(ctrl, seg):
             int(color[2] * factor * level),
         )
 
+
+# Mapping of effect IDs to handlers, plus exported metadata used by the controller.
+EFFECT_HANDLERS = {
+    1: effect_blink,
+    2: effect_breathe,
+    3: effect_color_wipe,
+    4: effect_wipe_random,
+    5: effect_random_colors,
+    6: effect_sweep,
+    7: effect_dynamic,
+    8: effect_rainbow,
+    9: effect_rainbow,
+    10: effect_scan,
+    11: effect_scan_dual,
+    12: effect_fade,
+    13: effect_theater_chase,
+    14: effect_theater_rainbow,
+    15: effect_running,
+    16: effect_saw,
+    17: effect_twinkle,
+    # Map unsupported dissolve slots to the closest available twinkle-style effect
+    18: effect_twinkle,
+    19: effect_random_colors,
+    20: effect_sparkle,
+    21: effect_sparkle_dark,
+    22: effect_sparkle_plus,
+    23: effect_strobe,
+}
+
+# Keep the effect list aligned to the handlers we actually ship so we
+# don't advertise IDs that would otherwise fall back to a solid fill.
+SUPPORTED_EFFECTS = [
+    "Solid",
+    "Blink",
+    "Breathe",
+    "Wipe",
+    "Wipe Random",
+    "Random Colors",
+    "Sweep",
+    "Dynamic",
+    "Colorloop",
+    "Rainbow",
+    "Scan",
+    "Scan Dual",
+    "Fade",
+    "Theater",
+    "Theater Rainbow",
+    "Running",
+    "Saw",
+    "Twinkle",
+    "Dissolve",
+    "Dissolve Rnd",
+    "Sparkle",
+    "Sparkle Dark",
+    "Sparkle+",
+    "Strobe",
+]
+
+# Graceful fallback for any effect ID we haven't implemented; pick a
+# colourful animation instead of silently returning a solid color.
+DEFAULT_EFFECT_ID = 8  # Colorloop/Rainbow
+
+
+def resolve_effect_handler(effect_id: int):
+    """Return an available handler or a graceful fallback."""
+    if effect_id <= 0:
+        return None
+    handler = EFFECT_HANDLERS.get(effect_id)
+    if handler:
+        return handler
+    return EFFECT_HANDLERS.get(DEFAULT_EFFECT_ID)

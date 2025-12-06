@@ -32,30 +32,6 @@ import wledeffects
 class WLEDController:
     VERSION = "0.15.3"
     VID = 2305090
-    EFFECT_HANDLERS = {
-        1: wledeffects.effect_blink,
-        2: wledeffects.effect_breathe,
-        3: wledeffects.effect_color_wipe,
-        4: wledeffects.effect_wipe_random,
-        5: wledeffects.effect_random_colors,
-        6: wledeffects.effect_sweep,
-        7: wledeffects.effect_dynamic,
-        8: wledeffects.effect_rainbow,
-        9: wledeffects.effect_rainbow,
-        10: wledeffects.effect_scan,
-        11: wledeffects.effect_scan_dual,
-        12: wledeffects.effect_fade,
-        13: wledeffects.effect_theater_chase,
-        14: wledeffects.effect_theater_rainbow,
-        15: wledeffects.effect_running,
-        16: wledeffects.effect_saw,
-        17: wledeffects.effect_twinkle,
-        20: wledeffects.effect_sparkle,
-        21: wledeffects.effect_sparkle_dark,
-        22: wledeffects.effect_sparkle_plus,
-        23: wledeffects.effect_strobe,
-    }
-
     # Match WLED C++ color order enums (see cfg.cpp: DEFAULT_LED_COLOR_ORDER).
     COLOR_ORDER_MAP = {
         "RGB": (0, 1, 2),
@@ -104,44 +80,7 @@ class WLEDController:
         # Rendering buffer
         self.pixel_buffer = [(0,0,0)] * self.num_leds
         
-        self.effects = [
-            "Solid", "Blink", "Breathe", "Wipe", "Wipe Random", "Random Colors", "Sweep",
-            "Dynamic", "Colorloop", "Rainbow", "Scan", "Scan Dual", "Fade", "Theater",
-            "Theater Rainbow", "Running", "Saw", "Twinkle", "Dissolve", "Dissolve Rnd",
-            "Sparkle", "Sparkle Dark", "Sparkle+", "Strobe", "Strobe Rainbow", "Strobe Mega",
-            "Blink Rainbow", "Android", "Chase", "Chase Random", "Chase Rainbow", "Chase Flash",
-            "Chase Flash Rnd", "Rainbow Runner", "Colorful", "Traffic Light", "Sweep Random",
-            "Chase 2", "Aurora", "Stream", "Scanner", "Lighthouse", "Fireworks", "Rain",
-            "Tetrix", "Fire Flicker", "Gradient", "Loading", "Rolling Balls", "Fairy", "Two Dots",
-            "Fairytwinkle", "Running Dual", "Image", "Chase 3", "Tri Wipe", "Tri Fade",
-            "Lightning", "ICU", "Multi Comet", "Scanner Dual", "Stream 2", "Oscillate",
-            "Pride 2015", "Juggle", "Palette", "Fire 2012", "Colorwaves", "Bpm", "Fill Noise",
-            "Noise 1", "Noise 2", "Noise 3", "Noise 4", "Colortwinkles", "Lake", "Meteor",
-            "Copy Segment", "Railway", "Ripple", "Twinklefox", "Twinklecat", "Halloween Eyes", "Solid Pattern",
-            "Solid Pattern Tri", "Spots", "Spots Fade", "Glitter", "Candle", "Fireworks Starburst",
-            "Fireworks 1D", "Bouncing Balls", "Sinelon", "Sinelon Dual", "Sinelon Rainbow",
-            "Popcorn", "Drip", "Plasma", "Percent", "Ripple Rainbow", "Heartbeat", "Pacifica",
-            "Candle Multi", "Solid Glitter", "Sunrise", "Phased", "Twinkleup", "Noise Pal", "Sine",
-            "Phased Noise", "Flow", "Chunchun", "Dancing Shadows", "Washing Machine", "2D Plasma Rotozoom",
-            "Blends", "TV Simulator", "Dynamic Smooth", "2D Spaceships", "2D Crazybees", "2D Ghostrider",
-            "2D Blobs", "2D Scrolltext", "2D Driftrose", "2D Distortionwaves", "2D Soap", "2D Octopus",
-            "2D Wavingcell", "Pixels", "Pixelwave", "Juggles", "Matripix", "Gravimeter", "Plasmoid",
-            "Puddles", "Midnoise", "Noisemeter", "Freqwave", "Freqmatrix", "2D GEQ", "Waterfall",
-            "Freqpixels", "Binmap", "Noisefire", "Puddlepeak", "Noisemove", "2D Noise", "Perlinmove",
-            "Ripplepeak", "2D Firenoise", "2D Squaredswirl", "Not Implemented", "2D DNA", "2D Matrix",
-            "2D Metaballs", "Freqmap", "Gravcenter", "Gravcentric", "DJ Light", "2D Funkyplank", "Shimmer",
-            "2D Pulser", "Blurz", "2D Drift", "2D Waverly", "2D Sunradiation", "2D Coloredbursts",
-            "2D Julia", "Not Implemented", "Not Implemented", "Not Implemented", "Not Implemented",
-            "2D Gameoflife", "2D Tartan", "2D Polarlights", "2D Swirl", "2D Lissajous", "2D Frizzles",
-            "2D Plasmaball", "Flow Stripe", "2D Hipnotic", "2D Sindots", "2D Dnasprial", "2D Blackhole",
-            "Wavesins", "Rocktaves", "2D Akemi", "Particle Volcano", "Particle Fire",
-            "Particle Fireworks", "Particle Vortex", "Particle Perlin", "Particle Pit", "Particle Box",
-            "Particle Attractor", "Particle Impact", "Particle Waterfall", "Particle Spray",
-            "Particle sGEQ", "Particle CenterGEQ", "Particle Ghostrider", "Particle Blobs", "PS Drip",
-            "PS Pinball", "PS Dancing Shadows", "PS Fireworks 1D", "PS Sparkler", "PS Hourglass",
-            "PS 1D Spray", "PS Balance", "PS Chase", "PS Starburst", "PS 1D GEQ", "PS Fire 1D",
-            "PS 1D Sonic Stream", "PS 1D Sonic Boom", "PS 1D Springy", "Particle Galaxy"
-        ]
+        self.effects = wledeffects.SUPPORTED_EFFECTS
         self.palettes = wledpalettes.PALETTE_NAMES
         
         self.presets = {
@@ -740,7 +679,7 @@ class WLEDController:
         final_col = seg['_current_col']
 
         if is_on and seg['fx'] > 0:
-            handler = self.EFFECT_HANDLERS.get(seg['fx'])
+            handler = wledeffects.resolve_effect_handler(seg['fx'])
             if handler:
                 handler(self, seg)
                 return
