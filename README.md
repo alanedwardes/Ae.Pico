@@ -7,7 +7,6 @@ A collection of Micropython libraries for the Raspberry Pi Pico.
 * [libraries](./libraries) - Various Micropython libraries including an async WebSockets client for Home Assistant (see [README](./libraries/README.md))
 * [sensor](./sensor) - Async sensor routines for Home Assistant to report the status of various I2C/GPIO sensors
 * [infodisplay](./infodisplay) - Informational display for Home Assistant (Pimoroni Pico Display Pack 2.0/2.8)
-* [thermostat](./thermostat) - Integration with a Home Assistant thermostat (Pimoroni Pico Display Pack 2.0/2.8)
 
 ## Async Modules
 
