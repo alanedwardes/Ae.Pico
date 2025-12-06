@@ -40,6 +40,9 @@ jobs:
           - name: infodisplay
             dest: infodisplay/
             dirs: "libraries infodisplay thermostat"
+          - name: infodisplaysensor
+            dest: infodisplaysensor/
+            dirs: "libraries infodisplay sensor thermostat"
     steps:
       - name: credentials
         uses: aws-actions/configure-aws-credentials@v4.1.0
