@@ -620,6 +620,15 @@ class WLEDController:
         
         target_bri = effective_bri if is_on else 0
         target_col = seg['col'][0]
+
+        # Allow palette colors for palette-capable effects (e.g. Breathe),
+        # matching upstream WLED behavior instead of always using solid RGB.
+        if (
+            seg['fx'] != 0 and
+            seg['pal'] not in [0, 2, 4] and
+            seg['pal'] in palettes_data.PALETTE_DATA
+        ):
+            target_col = list(self._get_palette_color(seg['pal'], 0, seg))
         
         # Handle Transition
         if self.transition_active:
@@ -682,13 +691,27 @@ class WLEDController:
 
     def _update_segment_leds(self, seg, brightness, color):
         factor = brightness / 255.0
-        r = int(color[0] * factor)
-        g = int(color[1] * factor)
-        b = int(color[2] * factor)
-        color_tuple = (r, g, b)
+        use_palette = seg['pal'] not in [0, 2, 4] and seg['pal'] in palettes_data.PALETTE_DATA
 
-        for i in range(seg['start'], seg['stop']):
-            self.pixel_buffer[i] = color_tuple
+        if use_palette:
+            # Show palette as static gradient; used by any effect that falls back to this renderer
+            for i in range(seg['start'], seg['stop']):
+                local_i = i - seg['start']
+                remapped_i = self._remap_pixel_index(local_i, seg)
+                position = (remapped_i * 255 // seg['len']) & 255
+                pal_color = self._get_palette_color(seg['pal'], position, seg)
+                r = int(pal_color[0] * factor)
+                g = int(pal_color[1] * factor)
+                b = int(pal_color[2] * factor)
+                self.pixel_buffer[i] = (r, g, b)
+        else:
+            # Solid color
+            r = int(color[0] * factor)
+            g = int(color[1] * factor)
+            b = int(color[2] * factor)
+            color_tuple = (r, g, b)
+            for i in range(seg['start'], seg['stop']):
+                self.pixel_buffer[i] = color_tuple
 
     def _render_pixels(self):
         if self.np:
@@ -708,13 +731,21 @@ class WLEDController:
             self._render_pixels()
 
 
-    def _get_palette_color(self, palette_id, position):
+    def _get_palette_color(self, palette_id, position, seg=None):
         """ Get a color from a palette. Position is 0-255. """
+        
+        # Handle special palettes
+        if palette_id == 0:  # Default - use segment primary color
+            return tuple(seg['col'][0]) if seg else (255, 160, 0)
+        elif palette_id == 2:  # Primary Color - use segment primary color
+            return tuple(seg['col'][0]) if seg else (255, 160, 0)
+        elif palette_id == 4:  # Secondary - use segment secondary color
+            return tuple(seg['col'][1]) if seg else (0, 0, 0)
         
         # Ensure palette data exists
         data = palettes_data.PALETTE_DATA.get(palette_id)
         if not data:
-            return self.segments[0]['col'][0] # Default to primary color
+            return tuple(seg['col'][0]) if seg else (255, 160, 0)
 
         # Ensure position is 0-255
         position = position % 256
@@ -810,7 +841,7 @@ class WLEDController:
             hue = ((remapped_i * 255) // seg['len'] + (now * speed // 100)) & 255
             
             # Get the color from the palette
-            color = self._get_palette_color(seg['pal'], hue)
+            color = self._get_palette_color(seg['pal'], hue, seg)
             
             # Apply brightness and intensity
             r = int(color[0] * factor * (intensity / 255.0))
@@ -841,7 +872,7 @@ class WLEDController:
             local_i = i
             remapped_i = self._remap_pixel_index(local_i, seg)
             
-            color = self._get_palette_color(seg['pal'], (remapped_i * 255 // seg['len']) & 255 )
+            color = self._get_palette_color(seg['pal'], (remapped_i * 255 // seg['len']) & 255, seg)
             
             if (i <= wipe_pos and not seg['rev']) or (i > (seg['len'] - wipe_pos) and seg['rev']):
                 r = int(color[0] * factor * intensity)
@@ -867,7 +898,7 @@ class WLEDController:
         factor = effective_bri / 255.0
         intensity = seg['ix'] / 255.0
         
-        color = self._get_palette_color(seg['pal'], 0)
+        color = self._get_palette_color(seg['pal'], 0, seg)
         r = int(color[0] * factor * intensity)
         g = int(color[1] * factor * intensity)
         b = int(color[2] * factor * intensity)
@@ -893,7 +924,7 @@ class WLEDController:
         factor = effective_bri / 255.0
         intensity = seg['ix'] / 255.0
         
-        color = self._get_palette_color(seg['pal'], 0)
+        color = self._get_palette_color(seg['pal'], 0, seg)
         r = int(color[0] * factor * intensity)
         g = int(color[1] * factor * intensity)
         b = int(color[2] * factor * intensity)
