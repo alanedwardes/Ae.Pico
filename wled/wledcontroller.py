@@ -173,7 +173,9 @@ class WLEDController:
         config = provider['config'].get('wled', {})
         pin = config.get('pin')
         count = config.get('count')
-        color_order = config.get('color_order', "GRB")
+        # Accept both numeric enum (0-5) and string (RGB/GRB/...) from config,
+        # matching WLED C++ color order definitions.
+        color_order = config.get('color_order', config.get('order', "GRB"))
         mgmt = provider.get('management.ManagementServer')
             
         controller = WLEDController(pin, count, color_order=color_order)
@@ -186,9 +188,20 @@ class WLEDController:
             return self.COLOR_ORDER_VALUES.get(value, "GRB")
         if isinstance(value, str):
             order = value.strip().upper()
+            # allow numeric strings like "2"
+            if order.isdigit():
+                as_int = int(order)
+                return self.COLOR_ORDER_VALUES.get(as_int, "GRB")
             if order in self.COLOR_ORDER_MAP:
                 return order
         return "GRB"
+
+    def _color_order_code(self):
+        """Return numeric enum (0-5) for reporting/debug, mirroring WLED C++ codes."""
+        for code, name in self.COLOR_ORDER_VALUES.items():
+            if name == self.color_order:
+                return code
+        return 1  # default to GRB code
 
     def _apply_color_order(self, color):
         """Re-map RGB color to the configured LED color order before writing."""
@@ -411,6 +424,8 @@ class WLEDController:
         return {
             "ver": self.VERSION,
             "vid": self.VID,
+            "color_order": self.color_order,
+            "color_order_id": self._color_order_code(),
             "leds": {
                 "count": self.num_leds,
                 "pwr": 0,
@@ -445,6 +460,7 @@ class WLEDController:
             "on": self.on,
             "bri": self.brightness,
             "transition": self.transition,
+            "co": self._color_order_code(),
             "ps": self.current_preset,
             "pl": -1,
             "nl": self.nightlight,
@@ -528,6 +544,10 @@ class WLEDController:
                 self._nightlight_start_ms = utime.ticks_ms()
                 self._nightlight_start_bri = self.brightness
 
+        # Handle color order (controller-level, matches WLED enum)
+        if 'co' in data:
+            self.color_order = self._normalize_color_order(data['co'])
+        
         # Handle master brightness/on state
         if 'on' in data:
             val = data['on']
