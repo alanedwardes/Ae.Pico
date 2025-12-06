@@ -125,6 +125,7 @@ class WLEDController:
         
         self.effects = wledeffects.SUPPORTED_EFFECTS
         self.palettes = wledpalettes.PALETTE_NAMES
+        self._palx_cache = {}
         
         self.presets = {
             "0": {}
@@ -380,6 +381,10 @@ class WLEDController:
         palettes_per_page = 8
         start_index = page * palettes_per_page
         end_index = start_index + palettes_per_page
+
+        cached = self._palx_cache.get(page)
+        if cached is not None:
+            return cached
         
         response = {"p": []}
         
@@ -396,7 +401,9 @@ class WLEDController:
         # The JSON format for this endpoint is a bit unusual, it's a string
         # containing a JSON-like structure. We construct it manually.
         pages = "{" + "".join(response['p'])[:-1] + "}"
-        return {"p": pages}
+        payload = {"p": pages}
+        self._palx_cache[page] = payload
+        return payload
 
     def _get_palette_color(self, palette_id, position, seg=None):
         """Lightweight wrapper that mirrors WLED palette sampling."""

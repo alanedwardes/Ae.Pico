@@ -160,7 +160,7 @@ PALETTE_DATA = {
     71: [(0, 0, 0, 0), (85, 0, 255, 0), (170, 255, 255, 0), (255, 255, 0, 0)],
 }
 
-PALETTE_NAMES = [
+PALETTE_NAMES = (
     "Default",
     "Random Cycle",
     "Primary Color",
@@ -233,4 +233,4 @@ PALETTE_NAMES = [
     "Red Tide",
     "Candy2",
     "Traffic Light",
-]
+)

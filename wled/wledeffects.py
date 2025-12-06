@@ -678,7 +678,7 @@ EFFECT_HANDLERS = {
 
 # Keep the effect list aligned to the handlers we actually ship so we
 # don't advertise IDs that would otherwise fall back to a solid fill.
-SUPPORTED_EFFECTS = [
+SUPPORTED_EFFECTS = (
     "Solid",
     "Blink",
     "Breathe",
@@ -703,7 +703,7 @@ SUPPORTED_EFFECTS = [
     "Sparkle Dark",
     "Sparkle+",
     "Strobe",
-]
+)
 
 # Graceful fallback for any effect ID we haven't implemented; pick a
 # colourful animation instead of silently returning a solid color.
