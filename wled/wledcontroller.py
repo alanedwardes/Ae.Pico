@@ -32,6 +32,29 @@ import wledeffects
 class WLEDController:
     VERSION = "0.15.3"
     VID = 2305090
+    EFFECT_HANDLERS = {
+        1: wledeffects.effect_blink,
+        2: wledeffects.effect_breathe,
+        3: wledeffects.effect_color_wipe,
+        4: wledeffects.effect_wipe_random,
+        5: wledeffects.effect_random_colors,
+        6: wledeffects.effect_sweep,
+        7: wledeffects.effect_dynamic,
+        8: wledeffects.effect_rainbow,
+        9: wledeffects.effect_rainbow,
+        10: wledeffects.effect_scan,
+        11: wledeffects.effect_scan_dual,
+        12: wledeffects.effect_fade,
+        13: wledeffects.effect_theater_chase,
+        14: wledeffects.effect_theater_rainbow,
+        15: wledeffects.effect_running,
+        16: wledeffects.effect_saw,
+        17: wledeffects.effect_twinkle,
+        20: wledeffects.effect_sparkle,
+        21: wledeffects.effect_sparkle_dark,
+        22: wledeffects.effect_sparkle_plus,
+        23: wledeffects.effect_strobe,
+    }
 
     # Match WLED C++ color order enums (see cfg.cpp: DEFAULT_LED_COLOR_ORDER).
     COLOR_ORDER_MAP = {
@@ -369,6 +392,11 @@ class WLEDController:
         # containing a JSON-like structure. We construct it manually.
         pages = "{" + "".join(response['p'])[:-1] + "}"
         return {"p": pages}
+
+    def _get_palette_color(self, palette_id, position, seg=None):
+        """Lightweight wrapper that mirrors WLED palette sampling."""
+        seg = seg or (self.segments[0] if self.segments else None)
+        return wledpalettes.get_palette_color(palette_id, position, seg)
 
     def _get_live_response(self):
         # Returns the current state of the LEDs as a JSON array
@@ -710,100 +738,11 @@ class WLEDController:
         # Effects
         final_bri = seg['_current_bri']
         final_col = seg['_current_col']
-        
+
         if is_on and seg['fx'] > 0:
-            if seg['fx'] == 1:  # Blink - intensity controls duty cycle (parity with WLED)
-                now = utime.ticks_ms()
-                frame_ms = 20  # approximate FRAMETIME used by upstream
-                cycle_ms = (255 - seg['sx']) * 20
-                on_ms = frame_ms + ((cycle_ms * seg['ix']) >> 8)
-                cycle_ms += frame_ms * 2
-
-                iteration = now // cycle_ms
-                rem = now % cycle_ms
-                last_iter = seg.get('_blink_step', -1)
-                on_phase = (iteration != last_iter) or (rem <= on_ms)
-                seg['_blink_step'] = iteration
-
-                brightness = final_bri
-                factor = brightness / 255.0
-                palette_active = seg['pal'] not in [0, 2, 4] and seg['pal'] in wledpalettes.PALETTE_DATA
-
-                if on_phase:
-                    if palette_active:
-                        for i in range(seg['start'], seg['stop']):
-                            local_i = i - seg['start']
-                            pal_color = wledpalettes.color_from_palette(seg, local_i, self._remap_pixel_index)
-                            if pal_color is None:
-                                self.pixel_buffer[i] = (0, 0, 0)
-                                continue
-                            r = int(pal_color[0] * factor)
-                            g = int(pal_color[1] * factor)
-                            b = int(pal_color[2] * factor)
-                            self.pixel_buffer[i] = (r, g, b)
-                    else:
-                        r = int(seg['col'][0][0] * factor)
-                        g = int(seg['col'][0][1] * factor)
-                        b = int(seg['col'][0][2] * factor)
-                        color_tuple = (r, g, b)
-                        for i in range(seg['start'], seg['stop']):
-                            self.pixel_buffer[i] = color_tuple
-                else:
-                    # Off phase uses secondary color without palette sampling
-                    r = int(seg['col'][1][0] * factor)
-                    g = int(seg['col'][1][1] * factor)
-                    b = int(seg['col'][1][2] * factor)
-                    color_tuple = (r, g, b)
-                    for i in range(seg['start'], seg['stop']):
-                        self.pixel_buffer[i] = color_tuple
-                return
-            elif seg['fx'] == 2:  # Breathe - match WLED waveform and speed
-                now = utime.ticks_ms()
-                counter = (now * ((seg['sx'] >> 3) + 10)) & 0xFFFF
-                counter = (counter >> 2) + (counter >> 4)
-                var = 0
-                if counter < 16384:
-                    if counter > 8192:
-                        counter = 8192 - (counter - 8192)
-                    # Approximate sin16_t(counter) / 103
-                    var = int(math.sin((counter * 2 * math.pi) / 65535) * 32767 / 103)
-                lum = 30 + var
-                if lum < 0: lum = 0
-                if lum > 255: lum = 255
-
-                brightness_factor = final_bri / 255.0 if final_bri > 0 else 0
-                palette_active = seg['pal'] not in [0, 2, 4] and seg['pal'] in wledpalettes.PALETTE_DATA
-
-                for i in range(seg['start'], seg['stop']):
-                    local_i = i - seg['start']
-                    if palette_active:
-                        base_color = wledpalettes.color_from_palette(seg, local_i, self._remap_pixel_index)
-                        if base_color is None:
-                            self.pixel_buffer[i] = (0, 0, 0)
-                            continue
-                    else:
-                        base_color = seg['col'][0]
-
-                    blended = wledpalettes.color_blend(seg['col'][1], base_color, lum)
-                    r = int(blended[0] * brightness_factor)
-                    g = int(blended[1] * brightness_factor)
-                    b = int(blended[2] * brightness_factor)
-                    self.pixel_buffer[i] = (r, g, b)
-                return
-            elif seg['fx'] == 3:  # Color Wipe
-                wledeffects.effect_color_wipe(self, seg)
-                return
-            elif seg['fx'] == 8:  # Colorloop
-                wledeffects.effect_rainbow(self, seg)
-                return
-            elif seg['fx'] == 9:  # Rainbow (similar to Colorloop, reuses implementation)
-                wledeffects.effect_rainbow(self, seg)
-                return
-            elif seg['fx'] == 10:  # Scan
-                wledeffects.effect_scan(self, seg)
-                return
-            elif seg['fx'] == 13:  # Theater
-                wledeffects.effect_theater_chase(self, seg)
+            handler = self.EFFECT_HANDLERS.get(seg['fx'])
+            if handler:
+                handler(self, seg)
                 return
 
         self._update_segment_leds(seg, final_bri, final_col)
