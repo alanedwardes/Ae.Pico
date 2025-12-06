@@ -32,6 +32,15 @@ async def start_application(nic):
 async def start():
     nic = network.WLAN(network.STA_IF)
     nic.active(True)
+    led = None
+    
+    # Best-effort status LED; ignore failures on hosts without LED access
+    try:
+        import machine
+        led = machine.Pin("LED", machine.Pin.OUT)
+        led.value(0)
+    except Exception:
+        pass
     
     import connectivity
     
@@ -43,12 +52,18 @@ async def start():
     while not nic.isconnected():
         print(f'connecting to {connectivity.ssid}')
         nic.connect(connectivity.ssid, connectivity.key)
+        led_state = False
         for _ in range(30):
             if nic.isconnected():
                 break
-            await asyncio.sleep(1)
+            led_state = not led_state
+            if led:
+                led.value(led_state)
+            await asyncio.sleep(0.1)
     
-    print(f'connected to {connectivity.ssid}')
+    print(f'connected to %s with IP %s' % (connectivity.ssid, nic.ifconfig()[0]))
+    if led:
+        led.value(0)
     
     async def connect_wifi():
         while True:
