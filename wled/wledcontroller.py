@@ -410,9 +410,6 @@ class WLEDController:
         return {
             "ver": self.VERSION,
             "vid": self.VID,
-            "color_order": self.color_order,
-            "color_order_id": self._color_order_code(),
-            "max_brightness_pct": self.max_brightness_pct,
             "leds": {
                 "count": self.num_leds,
                 "pwr": 0,
@@ -447,7 +444,6 @@ class WLEDController:
             "on": self.on,
             "bri": self.brightness,
             "transition": self.transition,
-            "co": self._color_order_code(),
             "ps": self.current_preset,
             "pl": -1,
             "nl": self.nightlight,
