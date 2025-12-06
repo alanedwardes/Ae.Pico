@@ -34,28 +34,32 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: checkout repo
         uses: actions/checkout@v4
-      - name: prepare files
+      - name: prepare main bundle
         run: |
-          mkdir -p temp_deploy
-          cp libraries/*.py temp_deploy/
-          cp infodisplay/*.py temp_deploy/
-          cp scrollclock/*.py temp_deploy/
-          cp sensor/*.py temp_deploy/
-          cp thermostat/*.py temp_deploy/
-          cp wled/*.py temp_deploy/
+          mkdir -p temp_deploy_main
+          cp libraries/*.py temp_deploy_main/
+          cp infodisplay/*.py temp_deploy_main/
+          cp scrollclock/*.py temp_deploy_main/
+          cp sensor/*.py temp_deploy_main/
+          cp thermostat/*.py temp_deploy_main/
       - name: prepare wled bundle
         run: |
           mkdir -p temp_deploy_wled
           cp libraries/*.py temp_deploy_wled/
           cp wled/*.py temp_deploy_wled/
-      - name: create manifest
+      - name: prepare sensor bundle
         run: |
-          echo "" >> temp_deploy/manifest.txt
-          for file in temp_deploy/*.py; do
+          mkdir -p temp_deploy_sensor
+          cp libraries/*.py temp_deploy_sensor/
+          cp sensor/*.py temp_deploy_sensor/
+      - name: create manifest (main)
+        run: |
+          echo "" >> temp_deploy_main/manifest.txt
+          for file in temp_deploy_main/*.py; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               hash=$(sha256sum "$file" | cut -d' ' -f1)
-              echo "$filename $hash" >> temp_deploy/manifest.txt
+              echo "$filename $hash" >> temp_deploy_main/manifest.txt
             fi
           done
       - name: create manifest (wled)
@@ -68,7 +72,19 @@ jobs:
               echo "$filename $hash" >> temp_deploy_wled/manifest.txt
             fi
           done
-      - name: copy libraries
-        run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
+      - name: create manifest (sensor)
+        run: |
+          echo "" >> temp_deploy_sensor/manifest.txt
+          for file in temp_deploy_sensor/*.py; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              hash=$(sha256sum "$file" | cut -d' ' -f1)
+              echo "$filename $hash" >> temp_deploy_sensor/manifest.txt
+            fi
+          done
+      - name: copy main bundle
+        run: aws s3 sync temp_deploy_main/ s3://ae-pico/main/ --delete
       - name: copy wled bundle
         run: aws s3 sync temp_deploy_wled/ s3://ae-pico/wled/ --delete
+      - name: copy sensor bundle
+        run: aws s3 sync temp_deploy_sensor/ s3://ae-pico/sensor/ --delete
