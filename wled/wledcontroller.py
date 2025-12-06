@@ -25,6 +25,7 @@ import asyncio
 import utime
 import binascii
 import os
+import palettes_data
 
 class WLEDController:
     VERSION = "0.15.3"
@@ -60,24 +61,24 @@ class WLEDController:
         self.pixel_buffer = [(0,0,0)] * self.num_leds
         
         self.effects = [
-            "Solid", "Blink", "Breathe", "Color Wipe", "Color Wipe Random", "Random Color", "Color Sweep",
-            "Dynamic", "Rainbow", "Rainbow Cycle", "Scan", "Dual Scan", "Fade", "Theater Chase",
-            "Theater Chase Rainbow", "Running Lights", "Saw", "Twinkle", "Dissolve", "Dissolve Random",
-            "Sparkle", "Flash Sparkle", "Hyper Sparkle", "Strobe", "Strobe Rainbow", "Multi Strobe",
-            "Blink Rainbow", "Android", "Chase Color", "Chase Random", "Chase Rainbow", "Chase Flash",
-            "Chase Flash Random", "Chase Rainbow White", "Colorful", "Traffic Light", "Color Sweep Random",
-            "Running Color", "Aurora", "Running Random", "Larson Scanner", "Comet", "Fireworks", "Rain",
+            "Solid", "Blink", "Breathe", "Wipe", "Wipe Random", "Random Colors", "Sweep",
+            "Dynamic", "Colorloop", "Rainbow", "Scan", "Scan Dual", "Fade", "Theater",
+            "Theater Rainbow", "Running", "Saw", "Twinkle", "Dissolve", "Dissolve Rnd",
+            "Sparkle", "Sparkle Dark", "Sparkle+", "Strobe", "Strobe Rainbow", "Strobe Mega",
+            "Blink Rainbow", "Android", "Chase", "Chase Random", "Chase Rainbow", "Chase Flash",
+            "Chase Flash Rnd", "Rainbow Runner", "Colorful", "Traffic Light", "Sweep Random",
+            "Chase 2", "Aurora", "Stream", "Scanner", "Lighthouse", "Fireworks", "Rain",
             "Tetrix", "Fire Flicker", "Gradient", "Loading", "Rolling Balls", "Fairy", "Two Dots",
-            "Fairytwinkle", "Running Dual", "Image", "Tricolor Chase", "Tricolor Wipe", "Tricolor Fade",
-            "Lightning", "ICU", "Multi Comet", "Dual Larson Scanner", "Random Chase", "Oscillate",
-            "Pride 2015", "Juggle", "Palette", "Fire 2012", "Colorwaves", "BPM", "Fillnoise8",
-            "Noise16 1", "Noise16 2", "Noise16 3", "Noise16 4", "Colortwinkle", "Lake", "Meteor",
-            "Copy", "Railway", "Ripple", "Twinklefox", "Twinklecat", "Halloween Eyes", "Static Pattern",
-            "Tri Static Pattern", "Spots", "Spots Fade", "Glitter", "Candle", "Starburst",
-            "Exploding Fireworks", "Bouncingballs", "Sinelon", "Sinelon Dual", "Sinelon Rainbow",
+            "Fairytwinkle", "Running Dual", "Image", "Chase 3", "Tri Wipe", "Tri Fade",
+            "Lightning", "ICU", "Multi Comet", "Scanner Dual", "Stream 2", "Oscillate",
+            "Pride 2015", "Juggle", "Palette", "Fire 2012", "Colorwaves", "Bpm", "Fill Noise",
+            "Noise 1", "Noise 2", "Noise 3", "Noise 4", "Colortwinkles", "Lake", "Meteor",
+            "Copy Segment", "Railway", "Ripple", "Twinklefox", "Twinklecat", "Halloween Eyes", "Solid Pattern",
+            "Solid Pattern Tri", "Spots", "Spots Fade", "Glitter", "Candle", "Fireworks Starburst",
+            "Fireworks 1D", "Bouncing Balls", "Sinelon", "Sinelon Dual", "Sinelon Rainbow",
             "Popcorn", "Drip", "Plasma", "Percent", "Ripple Rainbow", "Heartbeat", "Pacifica",
-            "Candle Multi", "Solid Glitter", "Sunrise", "Phased", "Twinkleup", "Noisepal", "Sinewave",
-            "Phasednoise", "Flow", "Chunchun", "Dancing Shadows", "Washing Machine", "2D Plasma Rotozoom",
+            "Candle Multi", "Solid Glitter", "Sunrise", "Phased", "Twinkleup", "Noise Pal", "Sine",
+            "Phased Noise", "Flow", "Chunchun", "Dancing Shadows", "Washing Machine", "2D Plasma Rotozoom",
             "Blends", "TV Simulator", "Dynamic Smooth", "2D Spaceships", "2D Crazybees", "2D Ghostrider",
             "2D Blobs", "2D Scrolltext", "2D Driftrose", "2D Distortionwaves", "2D Soap", "2D Octopus",
             "2D Wavingcell", "Pixels", "Pixelwave", "Juggles", "Matripix", "Gravimeter", "Plasmoid",
@@ -88,7 +89,7 @@ class WLEDController:
             "2D Pulser", "Blurz", "2D Drift", "2D Waverly", "2D Sunradiation", "2D Coloredbursts",
             "2D Julia", "Not Implemented", "Not Implemented", "Not Implemented", "Not Implemented",
             "2D Gameoflife", "2D Tartan", "2D Polarlights", "2D Swirl", "2D Lissajous", "2D Frizzles",
-            "2D Plasmaball", "Flowstripe", "2D Hipnotic", "2D Sindots", "2D Dnasprial", "2D Blackhole",
+            "2D Plasmaball", "Flow Stripe", "2D Hipnotic", "2D Sindots", "2D Dnasprial", "2D Blackhole",
             "Wavesins", "Rocktaves", "2D Akemi", "Particle Volcano", "Particle Fire",
             "Particle Fireworks", "Particle Vortex", "Particle Perlin", "Particle Pit", "Particle Box",
             "Particle Attractor", "Particle Impact", "Particle Waterfall", "Particle Spray",
@@ -97,7 +98,7 @@ class WLEDController:
             "PS 1D Spray", "PS Balance", "PS Chase", "PS Starburst", "PS 1D GEQ", "PS Fire 1D",
             "PS 1D Sonic Stream", "PS 1D Sonic Boom", "PS 1D Springy", "Particle Galaxy"
         ]
-        self.palettes = ["Default", "Random Cycle", "Rainbow", "Party", "Ocean"]
+        self.palettes = palettes_data.PALETTE_NAMES
         
         self.presets = {
             "0": {}
@@ -663,14 +664,17 @@ class WLEDController:
              elif seg['fx'] == 3: # Color Wipe
                 self._effect_color_wipe(seg)
                 return
-             elif seg['fx'] == 8: # Rainbow
+             elif seg['fx'] == 8: # Colorloop
                 # This effect uses per-LED updates and writes directly to the buffer.
                 self._effect_rainbow(seg)
-                return 
+                return
+             elif seg['fx'] == 9: # Rainbow (similar to Colorloop, reuses implementation)
+                self._effect_rainbow(seg)
+                return
              elif seg['fx'] == 10: # Scan
                 self._effect_scan(seg)
                 return
-             elif seg['fx'] == 13: # Theater Chase
+             elif seg['fx'] == 13: # Theater
                 self._effect_theater_chase(seg)
                 return
 
@@ -706,23 +710,44 @@ class WLEDController:
 
     def _get_palette_color(self, palette_id, position):
         """ Get a color from a palette. Position is 0-255. """
-        if palette_id == 2: # Rainbow
-            # Simple rainbow logic
-            if position < 85:
-                return (position * 3, 255 - position * 3, 0)
-            elif position < 170:
-                position -= 85
-                return (255 - position * 3, 0, position * 3)
-            else:
-                position -= 170
-                return (0, position * 3, 255 - position * 3)
-        elif palette_id == 3: # Party
-             return self._color_blend((255,0,0), (0,0,255), position)
-        elif palette_id == 4: # Ocean
-             return self._color_blend((0,0,255), (0,255,255), position)
+        
+        # Ensure palette data exists
+        data = palettes_data.PALETTE_DATA.get(palette_id)
+        if not data:
+            return self.segments[0]['col'][0] # Default to primary color
 
-        # Default to primary color for other palettes for now
-        return self.segments[0]['col'][0]
+        # Ensure position is 0-255
+        position = position % 256
+
+        # Find interval p1 (start) and p2 (end) where p1.pos <= position < p2.pos
+        p1 = data[-1]
+        p2 = data[0]
+        
+        for point in data:
+            if point[0] > position:
+                p2 = point
+                break
+            p1 = point
+            
+        # Calculate fraction
+        idx1 = p1[0]
+        idx2 = p2[0]
+        
+        if idx2 < idx1: # Wrap around
+            idx2 += 256
+            if position < idx1:
+                position += 256
+        
+        delta = idx2 - idx1
+        if delta == 0: return (p1[1], p1[2], p1[3])
+        
+        frac = (position - idx1) / delta
+        
+        r = int(p1[1] + (p2[1] - p1[1]) * frac)
+        g = int(p1[2] + (p2[2] - p1[2]) * frac)
+        b = int(p1[3] + (p2[3] - p1[3]) * frac)
+        
+        return (r, g, b)
 
     def _color_blend(self, c1, c2, frac):
         frac = frac / 255.0
@@ -782,7 +807,7 @@ class WLEDController:
             # Remap for mirror and reverse
             remapped_i = self._remap_pixel_index(local_i, seg)
             
-            hue = (remapped_i * (255 // seg['len']) + (now * speed // 100)) & 255
+            hue = ((remapped_i * 255) // seg['len'] + (now * speed // 100)) & 255
             
             # Get the color from the palette
             color = self._get_palette_color(seg['pal'], hue)
@@ -816,7 +841,7 @@ class WLEDController:
             local_i = i
             remapped_i = self._remap_pixel_index(local_i, seg)
             
-            color = self._get_palette_color(seg['pal'], (remapped_i * (255//seg['len'])) & 255 )
+            color = self._get_palette_color(seg['pal'], (remapped_i * 255 // seg['len']) & 255 )
             
             if (i <= wipe_pos and not seg['rev']) or (i > (seg['len'] - wipe_pos) and seg['rev']):
                 r = int(color[0] * factor * intensity)
