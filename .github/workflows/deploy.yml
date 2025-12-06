@@ -42,6 +42,7 @@ jobs:
           cp scrollclock/*.py temp_deploy/
           cp sensor/*.py temp_deploy/
           cp thermostat/*.py temp_deploy/
+          cp wled/*.py temp_deploy/
       - name: create manifest
         run: |
           echo "" >> temp_deploy/manifest.txt
