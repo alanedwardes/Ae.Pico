@@ -71,4 +71,4 @@ jobs:
       - name: copy libraries
         run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
       - name: copy wled bundle
-        run: aws s3 sync temp_deploy_wled/ s3://ae-pico/wled/${{ github.ref_name }} --delete
+        run: aws s3 sync temp_deploy_wled/ s3://ae-pico/wled/ --delete
