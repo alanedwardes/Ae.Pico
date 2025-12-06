@@ -15,11 +15,9 @@ except ModuleNotFoundError:
 try:
     import machine
     import neopixel
-    import network
 except ImportError:
     machine = None
     neopixel = None
-    network = None
 import management
 import asyncio
 import utime
@@ -50,9 +48,10 @@ class WLEDController:
         5: "BGR",
     }
     
-    def __init__(self, pin, num_leds, color_order="GRB"):
+    def __init__(self, pin, num_leds, color_order="GRB", nic=None):
         self.pin = pin
         self.num_leds = num_leds
+        self.nic = nic
         self.color_order = self._normalize_color_order(color_order)
         self.on = True
         self.brightness = 128
@@ -92,15 +91,9 @@ class WLEDController:
         
         self.mac = "00:00:00:00:00:00"
         self.ip = "0.0.0.0"
-        if network:
-            try:
-                nic = network.WLAN(network.STA_IF)
-                mac_bytes = nic.config('mac')
-                self.mac = binascii.hexlify(mac_bytes).decode('utf-8')
-                if nic.isconnected():
-                    self.ip = nic.ifconfig()[0]
-            except Exception:
-                pass
+        self.hostname = None
+        self.name = "WLED-Pico"
+        self._init_network_identity()
             
         self._update_leds()
 
@@ -130,6 +123,29 @@ class WLEDController:
         seg['_start_col'] = list(seg['_current_col'])
         return seg
 
+    def _init_network_identity(self):
+        mac_bytes = self.nic.config('mac')
+        if mac_bytes:
+            self.mac = binascii.hexlify(mac_bytes).decode('utf-8')
+
+        if self.nic.isconnected():
+            self.ip = self.nic.ifconfig()[0]
+
+        hostname = None
+        # Prefer explicit hostname, then DHCP hostname if provided.
+        for key in ('hostname', 'dhcp_hostname'):
+            try:
+                value = self.nic.config(key)
+            except Exception:
+                value = None
+            if value:
+                hostname = value.decode('utf-8') if isinstance(value, (bytes, bytearray)) else str(value)
+                break
+
+        self.hostname = hostname
+        if hostname:
+            self.name = hostname
+
     CREATION_PRIORITY = 1
     @staticmethod
     def create(provider):
@@ -140,8 +156,9 @@ class WLEDController:
         # matching WLED C++ color order definitions.
         color_order = config.get('color_order', config.get('order', "GRB"))
         mgmt = provider.get('management.ManagementServer')
+        nic = provider.get('nic')
             
-        controller = WLEDController(pin, count, color_order=color_order)
+        controller = WLEDController(pin, count, color_order=color_order, nic=nic)
         mgmt.controllers.append(controller)
         return controller
 
@@ -401,7 +418,7 @@ class WLEDController:
                 "seglc": [1] * 16
             },
             "str": False,
-            "name": "WLED-Pico",
+        "name": self.name,
             "udpport": 0,
             "live": self.live,
             "lm": "",
@@ -735,7 +752,7 @@ class WLEDController:
 
     def _get_cfg_response(self):
         # This is a placeholder. A real implementation would return a lot of config.
-        return {"rev": [0,0], "vid": self.VID, "id": {"mdns": "wled-pico", "name": "WLED-Pico"}}
+        return {"rev": [0,0], "vid": self.VID, "id": {"mdns": (self.hostname or "wled-pico"), "name": self.name}}
 
     def _get_fxda_response(self):
         # Placeholder. This should return detailed effect data.

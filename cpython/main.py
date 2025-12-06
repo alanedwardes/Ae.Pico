@@ -4,11 +4,12 @@ sys.path.insert(1, '../infodisplay')
 sys.path.insert(1, '../wled')
 
 import config
+import network
 import asyncio
 import traceback
 from servicefactory import ServiceFactory
 
-provider = {'config': config.config}
+provider = {'config': config.config, 'nic': network.WLAN(network.STA_IF)}
 
 def handle_factory_exception(e):
     traceback.print_exception(type(e), e, e.__traceback__)

@@ -1,3 +1,5 @@
+import socket
+
 STA_IF = 1
 
 class AbstractNIC:
@@ -13,6 +15,8 @@ class WLAN(AbstractNIC):
             return 'wibble'
         elif key == 'mac':
             return b'\xd8:\xdd\x97\xd3R'
+        elif key == 'hostname' or key == 'dhcp_hostname':
+            return socket.gethostname()
         else:
             raise Exception('Not implemented')
 
