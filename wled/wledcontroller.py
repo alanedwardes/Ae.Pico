@@ -48,11 +48,13 @@ class WLEDController:
         5: "BGR",
     }
     
-    def __init__(self, pin, num_leds, color_order="GRB", nic=None):
+    def __init__(self, pin, num_leds, color_order="GRB", nic=None, max_brightness_pct=100):
         self.pin = pin
         self.num_leds = num_leds
         self.nic = nic
         self.color_order = self._normalize_color_order(color_order)
+        # Safety cap to avoid overheating or overcurrent. 1–100 (% of requested brightness).
+        self.max_brightness_pct = max(1, min(100, int(max_brightness_pct)))
         self.on = True
         self.brightness = 128
         self.transition = 7
@@ -155,10 +157,11 @@ class WLEDController:
         # Accept both numeric enum (0-5) and string (RGB/GRB/...) from config,
         # matching WLED C++ color order definitions.
         color_order = config.get('color_order', config.get('order', "GRB"))
+        max_brightness_pct = config.get('max_brightness_pct', 100)
         mgmt = provider.get('management.ManagementServer')
         nic = provider.get('nic')
             
-        controller = WLEDController(pin, count, color_order=color_order, nic=nic)
+        controller = WLEDController(pin, count, color_order=color_order, nic=nic, max_brightness_pct=max_brightness_pct)
         mgmt.controllers.append(controller)
         return controller
 
@@ -409,6 +412,7 @@ class WLEDController:
             "vid": self.VID,
             "color_order": self.color_order,
             "color_order_id": self._color_order_code(),
+            "max_brightness_pct": self.max_brightness_pct,
             "leds": {
                 "count": self.num_leds,
                 "pwr": 0,
@@ -676,7 +680,8 @@ class WLEDController:
     def _process_segment(self, seg):
         # Combine master and segment state
         is_on = self.on and seg['on']
-        effective_bri = int(self.brightness * seg['bri'] / 255)
+        capped_master_bri = int(self.brightness * self.max_brightness_pct / 100)
+        effective_bri = int(capped_master_bri * seg['bri'] / 255)
         
         target_bri = effective_bri if is_on else 0
         target_col = seg['col'][0]
