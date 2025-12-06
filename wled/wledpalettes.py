@@ -1,3 +1,79 @@
+def color_blend(c1, c2, frac):
+    """Blend c1 -> c2 by 0-255 fraction."""
+    frac = frac / 255.0
+    r = int(c1[0] + (c2[0] - c1[0]) * frac)
+    g = int(c1[1] + (c2[1] - c1[1]) * frac)
+    b = int(c1[2] + (c2[2] - c1[2]) * frac)
+    return (r, g, b)
+
+
+def get_palette_color(palette_id, position, seg=None):
+    """Get a palette color (0-255 position). Handles defaults like WLED."""
+    if palette_id == 0:  # Default - use segment primary color
+        return tuple(seg['col'][0]) if seg else (255, 160, 0)
+    if palette_id == 2:  # Primary Color
+        return tuple(seg['col'][0]) if seg else (255, 160, 0)
+    if palette_id == 4:  # Secondary Color
+        return tuple(seg['col'][1]) if seg else (0, 0, 0)
+
+    data = PALETTE_DATA.get(palette_id)
+    if not data:
+        return tuple(seg['col'][0]) if seg else (255, 160, 0)
+
+    position = position % 256
+    p1 = data[-1]
+    p2 = data[0]
+
+    for point in data:
+        if point[0] > position:
+            p2 = point
+            break
+        p1 = point
+
+    idx1 = p1[0]
+    idx2 = p2[0]
+
+    if idx2 < idx1:
+        idx2 += 256
+        if position < idx1:
+            position += 256
+
+    delta = idx2 - idx1
+    if delta == 0:
+        return (p1[1], p1[2], p1[3])
+
+    frac = (position - idx1) / delta
+    r = int(p1[1] + (p2[1] - p1[1]) * frac)
+    g = int(p1[2] + (p2[2] - p1[2]) * frac)
+    b = int(p1[3] + (p2[3] - p1[3]) * frac)
+    return (r, g, b)
+
+
+def color_from_palette(seg, local_i, remap_pixel_index):
+    """Approximate WLED color_from_palette with grouping/spacing and offset."""
+    palette_id = seg['pal']
+    if palette_id in [0, 2, 4] or palette_id not in PALETTE_DATA:
+        return tuple(seg['col'][0])
+
+    grp = max(1, seg.get('grp', 1))
+    spc = seg.get('spc', 0)
+    cycle = grp + spc
+
+    if cycle > 0 and (local_i % cycle) >= grp:
+        return None  # spacing gap
+
+    if cycle > 0:
+        color_index = (local_i // cycle) * grp + min(local_i % cycle, grp - 1)
+    else:
+        color_index = local_i
+
+    remapped_i = remap_pixel_index(color_index, seg)
+    length = max(1, seg['len'])
+    offset = seg.get('of', 0)
+    position = ((remapped_i * 255 // length) + offset) & 255
+    return get_palette_color(palette_id, position, seg)
+
+
 PALETTE_DATA = {
     # Palette 0 (Default), 1 (Random Cycle), 2 (Primary Color) are special - handled in code
     6: [(0, 155, 0, 213), (17, 189, 0, 184), (34, 218, 0, 146), (51, 243, 0, 92), (68, 244, 85, 0), (85, 220, 143, 0), (102, 213, 180, 0), (119, 213, 213, 0), (136, 213, 155, 0), (153, 239, 102, 0), (170, 249, 0, 68), (187, 225, 0, 134), (204, 196, 0, 176), (221, 163, 0, 207), (238, 118, 0, 232), (255, 0, 50, 252)],
