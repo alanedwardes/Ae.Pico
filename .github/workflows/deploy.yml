@@ -30,7 +30,7 @@ jobs:
         bundle:
           - name: main
             dest: main/
-            dirs: "libraries infodisplay scrollclock sensor thermostat"
+            dirs: "libraries infodisplay scrollclock sensor"
           - name: wled
             dest: wled/
             dirs: "libraries wled"
@@ -39,10 +39,10 @@ jobs:
             dirs: "libraries sensor"
           - name: infodisplay
             dest: infodisplay/
-            dirs: "libraries infodisplay thermostat"
+            dirs: "libraries infodisplay"
           - name: infodisplaysensor
             dest: infodisplaysensor/
-            dirs: "libraries infodisplay sensor thermostat"
+            dirs: "libraries infodisplay sensor"
     steps:
       - name: credentials
         uses: aws-actions/configure-aws-credentials@v4.1.0
