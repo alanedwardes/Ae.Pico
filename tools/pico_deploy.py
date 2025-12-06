@@ -10,12 +10,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
 # Directories containing Python scripts to be flattened into /lib on the device
 LIB_SOURCE_DIRS = [
-    "infodisplay",
-    "libraries",
-    "scrollclock",
-    "sensor",
-    "thermostat",
-    "wled"
+    "libraries"
 ]
 
 # Other files/folders to sync to root
