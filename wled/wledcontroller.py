@@ -31,10 +31,29 @@ import palettes_data
 class WLEDController:
     VERSION = "0.15.3"
     VID = 2305090
+
+    # Match WLED C++ color order enums (see cfg.cpp: DEFAULT_LED_COLOR_ORDER).
+    COLOR_ORDER_MAP = {
+        "RGB": (0, 1, 2),
+        "GRB": (1, 0, 2),
+        "BRG": (2, 0, 1),
+        "RBG": (0, 2, 1),
+        "GBR": (1, 2, 0),
+        "BGR": (2, 1, 0),
+    }
+    COLOR_ORDER_VALUES = {
+        0: "RGB",
+        1: "GRB",
+        2: "BRG",
+        3: "RBG",
+        4: "GBR",
+        5: "BGR",
+    }
     
-    def __init__(self, pin, num_leds):
+    def __init__(self, pin, num_leds, color_order="GRB"):
         self.pin = pin
         self.num_leds = num_leds
+        self.color_order = self._normalize_color_order(color_order)
         self.on = True
         self.brightness = 128
         self.transition = 7
@@ -154,11 +173,27 @@ class WLEDController:
         config = provider['config'].get('wled', {})
         pin = config.get('pin')
         count = config.get('count')
+        color_order = config.get('color_order', "GRB")
         mgmt = provider.get('management.ManagementServer')
             
-        controller = WLEDController(pin, count)
+        controller = WLEDController(pin, count, color_order=color_order)
         mgmt.controllers.append(controller)
         return controller
+
+    def _normalize_color_order(self, value):
+        """Normalize user-supplied color order (int enum or string) to a valid key."""
+        if isinstance(value, int):
+            return self.COLOR_ORDER_VALUES.get(value, "GRB")
+        if isinstance(value, str):
+            order = value.strip().upper()
+            if order in self.COLOR_ORDER_MAP:
+                return order
+        return "GRB"
+
+    def _apply_color_order(self, color):
+        """Re-map RGB color to the configured LED color order before writing."""
+        idx = self.COLOR_ORDER_MAP.get(self.color_order, (0, 1, 2))
+        return (color[idx[0]], color[idx[1]], color[idx[2]])
 
     async def start(self):
         while True:
@@ -775,7 +810,8 @@ class WLEDController:
     def _render_pixels(self):
         if self.np:
             for i in range(self.num_leds):
-                self.np[i] = self.pixel_buffer[i]
+                ordered_color = self._apply_color_order(self.pixel_buffer[i])
+                self.np[i] = ordered_color
             self.np.write()
 
     def _update_leds(self, brightness=None, color=None):
