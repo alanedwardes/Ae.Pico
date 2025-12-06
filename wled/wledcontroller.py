@@ -117,7 +117,7 @@ class WLEDController:
         }
         # Runtime state for transitions and effects
         is_on = self.on and seg['on']
-        effective_bri = int(self.brightness * seg['bri'] / 255)
+        effective_bri = int(self._master_brightness_capped() * seg['bri'] / 255)
         
         seg['_current_bri'] = effective_bri if is_on else 0
         seg['_current_col'] = list(seg['col'][0])
@@ -190,6 +190,10 @@ class WLEDController:
         """Re-map RGB color to the configured LED color order before writing."""
         idx = self.COLOR_ORDER_MAP.get(self.color_order, (0, 1, 2))
         return (color[idx[0]], color[idx[1]], color[idx[2]])
+
+    def _master_brightness_capped(self):
+        """Apply global safety cap to master brightness."""
+        return int(self.brightness * self.max_brightness_pct / 100)
 
     async def start(self):
         while True:
@@ -625,7 +629,7 @@ class WLEDController:
             self.transition_active = False
             for seg in self.segments:
                 is_on = self.on and seg['on']
-                effective_bri = int(self.brightness * seg['bri'] / 255)
+                effective_bri = int(self._master_brightness_capped() * seg['bri'] / 255)
                 seg['_current_bri'] = effective_bri if is_on else 0
                 seg['_current_col'] = list(seg['col'][0])
 
@@ -676,7 +680,7 @@ class WLEDController:
     def _process_segment(self, seg):
         # Combine master and segment state
         is_on = self.on and seg['on']
-        capped_master_bri = int(self.brightness * self.max_brightness_pct / 100)
+        capped_master_bri = self._master_brightness_capped()
         effective_bri = int(capped_master_bri * seg['bri'] / 255)
         
         target_bri = effective_bri if is_on else 0
@@ -761,7 +765,7 @@ class WLEDController:
         # It's kept for the initial state update in __init__ but should be phased out.
         if self.np:
             seg = self.segments[0] # Assume segment 0 for this legacy call
-            bri = brightness if brightness is not None else seg['_current_bri']
+            bri = brightness if brightness is not None else int(self._master_brightness_capped() * seg['bri'] / 255)
             col = color if color is not None else seg['_current_col']
             
             self._update_segment_leds(seg, bri, col)
