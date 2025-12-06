@@ -25,6 +25,7 @@ import asyncio
 import utime
 import binascii
 import os
+import math
 import palettes_data
 
 class WLEDController:
@@ -676,17 +677,16 @@ class WLEDController:
 
                  if on_phase:
                      if palette_active:
-                         length = max(1, seg['len'])
-                         offset = seg.get('of', 0)
-                         for i in range(seg['start'], seg['stop']):
-                             local_i = i - seg['start']
-                             remapped_i = self._remap_pixel_index(local_i, seg)
-                             position = ((remapped_i * 255 // length) + offset) & 255
-                             pal_color = self._get_palette_color(seg['pal'], position, seg)
-                             r = int(pal_color[0] * factor)
-                             g = int(pal_color[1] * factor)
-                             b = int(pal_color[2] * factor)
-                             self.pixel_buffer[i] = (r, g, b)
+                        for i in range(seg['start'], seg['stop']):
+                            local_i = i - seg['start']
+                            pal_color = self._color_from_palette(seg, local_i)
+                            if pal_color is None:
+                                self.pixel_buffer[i] = (0, 0, 0)
+                                continue
+                            r = int(pal_color[0] * factor)
+                            g = int(pal_color[1] * factor)
+                            b = int(pal_color[2] * factor)
+                            self.pixel_buffer[i] = (r, g, b)
                      else:
                          r = int(seg['col'][0][0] * factor)
                          g = int(seg['col'][0][1] * factor)
@@ -706,9 +706,29 @@ class WLEDController:
              elif seg['fx'] == 2: # Breathe - intensity does not modulate brightness in upstream
                  now = utime.ticks_ms()
                  speed_ms = (255 - seg['sx']) * 10 + 500
-                 t = (now % speed_ms) / speed_ms
-                 val = t * 2 if t < 0.5 else (1.0 - t) * 2
-                 final_bri = int(final_bri * (0.1 + 0.9*val))
+                 phase = (now % speed_ms) / speed_ms  # 0..1
+                 lum = 30 + int((math.sin(phase * 2 * math.pi) + 1.0) * 112.5)
+                 if lum > 255: lum = 255
+
+                 brightness_factor = final_bri / 255.0 if final_bri > 0 else 0
+                 palette_active = seg['pal'] not in [0, 2, 4] and seg['pal'] in palettes_data.PALETTE_DATA
+
+                 for i in range(seg['start'], seg['stop']):
+                     local_i = i - seg['start']
+                     if palette_active:
+                         base_color = self._color_from_palette(seg, local_i)
+                         if base_color is None:
+                             self.pixel_buffer[i] = (0, 0, 0)
+                             continue
+                     else:
+                         base_color = seg['col'][0]
+
+                     blended = self._color_blend(seg['col'][1], base_color, lum)
+                     r = int(blended[0] * brightness_factor)
+                     g = int(blended[1] * brightness_factor)
+                     b = int(blended[2] * brightness_factor)
+                     self.pixel_buffer[i] = (r, g, b)
+                 return
              elif seg['fx'] == 3: # Color Wipe
                 self._effect_color_wipe(seg)
                 return
@@ -733,15 +753,12 @@ class WLEDController:
         use_palette = seg['pal'] not in [0, 2, 4] and seg['pal'] in palettes_data.PALETTE_DATA
 
         if use_palette:
-            # Palette rendering that mirrors WLED's color_from_palette behavior:
-            # per-pixel palette sample (with reverse/mirror applied) plus offset.
-            length = max(1, seg['len'])
-            offset = seg.get('of', 0)  # palette offset (0-255)
             for i in range(seg['start'], seg['stop']):
                 local_i = i - seg['start']
-                remapped_i = self._remap_pixel_index(local_i, seg)
-                position = ((remapped_i * 255 // length) + offset) & 255
-                pal_color = self._get_palette_color(seg['pal'], position, seg)
+                pal_color = self._color_from_palette(seg, local_i)
+                if pal_color is None:
+                    self.pixel_buffer[i] = (0, 0, 0)
+                    continue
                 r = int(pal_color[0] * factor)
                 g = int(pal_color[1] * factor)
                 b = int(pal_color[2] * factor)
@@ -828,6 +845,30 @@ class WLEDController:
         g = int(c1[1] + (c2[1] - c1[1]) * frac)
         b = int(c1[2] + (c2[2] - c1[2]) * frac)
         return (r,g,b)
+
+    def _color_from_palette(self, seg, local_i):
+        """Approximate WLED color_from_palette with grouping/spacing and offset."""
+        palette_id = seg['pal']
+        if palette_id in [0, 2, 4] or palette_id not in palettes_data.PALETTE_DATA:
+            return tuple(seg['col'][0])
+
+        grp = max(1, seg.get('grp', 1))
+        spc = seg.get('spc', 0)
+        cycle = grp + spc
+
+        if cycle > 0 and (local_i % cycle) >= grp:
+            return None  # spacing gap
+
+        if cycle > 0:
+            color_index = (local_i // cycle) * grp + min(local_i % cycle, grp - 1)
+        else:
+            color_index = local_i
+
+        remapped_i = self._remap_pixel_index(color_index, seg)
+        length = max(1, seg['len'])
+        offset = seg.get('of', 0)
+        position = ((remapped_i * 255 // length) + offset) & 255
+        return self._get_palette_color(palette_id, position, seg)
 
     def _get_nodes_response(self):
         # In a real implementation, this would discover other WLED nodes
