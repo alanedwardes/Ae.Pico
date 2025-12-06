@@ -969,24 +969,28 @@ class WLEDController:
         effective_bri = seg['_current_bri']
         factor = effective_bri / 255.0
         
+        # Match WLED's hue advance and spacing logic:
+        # counter = (now * ((speed >> 2) + 2)) >> 8
+        counter = (now * ((speed >> 2) + 2)) & 0xFFFF
+        counter = counter >> 8
+        span_scale = 16 << (intensity // 29)  # identical mapping to upstream
+
+        length = max(1, seg['len'])
+
         for i in range(seg['start'], seg['stop']):
-            # Calculate hue based on position and time
-            # Use segment-local position for the effect
             local_i = i - seg['start']
-            
-            # Remap for mirror and reverse
+
             remapped_i = self._remap_pixel_index(local_i, seg)
-            
-            hue = ((remapped_i * 255) // seg['len'] + (now * speed // 100)) & 255
-            
-            # Get the color from the palette
+
+            hue = ((remapped_i * span_scale) // length + counter) & 0xFF
+
             color = self._get_palette_color(seg['pal'], hue, seg)
-            
-            # Apply brightness and intensity
-            r = int(color[0] * factor * (intensity / 255.0))
-            g = int(color[1] * factor * (intensity / 255.0))
-            b = int(color[2] * factor * (intensity / 255.0))
-            
+
+            # Apply brightness (intensity only affects spatial span above)
+            r = int(color[0] * factor)
+            g = int(color[1] * factor)
+            b = int(color[2] * factor)
+
             self.pixel_buffer[i] = (r, g, b)
         
         # This effect writes to the buffer, _render_pixels will handle the final write.
@@ -995,8 +999,8 @@ class WLEDController:
         now = utime.ticks_ms()
         speed = seg['sx']
         
-        # Calculate progress
-        cycle_duration = (256 - speed) * 10
+        # Match WLED timing: 750 + 150*(255 - speed)
+        cycle_duration = 750 + (255 - speed) * 150
         progress = (now % cycle_duration) / cycle_duration
         
         wipe_pos = int(seg['len'] * progress)
@@ -1025,7 +1029,8 @@ class WLEDController:
         now = utime.ticks_ms()
         speed = seg['sx']
         
-        cycle_duration = (256 - speed) * 20
+        # Match WLED timing: 750 + 150*(255 - speed)
+        cycle_duration = 750 + (255 - speed) * 150
         progress = (now % cycle_duration) / cycle_duration
         
         # Ping-pong motion
@@ -1056,7 +1061,8 @@ class WLEDController:
         now = utime.ticks_ms()
         speed = seg['sx']
         
-        cycle_duration = (256 - speed) * 5
+        # Match WLED timing: 50 + (255 - speed)
+        cycle_duration = 50 + (255 - speed)
         offset = (now // cycle_duration) % 3
 
         effective_bri = seg['_current_bri']
