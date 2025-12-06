@@ -27,6 +27,48 @@ import math
 import wledpalettes
 import wledeffects
 
+
+class PixelBuffer:
+    """
+    Compact RGB buffer backed by a bytearray to avoid per-pixel tuple objects.
+    Keeps the same item assignment semantics used throughout the controller/effects.
+    """
+
+    __slots__ = ("buf", "length")
+
+    def __init__(self, length):
+        self.length = length
+        self.buf = bytearray(length * 3)
+
+    def __len__(self):
+        return self.length
+
+    def __iter__(self):
+        buf = self.buf
+        for i in range(self.length):
+            base = i * 3
+            yield (buf[base], buf[base + 1], buf[base + 2])
+
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            base = idx * 3
+            buf = self.buf
+            return (buf[base], buf[base + 1], buf[base + 2])
+        raise TypeError("PixelBuffer indices must be integers")
+
+    def __setitem__(self, idx, value):
+        r, g, b = value
+        base = idx * 3
+        buf = self.buf
+        buf[base] = int(r) & 0xFF
+        buf[base + 1] = int(g) & 0xFF
+        buf[base + 2] = int(b) & 0xFF
+
+    def clear(self):
+        buf = self.buf
+        for i in range(len(buf)):
+            buf[i] = 0
+
 class WLEDController:
     VERSION = "0.15.3"
     VID = 2305090
@@ -79,7 +121,7 @@ class WLEDController:
         self.transition_duration = 0
         
         # Rendering buffer
-        self.pixel_buffer = [(0,0,0)] * self.num_leds
+        self.pixel_buffer = PixelBuffer(self.num_leds)
         
         self.effects = wledeffects.SUPPORTED_EFFECTS
         self.palettes = wledpalettes.PALETTE_NAMES
@@ -658,8 +700,7 @@ class WLEDController:
             self.nightlight['rem'] = (duration_ms - elapsed) // 1000 if elapsed < duration_ms else 0
             
         # Reset pixel buffer
-        for i in range(self.num_leds):
-            self.pixel_buffer[i] = (0,0,0)
+        self.pixel_buffer.clear()
             
         for seg in self.segments:
             self._process_segment(seg)
