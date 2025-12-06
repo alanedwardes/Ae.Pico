@@ -9,6 +9,10 @@ def color_blend(c1, c2, frac):
 
 def get_palette_color(palette_id, position, seg=None):
     """Get a palette color (0-255 position). Handles defaults like WLED."""
+    palette_id = normalize_palette_id(palette_id)
+
+    # Static palettes only: map "default" slots to solid channel colors,
+    # never randomize.
     if palette_id == 0:  # Default - use segment primary color
         return tuple(seg['col'][0]) if seg else (255, 160, 0)
     if palette_id == 2:  # Primary Color
@@ -51,7 +55,7 @@ def get_palette_color(palette_id, position, seg=None):
 
 def color_from_palette(seg, local_i, remap_pixel_index):
     """Approximate WLED color_from_palette with grouping/spacing and offset."""
-    palette_id = seg['pal']
+    palette_id = normalize_palette_id(seg['pal'])
     if palette_id in [0, 2, 4] or palette_id not in PALETTE_DATA:
         return tuple(seg['col'][0])
 
@@ -72,6 +76,18 @@ def color_from_palette(seg, local_i, remap_pixel_index):
     offset = seg.get('of', 0)
     position = ((remapped_i * 255 // length) + offset) & 255
     return get_palette_color(palette_id, position, seg)
+
+
+def normalize_palette_id(palette_id):
+    """
+    Keep only static palettes. Any unsupported ID (including Random Cycle=1)
+    deterministically falls back to the default palette (0).
+    """
+    if palette_id in (0, 2, 4):
+        return palette_id
+    if palette_id in PALETTE_DATA:
+        return palette_id
+    return 0
 
 
 PALETTE_DATA = {
