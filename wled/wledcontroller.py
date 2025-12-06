@@ -657,19 +657,58 @@ class WLEDController:
         final_col = seg['_current_col']
         
         if is_on and seg['fx'] > 0:
-             if seg['fx'] == 1: # Blink
+             if seg['fx'] == 1: # Blink - intensity controls duty cycle (parity with WLED)
                  now = utime.ticks_ms()
-                 speed_ms = (255 - seg['sx']) * 5 + 200
-                 if (now // speed_ms) % 2 == 0:
-                     final_bri = 0
+                 frame_ms = 20  # approximate FRAMETIME used by upstream
+                 cycle_ms = (255 - seg['sx']) * 20
+                 on_ms = frame_ms + ((cycle_ms * seg['ix']) >> 8)
+                 cycle_ms += frame_ms * 2
+
+                 iteration = now // cycle_ms
+                 rem = now % cycle_ms
+                 last_iter = seg.get('_blink_step', -1)
+                 on_phase = (iteration != last_iter) or (rem <= on_ms)
+                 seg['_blink_step'] = iteration
+
+                 brightness = final_bri
+                 factor = brightness / 255.0
+                 palette_active = seg['pal'] not in [0, 2, 4] and seg['pal'] in palettes_data.PALETTE_DATA
+
+                 if on_phase:
+                     if palette_active:
+                         length = max(1, seg['len'])
+                         offset = seg.get('of', 0)
+                         for i in range(seg['start'], seg['stop']):
+                             local_i = i - seg['start']
+                             remapped_i = self._remap_pixel_index(local_i, seg)
+                             position = ((remapped_i * 255 // length) + offset) & 255
+                             pal_color = self._get_palette_color(seg['pal'], position, seg)
+                             r = int(pal_color[0] * factor)
+                             g = int(pal_color[1] * factor)
+                             b = int(pal_color[2] * factor)
+                             self.pixel_buffer[i] = (r, g, b)
+                     else:
+                         r = int(seg['col'][0][0] * factor)
+                         g = int(seg['col'][0][1] * factor)
+                         b = int(seg['col'][0][2] * factor)
+                         color_tuple = (r, g, b)
+                         for i in range(seg['start'], seg['stop']):
+                             self.pixel_buffer[i] = color_tuple
                  else:
-                     final_bri = int(final_bri * (seg['ix'] / 255.0))
-             elif seg['fx'] == 2: # Breathe
+                     # Off phase uses secondary color without palette sampling
+                     r = int(seg['col'][1][0] * factor)
+                     g = int(seg['col'][1][1] * factor)
+                     b = int(seg['col'][1][2] * factor)
+                     color_tuple = (r, g, b)
+                     for i in range(seg['start'], seg['stop']):
+                         self.pixel_buffer[i] = color_tuple
+                 return
+             elif seg['fx'] == 2: # Breathe - intensity does not modulate brightness in upstream
                  now = utime.ticks_ms()
                  speed_ms = (255 - seg['sx']) * 10 + 500
                  t = (now % speed_ms) / speed_ms
                  val = t * 2 if t < 0.5 else (1.0 - t) * 2
-                 final_bri = int(final_bri * (0.1 + 0.9*val) * (seg['ix'] / 255.0))
+                 final_bri = int(final_bri * (0.1 + 0.9*val))
              elif seg['fx'] == 3: # Color Wipe
                 self._effect_color_wipe(seg)
                 return
@@ -694,11 +733,14 @@ class WLEDController:
         use_palette = seg['pal'] not in [0, 2, 4] and seg['pal'] in palettes_data.PALETTE_DATA
 
         if use_palette:
-            # Show palette as static gradient; used by any effect that falls back to this renderer
+            # Palette rendering that mirrors WLED's color_from_palette behavior:
+            # per-pixel palette sample (with reverse/mirror applied) plus offset.
+            length = max(1, seg['len'])
+            offset = seg.get('of', 0)  # palette offset (0-255)
             for i in range(seg['start'], seg['stop']):
                 local_i = i - seg['start']
                 remapped_i = self._remap_pixel_index(local_i, seg)
-                position = (remapped_i * 255 // seg['len']) & 255
+                position = ((remapped_i * 255 // length) + offset) & 255
                 pal_color = self._get_palette_color(seg['pal'], position, seg)
                 r = int(pal_color[0] * factor)
                 g = int(pal_color[1] * factor)
