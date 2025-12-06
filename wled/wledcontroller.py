@@ -191,7 +191,7 @@ class WLEDController:
     async def start(self):
         while True:
             await self._tick()
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.01)
 
     def route(self, method, path):
         # Handle potential query parameters by stripping them
@@ -454,6 +454,9 @@ class WLEDController:
         }
 
     async def _update_state(self, data, from_preset=False):
+        # Track whether anything that affects visible output changed; used to decide if a transition is needed.
+        state_changed = any(k in data for k in ('on', 'bri', 'seg', 'ps', 'nl', 'lor', 'live', 'udpn', 'co'))
+        transition_override = None
         # Check if manual changes should clear the preset
         # We assume 'on', 'bri', or 'seg' imply manual changes.
         if not from_preset and ('on' in data or 'bri' in data or 'seg' in data):
@@ -588,18 +591,18 @@ class WLEDController:
                     if 'spc' in seg_update: target_seg['spc'] = int(seg_update['spc'])
                     if 'sel' in seg_update: target_seg['sel'] = bool(seg_update['sel'])
         
-        transition_time = -1
         if 'tt' in data:
-            transition_time = data['tt']
+            transition_override = int(data['tt'])
         elif 'transition' in data:
             self.transition = int(data['transition'])
-            transition_time = self.transition
-        
-        if transition_time != -1:
-            self._start_transition(transition_time)
-        else:
-            # Default transition if none specified
-            self._start_transition(self.transition)
+            transition_override = self.transition
+
+        if state_changed:
+            duration = self.transition if transition_override is None else transition_override
+            self._start_transition(duration)
+        elif transition_override is not None:
+            # Only update default transition duration without starting a new transition.
+            self.transition = transition_override
 
     def _rebuild_segments(self):
         # Re-assign IDs to be contiguous
@@ -610,6 +613,7 @@ class WLEDController:
         await self._update_state(preset, from_preset=True)
         
     def _start_transition(self, duration_units):
+        duration_units = max(0, int(duration_units))
         self.transition_duration = duration_units * 100
         if self.transition_duration > 0:
             self.transition_active = True
@@ -626,6 +630,12 @@ class WLEDController:
                 seg['_current_col'] = list(seg['col'][0])
 
     async def _tick(self):
+        # End transition globally (once) before processing segments to avoid per-segment early termination.
+        if self.transition_active:
+            now = utime.ticks_ms()
+            if utime.ticks_diff(now, self.transition_start) >= self.transition_duration:
+                self.transition_active = False
+
         # Handle Nightlight
         if self.nightlight['on']:
             duration_ms = self.nightlight['dur'] * 60 * 1000
@@ -650,7 +660,18 @@ class WLEDController:
         for seg in self.segments:
             self._process_segment(seg)
 
+        # Ensure we mark transition complete after processing if it elapsed during the loop.
+        if self.transition_active:
+            now = utime.ticks_ms()
+            if utime.ticks_diff(now, self.transition_start) >= self.transition_duration:
+                self.transition_active = False
+
         self._render_pixels()
+
+    def _ease_progress(self, progress):
+        """Apply smoothstep easing for softer transitions."""
+        progress = max(0.0, min(1.0, progress))
+        return progress * progress * (3 - 2 * progress)
 
     def _process_segment(self, seg):
         # Combine master and segment state
@@ -674,11 +695,11 @@ class WLEDController:
             now = utime.ticks_ms()
             elapsed = utime.ticks_diff(now, self.transition_start)
             if elapsed >= self.transition_duration:
-                self.transition_active = False # This should be global
                 seg['_current_bri'] = target_bri
                 seg['_current_col'] = list(target_col)
             else:
-                progress = elapsed / self.transition_duration
+                linear_progress = elapsed / self.transition_duration
+                progress = self._ease_progress(linear_progress)
                 seg['_current_bri'] = int(seg['_start_bri'] + (target_bri - seg['_start_bri']) * progress)
                 seg['_current_col'] = [
                     int(seg['_start_col'][0] + (target_col[0] - seg['_start_col'][0]) * progress),
