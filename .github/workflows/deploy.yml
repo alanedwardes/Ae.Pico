@@ -43,6 +43,11 @@ jobs:
           cp sensor/*.py temp_deploy/
           cp thermostat/*.py temp_deploy/
           cp wled/*.py temp_deploy/
+      - name: prepare wled bundle
+        run: |
+          mkdir -p temp_deploy_wled
+          cp libraries/*.py temp_deploy_wled/
+          cp wled/*.py temp_deploy_wled/
       - name: create manifest
         run: |
           echo "" >> temp_deploy/manifest.txt
@@ -53,5 +58,17 @@ jobs:
               echo "$filename $hash" >> temp_deploy/manifest.txt
             fi
           done
+      - name: create manifest (wled)
+        run: |
+          echo "" >> temp_deploy_wled/manifest.txt
+          for file in temp_deploy_wled/*.py; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              hash=$(sha256sum "$file" | cut -d' ' -f1)
+              echo "$filename $hash" >> temp_deploy_wled/manifest.txt
+            fi
+          done
       - name: copy libraries
         run: aws s3 sync temp_deploy/ s3://ae-pico/${{ github.ref_name }} --delete
+      - name: copy wled bundle
+        run: aws s3 sync temp_deploy_wled/ s3://ae-pico/wled/${{ github.ref_name }} --delete
