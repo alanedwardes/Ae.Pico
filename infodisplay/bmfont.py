@@ -92,7 +92,7 @@ class BMFont:
         self.scale_h = 0
         self.pages = {}
         self.chars = {}  # maps codepoint -> offset into _glyph_data
-        self.kerning = {}
+        self.kerning = {}  # optional; only populated when requested
         self._glyph_data = bytearray()
 
     @staticmethod
@@ -102,7 +102,7 @@ class BMFont:
         return s  
 
     @classmethod
-    def load(cls, path, load_kerning=True):
+    def load(cls, path, load_kerning=False):
         font = cls()
         with open(path, "r") as f:
             for i, line in enumerate(f):
@@ -149,7 +149,7 @@ class BMFont:
                     font.kerning[(first, second)] = amount
         return font
 
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=True, scale_up=1, scale_down=1, color=None):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None):
     # GS8 source atlases: one byte per pixel per row
     row_bytes = font.scale_w * 1
     pages = {}
@@ -189,7 +189,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
 
-def measure_text(font: BMFont, text: str, kerning=True):
+def measure_text(font: BMFont, text: str, kerning=False):
     """Return tight bounds of the rendered text including bearings.
 
     Returns (width, height, min_x, min_y) where min_x/min_y are the offsets
