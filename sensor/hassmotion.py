@@ -4,7 +4,7 @@ import machine
 class HassMotion:
     def __init__(self, hass, pin, friendly_name, sensor, timeout_seconds, debounce_ms):
         self.hass = hass
-        self.pin = machine.Pin(pin, machine.Pin.IN)
+        self.pin = machine.Pin(pin, machine.Pin.IN, machine.Pin.PULL_DOWN)
         self.pin.irq(self.interrupt, machine.Pin.IRQ_RISING)
         self.friendly_name = friendly_name
         self.sensor = sensor
