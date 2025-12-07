@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 <bundle-name> <dest-prefix> \"dir1 dir2 ...\"" >&2
+  echo "Usage: $0 <bundle-name> <dest-prefix> \"dir_or_file1 dir_or_file2 ...\"" >&2
   exit 1
 }
 
@@ -20,8 +20,12 @@ shopt -s nullglob
 mkdir -p "$WORKDIR"
 
 for dir in $DIRS; do
-  if ls "$dir"/*.py >/dev/null 2>&1; then
-    cp "$dir"/*.py "$WORKDIR"/
+  if [ -d "$dir" ]; then
+    if ls "$dir"/*.py >/dev/null 2>&1; then
+      cp "$dir"/*.py "$WORKDIR"/
+    fi
+  elif [ -f "$dir" ]; then
+    cp "$dir" "$WORKDIR"/
   fi
 done
 

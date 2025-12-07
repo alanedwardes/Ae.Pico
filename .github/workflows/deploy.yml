@@ -30,7 +30,7 @@ jobs:
         bundle:
           - name: entry
             dest: ""
-            dirs: "."
+            dirs: "main.py"
           - name: main
             dest: main/
             dirs: "libraries infodisplay scrollclock sensor"
