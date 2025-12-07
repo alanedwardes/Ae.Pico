@@ -34,9 +34,6 @@ jobs:
           - name: main
             dest: main/
             dirs: "libraries infodisplay scrollclock sensor"
-          - name: wled
-            dest: wled/
-            dirs: "libraries wled"
           - name: sensor
             dest: sensor/
             dirs: "libraries sensor"
