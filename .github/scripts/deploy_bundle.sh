@@ -15,6 +15,12 @@ DIRS="$3"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
+# Safety: never sync to bucket root with --delete
+if [[ -z "${DEST_PREFIX}" || "${DEST_PREFIX}" == "/" ]]; then
+  echo "Refusing to deploy '${BUNDLE_NAME}' to empty or root dest-prefix (would delete entire bucket)." >&2
+  exit 2
+fi
+
 shopt -s nullglob
 
 mkdir -p "$WORKDIR"
