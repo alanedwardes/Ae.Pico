@@ -37,8 +37,10 @@ def _build_palette565_bytes(tint_color):
         o += 2
     return pal
 
-# Cached palette: only keep white to save memory
+# Cached palette: keep white plus a small tint cache to reduce churn
 _WHITE_PALETTE = _build_palette565_bytes(None)
+_PALETTE_CACHE = {}  # tint_color (RGB565 int) -> palette bytes
+_PALETTE_CACHE_LIMIT = 8
 
 def _resolve_palette(tint_color):
     if tint_color is None:
@@ -46,10 +48,20 @@ def _resolve_palette(tint_color):
     c = int(tint_color) & 0xFFFF
     if c == 0xFFFF:
         return _WHITE_PALETTE
-    return _build_palette565_bytes(c)
+    pal = _PALETTE_CACHE.get(c)
+    if pal is not None:
+        return pal
+    pal = _build_palette565_bytes(c)
+    if len(_PALETTE_CACHE) >= _PALETTE_CACHE_LIMIT:
+        try:
+            _PALETTE_CACHE.pop(next(iter(_PALETTE_CACHE)))
+        except StopIteration:
+            pass
+    _PALETTE_CACHE[c] = pal
+    return pal
 
 def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
-               sx, sy, sw, sh, dx, dy, tint_color=None):
+               sx, sy, sw, sh, dx, dy, tint_color=None, linebuf=None):
     if sw <= 0 or sh <= 0:
         return
     if dx >= fb_width or dy >= fb_height:
@@ -69,8 +81,9 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
     src_x = sx + left_clip
     fb_x = dx + left_clip
     # GS8 source: 1 byte per pixel
-    linebuf = bytearray(copy_width)
-    source_framebuffer = (linebuf, copy_width, 1, framebuf.GS8)
+    scratch = linebuf if (linebuf is not None and len(linebuf) >= copy_width) else bytearray(copy_width)
+    linebuf_view = memoryview(scratch)[:copy_width]
+    source_framebuffer = (linebuf_view, copy_width, 1, framebuf.GS8)
 
     # Build/resolve RGB565 palette for GS8 source (white cached when tint is None/white)
     palette = _resolve_palette(tint_color)
@@ -79,7 +92,7 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
         src_y = sy + row
         src_offset = 4 + src_y * src_row_bytes + src_x
         fh.seek(src_offset)
-        fh.readinto(linebuf)
+        fh.readinto(linebuf_view)
         # Use RGB565 palette for proper grayscale/tint across channels
         # 1-bit transparency: treat intensity 0 as transparent via key=0
         framebuffer.blit(source_framebuffer, fb_x, fb_y, 0, (palette, 256, 1, framebuf.RGB565))
@@ -152,6 +165,8 @@ class BMFont:
 def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None):
     # GS8 source atlases: one byte per pixel per row
     row_bytes = font.scale_w * 1
+    # Reuse a line buffer for all glyphs to limit per-glyph allocations
+    linebuf = bytearray(max(1, font.scale_w or 1))
     pages = {}
     if isinstance(page_files, str):
         raise TypeError("page_files must be file objects (not paths)")
@@ -185,7 +200,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         blit_region(framebuffer, display_width, display_height,
                     pages[page], row_bytes,
                     src_x, src_y, width, height,
-                    dest_x, dest_y, color)
+                    dest_x, dest_y, color, linebuf)
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
 
