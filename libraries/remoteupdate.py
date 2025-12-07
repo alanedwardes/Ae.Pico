@@ -505,27 +505,34 @@ class RemoteUpdate:
                 writer.write(status_msg.encode('utf-8'))
                 await writer.drain()
             
-            # Cleanup: remove files/dirs not present in manifest
-            try:
-                writer.write(b'<div>Cleaning up obsolete files...</div>')
-                await writer.drain()
+            # Cleanup: remove files/dirs not present in manifest.
+            # Guard against dangerous root cleanups ('' or '/').
+            cleanup_root = bundle[1]
+            if cleanup_root not in ('', '/'):
+                try:
+                    writer.write(b'<div>Cleaning up obsolete files...</div>')
+                    await writer.drain()
 
-                manifest_files = set([item[0] for item in manifest])
-                manifest_dirs = set()
-                for rel_path in manifest_files:
-                    parts = rel_path.split('/')
-                    # include all parent directories for each file
-                    for i in range(1, len(parts)):
-                        manifest_dirs.add('/'.join(parts[:i]))
+                    manifest_files = set([item[0] for item in manifest])
+                    manifest_dirs = set()
+                    for rel_path in manifest_files:
+                        parts = rel_path.split('/')
+                        # include all parent directories for each file
+                        for i in range(1, len(parts)):
+                            manifest_dirs.add('/'.join(parts[:i]))
 
-                await self._cleanup_obsolete_paths(bundle[1], manifest_files, manifest_dirs, writer)
+                    await self._cleanup_obsolete_paths(cleanup_root, manifest_files, manifest_dirs, writer)
 
-                writer.write(b'<div style="color: Highlight;"><strong>Cleanup complete</strong></div>')
-                await writer.drain()
-            except Exception as _cleanup_err:
-                # Log cleanup error but do not fail the whole update
-                err_msg = f'<div style="color: Mark;">Cleanup encountered an error: {str(_cleanup_err)}</div>'
-                writer.write(err_msg.encode('utf-8'))
+                    writer.write(b'<div style="color: Highlight;"><strong>Cleanup complete</strong></div>')
+                    await writer.drain()
+                except Exception as _cleanup_err:
+                    # Log cleanup error but do not fail the whole update
+                    err_msg = f'<div style="color: Mark;">Cleanup encountered an error: {str(_cleanup_err)}</div>'
+                    writer.write(err_msg.encode('utf-8'))
+                    await writer.drain()
+            else:
+                # No cleanup when targeting root to avoid deleting unrelated files.
+                writer.write(b'<div>Cleanup skipped for root destination</div>')
                 await writer.drain()
             
             completion_msg = '<div style="color: Highlight; margin-top: 20px;"><strong>Bundle update completed successfully!</strong></div>'

@@ -28,6 +28,9 @@ jobs:
     strategy:
       matrix:
         bundle:
+          - name: entry
+            dest: ""
+            dirs: "."
           - name: main
             dest: main/
             dirs: "libraries infodisplay scrollclock sensor"
