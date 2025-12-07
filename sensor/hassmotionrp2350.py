@@ -5,12 +5,12 @@ class HassMotionRp2350:
     def __init__(self, hass, pin, friendly_name, sensor, timeout_seconds, debounce_ms):
         self.hass = hass
         self.pin_number = pin
-        self._setup_pin()
         self.friendly_name = friendly_name
         self.sensor = sensor
         self.timeout_seconds = timeout_seconds
         self.debounce_ms = debounce_ms
         self.tsf = asyncio.ThreadSafeFlag()
+        self.reset_pin()
 
     def interrupt(self, pin):
         self.tsf.set()
