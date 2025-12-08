@@ -1,5 +1,6 @@
 import asyncio
 import machine
+import time
 
 class HassMotionRp2350:
     """
@@ -17,6 +18,7 @@ class HassMotionRp2350:
         self.timeout_seconds = timeout_seconds
         self.debounce_ms = debounce_ms
         self.last_reported_state = None
+        self.last_motion_ms = None
         # Start with the pin driven low to collapse any leakage condition per RP2350 erratum.
         self._disarm_pin()
 
@@ -40,8 +42,24 @@ class HassMotionRp2350:
         while True:
             # Sample as input with pull-down, then go back to output-low to avoid leakage latch.
             self.pin = machine.Pin(self.pin_number, machine.Pin.IN, machine.Pin.PULL_DOWN)
+            now_ms = time.ticks_ms()
             value = self.pin.value()
-            state = "on" if value == 1 else "off"
+
+            if value == 1:
+                # Debounce: confirm the high after a short delay.
+                await asyncio.sleep_ms(self.debounce_ms)
+                if self.pin.value() == 1:
+                    self.last_motion_ms = now_ms
+
+            # Stick "on" until timeout_seconds after the last confirmed motion.
+            if self.last_motion_ms is not None:
+                since_ms = time.ticks_diff(now_ms, self.last_motion_ms)
+                state = "on" if since_ms < self.timeout_seconds * 1000 else "off"
+                if state == "off":
+                    self.last_motion_ms = None
+            else:
+                state = "off"
+
             if state != self.last_reported_state:
                 await self.hass.send_update(state, None, "motion", self.friendly_name, self.sensor)
                 self.last_reported_state = state
