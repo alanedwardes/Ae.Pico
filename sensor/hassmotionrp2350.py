@@ -19,6 +19,7 @@ class HassMotionRp2350:
         self.debounce_ms = debounce_ms
         self.last_reported_state = None
         self.last_motion_ms = None
+        self.last_off_emit_ms = None
         # Start with the pin driven low to collapse any leakage condition per RP2350 erratum.
         self._disarm_pin()
 
@@ -60,8 +61,19 @@ class HassMotionRp2350:
             else:
                 state = "off"
 
-            if state != self.last_reported_state:
-                await self.hass.send_update(state, None, "motion", self.friendly_name, self.sensor)
-                self.last_reported_state = state
+            if state == "off":
+                # Emit periodic "off" heartbeats every timeout_seconds even if already off.
+                if (
+                    self.last_reported_state != "off"
+                    or self.last_off_emit_ms is None
+                    or time.ticks_diff(now_ms, self.last_off_emit_ms) >= self.timeout_seconds * 1000
+                ):
+                    await self.hass.send_update("off", None, "motion", self.friendly_name, self.sensor)
+                    self.last_reported_state = "off"
+                    self.last_off_emit_ms = now_ms
+            else:
+                if state != self.last_reported_state:
+                    await self.hass.send_update("on", None, "motion", self.friendly_name, self.sensor)
+                    self.last_reported_state = "on"
             self._disarm_pin()
             await asyncio.sleep_ms(50)
