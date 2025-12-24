@@ -12,17 +12,19 @@ import textbox
 from httpstream import parse_url
 
 class UvDisplay:
-    def __init__(self, display, url, rtc=None):
+    def __init__(self, display, url, refresh_period_seconds):
         self.display = display
         self.url = url
         self.uv_data = []
         self.is_active = True
-        
+        self.refresh_period_seconds = refresh_period_seconds
+
         self.display_width, self.display_height = self.display.get_bounds()
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return UvDisplay(provider['display'], provider['config']['uv']['url'])
+        refresh_period = provider['config']['uv'].get('refresh_period_seconds', 300)
+        return UvDisplay(provider['display'], provider['config']['uv']['url'], refresh_period)
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -31,7 +33,7 @@ class UvDisplay:
         while True:
             await self.fetch_uv_data()
             self.update()
-            await asyncio.sleep(300)
+            await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
         if not self.uv_data:

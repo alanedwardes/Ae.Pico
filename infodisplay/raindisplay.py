@@ -39,12 +39,13 @@ def wind_speed_to_beaufort(wind_speed_ms):
         return beaufort_rounded
 
 class RainDisplay:
-    def __init__(self, display, url, rtc=None):
+    def __init__(self, display, url, refresh_period_seconds):
         self.display = display
         self.url = url
         self.weather_data = []
         self.is_active = True
-        
+        self.refresh_period_seconds = refresh_period_seconds
+
         self.display_width, self.display_height = self.display.get_bounds()
         # Cached, precomputed arrays to reduce per-frame allocations
         self._r_values = []
@@ -54,7 +55,8 @@ class RainDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return RainDisplay(provider['display'], provider['config']['rain']['url'])
+        refresh_period = provider['config']['rain'].get('refresh_period_seconds', 300)
+        return RainDisplay(provider['display'], provider['config']['rain']['url'], refresh_period)
     
     def entity_updated(self, entity_id, entity):
         pass  # No longer using Home Assistant entities
@@ -63,7 +65,7 @@ class RainDisplay:
         while True:
             await self.fetch_weather_data()
             self.update()
-            await asyncio.sleep(300)
+            await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
         if not self.weather_data:

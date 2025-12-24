@@ -1,33 +1,77 @@
+try:
+    import ujson
+except ModuleNotFoundError:
+    import json as ujson
+
 import gauge
 import textbox
 import math
 import utime
 import asyncio
 
+from httpstream import parse_url
+
 class TemperatureDisplay:
-    def __init__(self, display, hass, entity_ids):
+    def __init__(self, display, url, refresh_period_seconds):
         self.display = display
-        self.hass = hass
-        self.entity_ids = entity_ids
+        self.url = url
+        self.temperature_data = [0, 0, 0]  # [current, min, max]
+        self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
-        
-        self.alpha = 0
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return TemperatureDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['temperature'])
+        refresh_period = provider['config']['temperature'].get('refresh_period_seconds', 300)
+        return TemperatureDisplay(provider['display'], provider['config']['temperature']['url'], refresh_period)
     
-    def entity_updated(self, entity_id, entity):
-        self.update()
-    
+    async def fetch_temperature_data(self):
+        try:
+            url = self.url
+            uri = parse_url(url)
+            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
+
+            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
+
+            # Write HTTP request
+            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
+            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
+            writer.write(b'\r\n')
+            await writer.drain()
+
+            # Read response
+            line = await reader.readline()
+            status = line.split(b' ', 2)
+            status_code = int(status[1])
+
+            if status_code != 200:
+                print(f"Failed to fetch temperature data: {status_code}")
+                writer.close()
+                await writer.wait_closed()
+                return
+
+            # Skip headers
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+
+            # Read content
+            content = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+
+            self.temperature_data = ujson.loads(content.decode('utf-8'))
+            print(f"Temperature data fetched: current={self.temperature_data[0]}°C, min={self.temperature_data[1]}°C, max={self.temperature_data[2]}°C")
+
+        except Exception as e:
+            print(f"Error fetching temperature data: {e}")
+
     async def start(self):
-        await self.hass.subscribe(self.entity_ids.values(), self.entity_updated)
-        # For testing
-        #while True:
-        #    self.update()
-        #    await asyncio.sleep(1)
-        await asyncio.Event().wait()
+        while True:
+            await self.fetch_temperature_data()
+            self.update()
+            await asyncio.sleep(self.refresh_period_seconds)
         
     def update(self):
         start_update_ms = utime.ticks_ms()
@@ -36,10 +80,12 @@ class TemperatureDisplay:
         print(f"TemperatureDisplay: {update_time_ms}ms")
 
     def __update(self):
-        default_entity = dict(s = '0')
-        minimum_temperature = float(self.hass.entities.get(self.entity_ids['minimum_temp_entity_id'], default_entity)['s'])
-        maximum_temperature = float(self.hass.entities.get(self.entity_ids['maximum_temp_entity_id'], default_entity)['s'])
-        current_temperature = float(self.hass.entities.get(self.entity_ids['current_temp_entity_id'], default_entity)['s'])
+        if len(self.temperature_data) < 3:
+            return
+
+        current_temperature = round(float(self.temperature_data[0]))
+        minimum_temperature = round(float(self.temperature_data[1]))
+        maximum_temperature = round(float(self.temperature_data[2]))
         
         self.display.rect(self.display_width - 64, 0, 64, 70, 0x0000, True)
         
@@ -51,7 +97,8 @@ class TemperatureDisplay:
         white_pen = 0xFFFF
         primary_scale = size[1] * 0.06
         primary_height = size[1]
-        textbox.draw_textbox(self.display, f'{current_temperature:.0f}°', position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
+        current_temp_str = f"{abs(current_temperature) if current_temperature == 0 else current_temperature:.0f}°"
+        textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
         
         # Draw min/max labels under the gauge
         centre_x = size[0] / 2 + position[0]
@@ -62,6 +109,8 @@ class TemperatureDisplay:
         text_scale = max(1, math.ceil(size[1] * 0.02))
         text_height = 8 * text_scale
         text_size_y = text_height + 4
-        textbox.draw_textbox(self.display, f'{minimum_temperature:.0f}°', extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
-        textbox.draw_textbox(self.display, f'{maximum_temperature:.0f}°', centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
+        min_temp_str = f"{abs(minimum_temperature) if minimum_temperature == 0 else minimum_temperature:.0f}°"
+        max_temp_str = f"{abs(maximum_temperature) if maximum_temperature == 0 else maximum_temperature:.0f}°"
+        textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
+        textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
         self.display.update()
