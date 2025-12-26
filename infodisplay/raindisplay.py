@@ -10,6 +10,7 @@ import colors
 import re
 import textbox
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 def rain_color_fn(idx, value):
     # color mapping for rain percentage (expects raw 0-100)
@@ -113,24 +114,22 @@ class RainDisplay:
                 line = await reader.readline()
                 if line == b'\r\n':
                     break
-            
-            # Read content
-            content = await reader.read()
-            writer.close()
-            await writer.wait_closed()
-            
-            raw_data = ujson.loads(content.decode('utf-8'))
 
-            # Convert flat array to structured data
+            # Stream parse JSON array without buffering entire response
             # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
             self.weather_data = []
             current_hour = utime.localtime()[3]  # Get current hour
-            for i in range(0, len(raw_data), 3):
-                if i + 2 < len(raw_data):
-                    rain_prob = raw_data[i]
-                    rate_mmh = raw_data[i + 1]
-                    wind_speed = raw_data[i + 2]
-                    hour_offset = i // 3
+            element_buffer = []
+
+            async for element in parse_flat_json_array(reader):
+                element_buffer.append(element)
+
+                # Process in groups of 3 (rain_prob, rate_mmh, windSpeed10m)
+                if len(element_buffer) == 3:
+                    rain_prob = element_buffer[0]
+                    rate_mmh = element_buffer[1]
+                    wind_speed = element_buffer[2]
+                    hour_offset = len(self.weather_data)
                     actual_hour = (current_hour + hour_offset) % 24
                     self.weather_data.append({
                         'hour': actual_hour,  # Actual hour
@@ -138,6 +137,10 @@ class RainDisplay:
                         'rate': rate_mmh,  # Rate mm/h
                         'wind': wind_speed  # Wind speed 10m
                     })
+                    element_buffer = []
+
+            writer.close()
+            await writer.wait_closed()
             # Precompute and cache arrays for rendering
             if self.weather_data:
                 self._r_values = [int(h['r']) for h in self.weather_data]

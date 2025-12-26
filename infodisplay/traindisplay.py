@@ -18,6 +18,7 @@ import utime
 import asyncio
 import textbox
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 # Define Departure named tuple for memory efficiency
 Departure = namedtuple('Departure', 'scheduled_time expected_time destination platform train_class cancelled delayed')
@@ -222,44 +223,42 @@ class TrainDisplay:
                 line = await reader.readline()
                 if line == b'\r\n':
                     break
-            
-            # Read content
-            content = await reader.read()
-            writer.close()
-            await writer.wait_closed()
-            
-            raw_data = ujson.loads(content.decode('utf-8'))
-            
-            # Convert flat array to structured data
+
+            # Stream parse JSON array without buffering entire response
             # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
             self.departures = []
-            for i in range(0, len(raw_data), 5):
-                if i + 4 < len(raw_data):
-                    std = raw_data[i]
-                    station = raw_data[i + 1]
-                    platform = raw_data[i + 2]
-                    train_class = raw_data[i + 3]
-                    atd = raw_data[i + 4]
-                    
+            element_buffer = []
+
+            async for element in parse_flat_json_array(reader):
+                element_buffer.append(element)
+
+                # Process in groups of 5 (std, station, platform, class, atd)
+                if len(element_buffer) == 5:
+                    std = element_buffer[0]
+                    station = element_buffer[1]
+                    platform = element_buffer[2]
+                    train_class = element_buffer[3]
+                    atd = element_buffer[4]
+
                     # Determine if cancelled or delayed
                     cancelled = False
                     delayed = False
-                    
+
                     # Format times to HH:MM
                     std_formatted = format_time_to_hhmm(std)
                     atd_formatted = format_time_to_hhmm(atd)
-                    
+
                     # If atd is empty or "On time", check for delays
                     if atd_formatted and atd_formatted != std_formatted and atd_formatted != "On time":
                         delayed = True
-                    
+
                     # Convert empty strings to None for display
                     scheduled_time_display = std_formatted if std_formatted else ''
                     expected_time_display = atd_formatted if atd_formatted else scheduled_time_display
                     destination_display = station if station else ''
                     platform_display = platform if platform else ''
                     train_class_display = train_class if train_class else ''
-                    
+
                     self.departures.append(Departure(
                         scheduled_time=scheduled_time_display,
                         expected_time=expected_time_display,
@@ -269,6 +268,10 @@ class TrainDisplay:
                         cancelled=cancelled,
                         delayed=delayed
                     ))
+                    element_buffer = []
+
+            writer.close()
+            await writer.wait_closed()
             
             self.departures_last_updated = utime.ticks_ms()
             print(f"Train data fetched: {len(self.departures)} departures")
