@@ -99,7 +99,9 @@ class UvDisplay:
                     break
 
             # Stream parse JSON array without buffering entire response
-            self.uv_data = [uv_value async for uv_value in parse_flat_json_array(reader)]
+            self.uv_data = []
+            async for uv_value in parse_flat_json_array(reader):
+                self.uv_data.append(uv_value)
 
             writer.close()
             await writer.wait_closed()

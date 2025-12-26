@@ -77,7 +77,9 @@ class NewsDisplay:
                     break
 
             # Stream parse JSON array without buffering entire response
-            self.stories = [story async for story in parse_flat_json_array(reader)]
+            self.stories = []
+            async for story in parse_flat_json_array(reader):
+                self.stories.append(story)
 
             writer.close()
             await writer.wait_closed()

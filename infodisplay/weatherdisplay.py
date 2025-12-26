@@ -79,7 +79,9 @@ class WeatherDisplay:
 
             # Stream parse JSON array without buffering entire response
             # Format: [code, max_temp, min_temp, rain, code, max_temp, min_temp, rain, ...]
-            self.weather_data = [element async for element in parse_flat_json_array(reader)]
+            self.weather_data = []
+            async for element in parse_flat_json_array(reader):
+                self.weather_data.append(element)
 
             writer.close()
             await writer.wait_closed()
