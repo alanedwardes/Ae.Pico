@@ -145,6 +145,7 @@ class ST7789:
         # USD = 0x80
         mode = (0x60, 0xE0, 0xA0, 0x20, 0, 0x40, 0xC0, 0x80)[user_mode] | (0x08 if bgr else 0)
         # Set display window depending on mode, .height and .width.
+        self._current_mode = mode
         self.set_window(mode)
         wcd(b"\x36", int.to_bytes(mode, 1, "little"))
         cmd(b"\x29")  # DISPON. Adafruit then delay 500ms.
@@ -160,6 +161,7 @@ class ST7789:
             user_mode ^= PORTRAIT
         mode = (0x60, 0xE0, 0xA0, 0x20, 0, 0x40, 0xC0, 0x80)[user_mode] | (0x08 if self._bgr else 0)
         # Update address window and MADCTL
+        self._current_mode = mode
         self.set_window(mode)
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
 
@@ -218,23 +220,87 @@ class ST7789:
         # Row address set
         self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
 
-    def render(self, framebuffer, width, height):
-        wd = self.width
-        ht = self.height
-        if width != wd or height != ht:
+    def _set_region_window(self, x, y, rw, rh):
+        """Set the display window to a specific region for partial updates.
+
+        Args:
+            x, y: Top-left corner of region in framebuffer coordinates
+            rw, rh: Width and height of region in pixels
+        """
+        mode = self._current_mode
+        portrait, reflect, usd = 0x20, 0x40, 0x80
+        rht = 320
+        rwd = 240  # RAM ht and width
+        wht = self.height  # Window (framebuf) dimensions.
+        wwd = self.width  # In portrait mode wht > wwd
+
+        if mode & portrait:
+            xoff = self._offset[1]  # x and y transposed
+            yoff = self._offset[0]
+            xs = x + xoff
+            xe = xs + rw - 1
+            ys = y + yoff
+            ye = ys + rh - 1
+            if mode & reflect:
+                ys = rwd - self.height - yoff + y
+                ye = ys + rh - 1
+            if mode & usd:
+                xs = rht - self.width - xoff + x
+                xe = xs + rw - 1
+        else:  # LANDSCAPE
+            xoff = self._offset[0]
+            yoff = self._offset[1]
+            xs = x + xoff
+            xe = xs + rw - 1
+            ys = y + yoff
+            ye = ys + rh - 1
+            if mode & usd:
+                ys = rht - self.height - yoff + y
+                ye = ys + rh - 1
+            if mode & reflect:
+                xs = rwd - self.width - xoff + x
+                xe = xs + rw - 1
+
+        # Col address set.
+        self._wcd(b"\x2a", int.to_bytes((xs << 16) + xe, 4, "big"))
+        # Row address set
+        self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
+
+    def render(self, framebuffer, width, height, region):
+        # Unpack and validate region
+        x, y, rw, rh = region
+        if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
+        if x + rw > width or y + rh > height:
+            return
+        if width != self.width or height != self.height:
+            return
+
+        # Set hardware window to region
+        self._set_region_window(x, y, rw, rh)
+
+        # Send RAMWR command
         if self._spi_init:
             self._spi_init(self._spi)
         self._dc(0)
         self._cs(0)
         self._spi.write(b"\x2c")
         self._dc(1)
+
+        # Prepare buffers
         lb = memoryview(self._linebuf)
         src = memoryview(framebuffer)
-        row_bytes = wd * 2
-        for row in range(ht):
-            start = row * row_bytes
-            _swapline(lb, src[start:], row_bytes)
+        row_bytes = width * 2  # Full framebuffer row width
+        region_bytes = rw * 2  # Region width in bytes
+
+        # Adjust linebuf view if region is smaller
+        if region_bytes < len(self._linebuf):
+            lb = memoryview(self._linebuf[:region_bytes])
+
+        # Swap and write only region rows
+        for row in range(rh):
+            fb_offset = (y + row) * row_bytes + x * 2
+            _swapline(lb, src[fb_offset:], region_bytes)
             self._spi.write(lb)
         self._cs(1)
 

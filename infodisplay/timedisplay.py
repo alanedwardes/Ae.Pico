@@ -58,29 +58,27 @@ class TimeDisplay:
         day_text = f'{self.DAYS[now[3]-1]}'
         sec_text = '%02i' % now[6]
 
-        any_drawn = False
-
         # Redraw HH:MM only when it changes
         if time_text != self._last_time_text:
             # Clear time area then draw
             self.display.rect(0, 0, time_width, height, 0x0000, True)
             textbox.draw_textbox(self.display, time_text, 0, 0, time_width, height, color=0xFFFF, font='headline', scale=1)
             self._last_time_text = time_text
-            any_drawn = True
+            # Render only the time region
+            self.display.update((0, 0, time_width, height))
 
         # Redraw day-of-week only when it changes
         if day_text != self._last_day_text:
             self.display.rect(time_width, 0, date_seconds_width, section_height, 0x0000, True)
             textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
             self._last_day_text = day_text
-            any_drawn = True
+            # Render only the day region
+            self.display.update((time_width, 0, date_seconds_width, section_height))
 
         # Redraw seconds each time they change
         if sec_text != self._last_sec_text:
             self.display.rect(time_width, section_height, date_seconds_width, section_height, 0x0000, True)
             textbox.draw_textbox(self.display, sec_text, time_width, section_height, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
             self._last_sec_text = sec_text
-            any_drawn = True
-
-        if any_drawn:
-            self.display.update()
+            # Render only the seconds region
+            self.display.update((time_width, section_height, date_seconds_width, section_height))

@@ -105,6 +105,8 @@ class NewsDisplay:
         label_height = 16
 
         textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
-        self.display.update()
+
+        # Render only the news display region (below the time/temperature displays)
+        self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"NewsDisplay: {update_time_ms}ms")

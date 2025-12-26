@@ -292,5 +292,6 @@ class TrainDisplay:
         # Draw departure rows
         for row in range(0, len(departures)):
             y_offset += self.__draw_departure_row(departures[row], y_offset)
-            
-        self.display.update()
+
+        # Render only the train display region (below the time/temperature displays)
+        self.display.update((0, 70, self.display_width, self.display_height - 70))

@@ -193,4 +193,5 @@ class WeatherDisplay:
             height = 2 * 8
             textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
 
-        self.display.update()
+        # Render only the weather region (below the time/temperature displays)
+        self.display.update((0, y_start, self.display_width, self.display_height - y_start))

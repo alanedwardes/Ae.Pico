@@ -120,5 +120,6 @@ class InfoDisplay:
             label_height = 1 * 25
             textbox.draw_textbox(self.display, subscription.get('label', '?'), x, y + top_height, bottom_row_item_width, label_height, color=self.grey, font='sans', scale=1)
             x += bottom_row_item_width
-        
-        self.display.update()
+
+        # Render only the info display region (below the time/temperature displays)
+        self.display.update((0, 70, self.display_width, self.display_height - 70))

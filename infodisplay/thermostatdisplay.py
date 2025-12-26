@@ -102,8 +102,9 @@ class ThermostatDisplay:
 
         # HVAC action label just above main temperature
         textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='small')
-        
-        self.display.update()
+
+        # Render only the thermostat region (below the time/temperature displays)
+        self.display.update((0, 70, self.display_width, self.display_height - 70))
     
     def activate(self, new_active):
         self.is_active = new_active

@@ -24,7 +24,12 @@ class Drawing(framebuf.FrameBuffer):
             return
         self._driver.set_backlight(brightness)
 
-    def update(self):
+    def update(self, region=None):
         if self._driver is None:
             return
-        self._driver.render(self._buf, self.width, self.height)
+
+        if region is None:
+            region = (0, 0, self.width, self.height)
+        
+        self._driver.render(self._buf, self.width, self.height, region)
+

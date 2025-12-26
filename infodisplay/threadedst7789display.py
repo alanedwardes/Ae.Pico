@@ -30,10 +30,10 @@ class ThreadedDriver:
                 # Sleep briefly to avoid hogging the core when idle (waiting for first frame)
                 time.sleep_ms(100)
 
-    def set_framebuffer(self, framebuffer, width, height):
-        self.args = (framebuffer, width, height)
+    def set_framebuffer(self, framebuffer, width, height, region):
+        self.args = (framebuffer, width, height, region)
 
-    def render(self, framebuffer, width, height):
+    def render(self, framebuffer, width, height, region):
         pass
     
     def set_backlight(self, brightness):
@@ -95,7 +95,7 @@ class ThreadedST7789Display:
         
         # Pass the threaded driver to Drawing; Drawing will call threaded_st.render()
         drawing.set_driver(threaded_st)
-        threaded_st.set_framebuffer(drawing._buf, WIDTH, HEIGHT)
+        threaded_st.set_framebuffer(drawing._buf, WIDTH, HEIGHT, (0, 0, WIDTH, HEIGHT))
 
         provider['display'] = drawing
         return ThreadedST7789Display(st, drawing, threaded_st)

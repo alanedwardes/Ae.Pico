@@ -16,7 +16,7 @@ class HassMediaDisplay:
         self.prev_state = None
         
         self.display_width, self.display_height = self.display.get_bounds()
-        
+
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['media']
@@ -152,6 +152,9 @@ class HassMediaDisplay:
         
         writer.close()
         await writer.wait_closed()
-        
-        # Tell display to update the screen
-        self.display.update()
+
+        # Tell display to update the screen (only the region we wrote to)
+        # start_offset is in bytes, RGB565 uses 2 bytes per pixel
+        y_offset = (self.start_offset // 2) // self.display_width
+        height = self.display_height - y_offset
+        self.display.update((0, y_offset, self.display_width, height))

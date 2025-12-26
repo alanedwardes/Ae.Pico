@@ -113,4 +113,6 @@ class TemperatureDisplay:
         max_temp_str = f"{abs(maximum_temperature) if maximum_temperature == 0 else maximum_temperature:.0f}°"
         textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
         textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
-        self.display.update()
+
+        # Render only the temperature region
+        self.display.update((self.display_width - 64, 0, 64, 70))

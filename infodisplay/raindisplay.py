@@ -248,4 +248,5 @@ class RainDisplay:
         chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
                                    self._r_values, self._normalized_r, rain_color_fn, radius=2)
 
-        self.display.update()
+        # Render only the rain display region (below the time/temperature displays)
+        self.display.update((0, y_start, self.display_width, self.display_height - y_start))

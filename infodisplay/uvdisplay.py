@@ -242,4 +242,5 @@ class UvDisplay:
                 self.display.ellipse(int(time_x), int(uv_y), 5, 5, 0x0000, True)
                 self.display.ellipse(int(time_x), int(uv_y), 2, 2, 0xFFFF, True)
 
-        self.display.update()
+        # Render only the UV display region (below the time/temperature displays)
+        self.display.update((0, y_start, self.display_width, self.display_height - y_start))

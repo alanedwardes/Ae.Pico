@@ -19,7 +19,7 @@ class RemoteDisplay:
         self.update_flag = ThreadSafeFlag()
         
         self.display_width, self.display_height = self.display.get_bounds()
-        
+
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['remote']
@@ -112,9 +112,12 @@ class RemoteDisplay:
             
             writer.close()
             await writer.wait_closed()
-            
-            # Tell display to update the screen
-            self.display.update()
+
+            # Tell display to update the screen (only the region we wrote to)
+            # start_offset is in bytes, RGB565 uses 2 bytes per pixel
+            y_offset = (self.start_offset // 2) // self.display_width
+            height = self.display_height - y_offset
+            self.display.update((0, y_offset, self.display_width, height))
                 
         except Exception as e:
             print(f"Error streaming framebuffer data: {e}")
