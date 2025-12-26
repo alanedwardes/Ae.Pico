@@ -66,11 +66,26 @@ class RainDisplay:
     def should_activate(self):
         if not self.weather_data:
             return False
-        
+
         # Check if any rain chances are above 5% OR any Beaufort scale is 4 or higher (moderate breeze+)
-        has_rain = not all(hour_data['r'] <= 5 for hour_data in self.weather_data)
-        has_high_wind = any(wind_speed_to_beaufort(hour_data['wind']) >= 4 for hour_data in self.weather_data)
-        
+        # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
+        num_hours = len(self.weather_data) // 4
+        has_rain = False
+        has_high_wind = False
+
+        for i in range(num_hours):
+            idx = i * 4
+            rain_prob = self.weather_data[idx + 1]
+            wind_speed = self.weather_data[idx + 3]
+
+            if rain_prob > 5:
+                has_rain = True
+            if wind_speed_to_beaufort(wind_speed) >= 4:
+                has_high_wind = True
+
+            if has_rain or has_high_wind:
+                break
+
         return has_rain or has_high_wind
 
     def activate(self, new_active):
@@ -112,9 +127,11 @@ class RainDisplay:
 
             # Stream parse JSON array without buffering entire response
             # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
+            # Store as flat array: [hour, rain_prob, rate_mmh, wind_speed, hour, rain_prob, rate_mmh, wind_speed, ...]
             self.weather_data = []
             current_hour = utime.localtime()[3]  # Get current hour
             element_buffer = []
+            hour_offset = 0
 
             async for element in parse_flat_json_array(reader):
                 element_buffer.append(element)
@@ -124,43 +141,61 @@ class RainDisplay:
                     rain_prob = element_buffer[0]
                     rate_mmh = element_buffer[1]
                     wind_speed = element_buffer[2]
-                    hour_offset = len(self.weather_data)
                     actual_hour = (current_hour + hour_offset) % 24
-                    self.weather_data.append({
-                        'hour': actual_hour,  # Actual hour
-                        'r': rain_prob,  # Rain probability
-                        'rate': rate_mmh,  # Rate mm/h
-                        'wind': wind_speed  # Wind speed 10m
-                    })
+
+                    # Append as flat array: hour, rain_prob, rate_mmh, wind_speed
+                    self.weather_data.append(actual_hour)
+                    self.weather_data.append(rain_prob)
+                    self.weather_data.append(rate_mmh)
+                    self.weather_data.append(wind_speed)
+
                     element_buffer = []
+                    hour_offset += 1
 
             writer.close()
             await writer.wait_closed()
             # Precompute and cache arrays for rendering
-            if self.weather_data:
-                self._r_values = [int(h['r']) for h in self.weather_data]
-                self._normalized_r = [r / 100 for r in self._r_values]
-                self._beaufort_values = [wind_speed_to_beaufort(h['wind']) for h in self.weather_data]
-                # Precompute integer mm/h to avoid float formatting during render
+            # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
+            num_hours = len(self.weather_data) // 4
+            if num_hours > 0:
+                self._r_values = []
+                self._normalized_r = []
+                self._beaufort_values = []
                 rate_ints = []
-                for h in self.weather_data:
-                    rate_val = h['rate']
+
+                for i in range(num_hours):
+                    idx = i * 4
+                    rain_prob = self.weather_data[idx + 1]
+                    rate_mmh = self.weather_data[idx + 2]
+                    wind_speed = self.weather_data[idx + 3]
+
+                    r_int = int(rain_prob)
+                    self._r_values.append(r_int)
+                    self._normalized_r.append(r_int / 100)
+                    self._beaufort_values.append(wind_speed_to_beaufort(wind_speed))
+
+                    # Precompute integer mm/h to avoid float formatting during render
                     try:
-                        # round to nearest int without creating format strings
-                        rate_ints.append(int(rate_val + 0.5))
+                        rate_ints.append(int(rate_mmh + 0.5))
                     except TypeError:
-                        rate_ints.append(int(rate_val))
+                        rate_ints.append(int(rate_mmh))
+
                 self._rate_ints = rate_ints
             else:
                 self._r_values = []
                 self._normalized_r = []
                 self._beaufort_values = []
                 self._rate_ints = []
-            
-            print(f"Weather data fetched: {len(self.weather_data)} hours")
-            for hour_data in self.weather_data:
-                beaufort_number = wind_speed_to_beaufort(hour_data['wind'])
-                print(f"  Hour {hour_data['hour']:02d}: Rain {hour_data['r']}%, Rate {hour_data['rate']} mm/h, Wind {hour_data['wind']} m/s (Bft {beaufort_number})")
+
+            print(f"Weather data fetched: {num_hours} hours")
+            for i in range(num_hours):
+                idx = i * 4
+                hour = self.weather_data[idx]
+                rain_prob = self.weather_data[idx + 1]
+                rate_mmh = self.weather_data[idx + 2]
+                wind_speed = self.weather_data[idx + 3]
+                beaufort_number = wind_speed_to_beaufort(wind_speed)
+                print(f"  Hour {hour:02d}: Rain {rain_prob}%, Rate {rate_mmh} mm/h, Wind {wind_speed} m/s (Bft {beaufort_number})")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
@@ -178,13 +213,14 @@ class RainDisplay:
     def __update(self):
         if len(self.weather_data) == 0:
             return
-        
+
         # Clear the display area
         y_start = 70
         key_width = 30
         data_width = self.display_width - key_width
         # Use integer arithmetic for column positions to avoid float churn
-        num_points = len(self.weather_data)
+        # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
+        num_points = len(self.weather_data) // 4
         denom = (num_points - 1) if num_points > 1 else 1
         column_width_int = max(1, data_width // denom)
         
@@ -212,31 +248,34 @@ class RainDisplay:
         self.display.rect(key_width, chart_y - 10, data_width, 2, 0x4208, True)
         
         # Draw data for each hour
-        for i, hour_data in enumerate(self.weather_data):
-            if i == len(self.weather_data) - 1:
+        # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
+        for i in range(num_points):
+            if i == num_points - 1:
                 continue
 
-            hour_number = 12 if hour_data['hour'] == 0 else hour_data['hour']
-            rate_int = self._rate_ints[i] if i < len(self._rate_ints) else int(hour_data['rate'])
-            
+            idx = i * 4
+            hour = self.weather_data[idx]
+            hour_number = 12 if hour == 0 else hour
+            rate_int = self._rate_ints[i] if i < len(self._rate_ints) else int(self.weather_data[idx + 2])
+
             sx = key_width + (i * data_width) // denom
-            
+
             # Draw vertical separator
             if i > 0:
                 self.display.rect(sx, y_start, 2, self.display_height - y_start, 0x4208, True)
-            
+
             # Hour numbers
             textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='small')
-            
+
             # Precipitation amount
             if rate_int > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_int)
             else:
                 precip_color = 0x632C
             textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='small')
-            
+
             # Beaufort scale
-            beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(hour_data['wind'])
+            beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(self.weather_data[idx + 3])
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
             textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
 

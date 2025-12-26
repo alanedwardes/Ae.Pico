@@ -129,7 +129,9 @@ class TrainDisplay:
             await asyncio.sleep(300)  # Fetch every 5 minutes (API caches for 5m)
 
     def should_activate(self):
-        return len(self.departures) > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
+        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
+        num_departures = len(self.departures) // 7
+        return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     def activate(self, new_active):
         self.is_active = new_active
@@ -164,14 +166,18 @@ class TrainDisplay:
         
         return 19
     
-    def __draw_departure_row(self, departure, y_offset):
-        destination = departure.destination or ''
-        scheduled = departure.scheduled_time or 'TBC'
-        expected = departure.expected_time or 'TBC'
-        platform = departure.platform or '-'
-        train_class = departure.train_class or '-'
-        
-        row_pen = get_color_for_train_status(scheduled, expected, departure.cancelled)
+    def __draw_departure_row(self, departure_idx, y_offset):
+        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
+        idx = departure_idx * 7
+        scheduled = self.departures[idx] or 'TBC'
+        destination = self.departures[idx + 1] or ''
+        platform = self.departures[idx + 2] or '-'
+        train_class = self.departures[idx + 3] or '-'
+        expected = self.departures[idx + 4] or 'TBC'
+        cancelled = self.departures[idx + 5]
+        delayed = self.departures[idx + 6]
+
+        row_pen = get_color_for_train_status(scheduled, expected, cancelled)
         
         # Define column widths and positions
         time_width = 50
@@ -221,6 +227,7 @@ class TrainDisplay:
 
             # Stream parse JSON array without buffering entire response
             # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
+            # Store as flat array: [std_formatted, station, platform, class, atd_formatted, cancelled, delayed, ...]
             self.departures = []
             element_buffer = []
 
@@ -235,61 +242,65 @@ class TrainDisplay:
                     train_class = element_buffer[3]
                     atd = element_buffer[4]
 
-                    # Determine if cancelled or delayed
-                    cancelled = False
-                    delayed = False
-
                     # Format times to HH:MM
                     std_formatted = format_time_to_hhmm(std)
                     atd_formatted = format_time_to_hhmm(atd)
+
+                    # Determine if cancelled or delayed
+                    cancelled = False
+                    delayed = False
 
                     # If atd is empty or "On time", check for delays
                     if atd_formatted and atd_formatted != std_formatted and atd_formatted != "On time":
                         delayed = True
 
-                    # Convert empty strings to None for display
+                    # Convert empty strings to display values
                     scheduled_time_display = std_formatted if std_formatted else ''
                     expected_time_display = atd_formatted if atd_formatted else scheduled_time_display
                     destination_display = station if station else ''
                     platform_display = platform if platform else ''
                     train_class_display = train_class if train_class else ''
 
-                    self.departures.append(Departure(
-                        scheduled_time=scheduled_time_display,
-                        expected_time=expected_time_display,
-                        destination=destination_display,
-                        platform=platform_display,
-                        train_class=train_class_display,
-                        cancelled=cancelled,
-                        delayed=delayed
-                    ))
+                    # Append as flat array: std, station, platform, class, atd, cancelled, delayed
+                    self.departures.append(scheduled_time_display)
+                    self.departures.append(destination_display)
+                    self.departures.append(platform_display)
+                    self.departures.append(train_class_display)
+                    self.departures.append(expected_time_display)
+                    self.departures.append(cancelled)
+                    self.departures.append(delayed)
+
                     element_buffer = []
 
             writer.close()
             await writer.wait_closed()
-            
+
             self.departures_last_updated = utime.ticks_ms()
-            print(f"Train data fetched: {len(self.departures)} departures")
+            # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
+            num_departures = len(self.departures) // 7
+            print(f"Train data fetched: {num_departures} departures")
             
         except Exception as e:
             print(f"Error fetching train data: {e}")
     
     def get_departures(self):
-        return self.departures
+        # Return number of departures for backward compatibility
+        return len(self.departures) // 7
 
     def __update(self):
-        departures = self.get_departures()
-        
+        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
+        num_departures = len(self.departures) // 7
+
         y_offset = 70
-        
+
         self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x0000, True)
-        
+
         # Draw header row
         y_offset += self.__draw_header_row(y_offset)
-        
+
         # Draw departure rows
-        for row in range(0, len(departures)):
-            y_offset += self.__draw_departure_row(departures[row], y_offset)
+        for row in range(num_departures):
+            y_offset += self.__draw_departure_row(row, y_offset)
 
         # Render only the train display region (below the time/temperature displays)
         self.display.update((0, 70, self.display_width, self.display_height - 70))
