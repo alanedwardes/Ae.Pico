@@ -1,8 +1,3 @@
-try:
-    import ujson
-except ModuleNotFoundError:
-    import json as ujson
-
 import asyncio
 import utime
 import chart

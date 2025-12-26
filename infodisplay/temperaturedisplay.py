@@ -1,8 +1,3 @@
-try:
-    import ujson
-except ModuleNotFoundError:
-    import json as ujson
-
 import gauge
 import textbox
 import math
@@ -10,6 +5,7 @@ import utime
 import asyncio
 
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 class TemperatureDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -56,12 +52,15 @@ class TemperatureDisplay:
                 if line == b'\r\n':
                     break
 
-            # Read content
-            content = await reader.read()
+            # Stream parse JSON array without buffering entire response
+            # Format: [current, min, max]
+            self.temperature_data = []
+            async for element in parse_flat_json_array(reader):
+                self.temperature_data.append(element)
+
             writer.close()
             await writer.wait_closed()
 
-            self.temperature_data = ujson.loads(content.decode('utf-8'))
             print(f"Temperature data fetched: current={self.temperature_data[0]}°C, min={self.temperature_data[1]}°C, max={self.temperature_data[2]}°C")
 
         except Exception as e:

@@ -1,9 +1,4 @@
 try:
-    import ujson
-except ModuleNotFoundError:
-    import json as ujson
-
-try:
     from collections import namedtuple
 except ImportError:
     # Fallback for MicroPython without collections
