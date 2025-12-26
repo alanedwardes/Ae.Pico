@@ -209,15 +209,15 @@ class FlatJsonParser:
         return element
 
 
-async def parse_flat_json_array(reader):
+def parse_flat_json_array(reader):
     """
     Convenience function to parse a flat JSON array from a reader.
 
     Args:
         reader: An async reader with a read(n) method
 
-    Yields:
-        Individual array elements
+    Returns:
+        FlatJsonParser instance (async iterator)
 
     Example:
         reader, writer = await asyncio.open_connection(host, port)
@@ -225,5 +225,4 @@ async def parse_flat_json_array(reader):
         async for element in parse_flat_json_array(reader):
             print(element)
     """
-    async for element in FlatJsonParser(reader):
-        yield element
+    return FlatJsonParser(reader)
