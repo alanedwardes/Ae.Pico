@@ -11,6 +11,7 @@ import textbox
 from bitblt import blit_region
 
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 class WeatherDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -75,13 +76,14 @@ class WeatherDisplay:
                 line = await reader.readline()
                 if line == b'\r\n':
                     break
-            
-            # Read content
-            content = await reader.read()
+
+            # Stream parse JSON array without buffering entire response
+            # Format: [code, max_temp, min_temp, rain, code, max_temp, min_temp, rain, ...]
+            self.weather_data = [element async for element in parse_flat_json_array(reader)]
+
             writer.close()
             await writer.wait_closed()
-            
-            self.weather_data = ujson.loads(content.decode('utf-8'))
+
             print(f"Weather data fetched: {len(self.weather_data)} data points")
             for i in range(0, len(self.weather_data), 4):
                 if i + 3 < len(self.weather_data):

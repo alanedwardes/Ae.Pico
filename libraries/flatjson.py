@@ -1,0 +1,229 @@
+"""
+Lean streaming JSON parser for flat arrays in MicroPython.
+Parses elements one at a time without buffering the entire array.
+Designed for memory-constrained environments.
+"""
+
+class FlatJsonParser:
+    """
+    Streaming parser for flat JSON arrays containing primitives (numbers, strings, booleans, null).
+    Does not support nested objects or arrays - only top-level array elements.
+
+    Usage:
+        async for element in FlatJsonParser(reader):
+            process(element)
+    """
+
+    def __init__(self, reader):
+        """
+        Initialize parser with an async reader (e.g., StreamReader from asyncio.open_connection).
+
+        Args:
+            reader: An async reader with a read(n) method that returns bytes
+        """
+        self.reader = reader
+        self.buffer = bytearray()
+        self.pos = 0
+        self.started = False
+        self.finished = False
+
+    async def _read_byte(self):
+        """Read a single byte, buffering if necessary."""
+        if self.pos >= len(self.buffer):
+            chunk = await self.reader.read(64)  # Read in small chunks
+            if not chunk:
+                return None
+            self.buffer = bytearray(chunk)
+            self.pos = 0
+
+        byte = self.buffer[self.pos]
+        self.pos += 1
+        return byte
+
+    async def _skip_whitespace(self):
+        """Skip whitespace characters."""
+        while True:
+            b = await self._read_byte()
+            if b is None:
+                return None
+            if b not in (0x20, 0x09, 0x0A, 0x0D):  # space, tab, newline, carriage return
+                return b
+
+    async def _parse_string(self):
+        """Parse a JSON string. Assumes opening quote already consumed."""
+        result = bytearray()
+        escaped = False
+
+        while True:
+            b = await self._read_byte()
+            if b is None:
+                raise ValueError("Unexpected end in string")
+
+            if escaped:
+                # Handle escape sequences
+                if b == ord('n'):
+                    result.append(ord('\n'))
+                elif b == ord('t'):
+                    result.append(ord('\t'))
+                elif b == ord('r'):
+                    result.append(ord('\r'))
+                elif b == ord('b'):
+                    result.append(ord('\b'))
+                elif b == ord('f'):
+                    result.append(ord('\f'))
+                elif b == ord('"'):
+                    result.append(ord('"'))
+                elif b == ord('\\'):
+                    result.append(ord('\\'))
+                elif b == ord('/'):
+                    result.append(ord('/'))
+                elif b == ord('u'):
+                    # Unicode escape - read 4 hex digits
+                    hex_chars = bytearray()
+                    for _ in range(4):
+                        hb = await self._read_byte()
+                        if hb is None:
+                            raise ValueError("Unexpected end in unicode escape")
+                        hex_chars.append(hb)
+                    # Convert hex to int and then to UTF-8
+                    try:
+                        code_point = int(hex_chars.decode('ascii'), 16)
+                        # Simple UTF-8 encoding for common range
+                        if code_point < 0x80:
+                            result.append(code_point)
+                        elif code_point < 0x800:
+                            result.append(0xC0 | (code_point >> 6))
+                            result.append(0x80 | (code_point & 0x3F))
+                        else:
+                            result.append(0xE0 | (code_point >> 12))
+                            result.append(0x80 | ((code_point >> 6) & 0x3F))
+                            result.append(0x80 | (code_point & 0x3F))
+                    except:
+                        raise ValueError("Invalid unicode escape")
+                else:
+                    # Unknown escape, keep as-is
+                    result.append(b)
+                escaped = False
+            elif b == ord('\\'):
+                escaped = True
+            elif b == ord('"'):
+                # End of string
+                return result.decode('utf-8')
+            else:
+                result.append(b)
+
+    async def _parse_number(self, first_byte):
+        """Parse a JSON number. First byte already read."""
+        num_bytes = bytearray([first_byte])
+
+        while True:
+            b = await self._read_byte()
+            if b is None:
+                break
+
+            # Number characters: 0-9, -, +, ., e, E
+            if b in (0x2D, 0x2B, 0x2E, 0x45, 0x65) or (0x30 <= b <= 0x39):
+                num_bytes.append(b)
+            else:
+                # Put byte back by moving position back
+                self.pos -= 1
+                break
+
+        num_str = num_bytes.decode('ascii')
+
+        # Parse as int or float
+        if '.' in num_str or 'e' in num_str or 'E' in num_str:
+            return float(num_str)
+        else:
+            return int(num_str)
+
+    async def _parse_literal(self, first_byte, expected, value):
+        """Parse a literal (true, false, null). First byte already read."""
+        for i in range(1, len(expected)):
+            b = await self._read_byte()
+            if b is None or b != ord(expected[i]):
+                raise ValueError(f"Invalid literal, expected {expected}")
+        return value
+
+    async def _parse_element(self):
+        """Parse a single array element."""
+        b = await self._skip_whitespace()
+
+        if b is None:
+            return None
+
+        # String
+        if b == ord('"'):
+            return await self._parse_string()
+
+        # Number (starts with digit or minus)
+        elif (0x30 <= b <= 0x39) or b == 0x2D:
+            return await self._parse_number(b)
+
+        # true
+        elif b == ord('t'):
+            return await self._parse_literal(b, 'true', True)
+
+        # false
+        elif b == ord('f'):
+            return await self._parse_literal(b, 'false', False)
+
+        # null
+        elif b == ord('n'):
+            return await self._parse_literal(b, 'null', None)
+
+        # End of array
+        elif b == ord(']'):
+            self.finished = True
+            return None
+
+        # Comma (between elements)
+        elif b == ord(','):
+            # Skip comma and parse next element
+            return await self._parse_element()
+
+        else:
+            raise ValueError(f"Unexpected character: {chr(b)}")
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        """Async iterator protocol - yield next array element."""
+        if self.finished:
+            raise StopAsyncIteration
+
+        # First call - skip to opening bracket
+        if not self.started:
+            b = await self._skip_whitespace()
+            if b != ord('['):
+                raise ValueError("Expected '[' at start of array")
+            self.started = True
+
+        # Parse next element
+        element = await self._parse_element()
+
+        if element is None and self.finished:
+            raise StopAsyncIteration
+
+        return element
+
+
+async def parse_flat_json_array(reader):
+    """
+    Convenience function to parse a flat JSON array from a reader.
+
+    Args:
+        reader: An async reader with a read(n) method
+
+    Yields:
+        Individual array elements
+
+    Example:
+        reader, writer = await asyncio.open_connection(host, port)
+        # ... send HTTP request and skip headers ...
+        async for element in parse_flat_json_array(reader):
+            print(element)
+    """
+    async for element in FlatJsonParser(reader):
+        yield element

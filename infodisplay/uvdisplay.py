@@ -10,6 +10,7 @@ import colors
 import textbox
 
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 class UvDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -96,13 +97,13 @@ class UvDisplay:
                 line = await reader.readline()
                 if line == b'\r\n':
                     break
-            
-            # Read content
-            content = await reader.read()
+
+            # Stream parse JSON array without buffering entire response
+            self.uv_data = [uv_value async for uv_value in parse_flat_json_array(reader)]
+
             writer.close()
             await writer.wait_closed()
-            
-            self.uv_data = ujson.loads(content.decode('utf-8'))
+
             print(f"UV data fetched: {len(self.uv_data)} data points")
             for hour, uv_value in enumerate(self.uv_data):
                 print(f"  Hour {hour:02d}: UV {uv_value}")

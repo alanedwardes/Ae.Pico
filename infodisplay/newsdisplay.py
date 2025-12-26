@@ -7,6 +7,7 @@ import utime
 import asyncio
 import textbox
 from httpstream import parse_url
+from flatjson import parse_flat_json_array
 
 class NewsDisplay:
     def __init__(self, display, url):
@@ -74,13 +75,13 @@ class NewsDisplay:
                 line = await reader.readline()
                 if line == b'\r\n':
                     break
-            
-            # Read content
-            content = await reader.read()
+
+            # Stream parse JSON array without buffering entire response
+            self.stories = [story async for story in parse_flat_json_array(reader)]
+
             writer.close()
             await writer.wait_closed()
-            
-            self.stories = ujson.loads(content.decode('utf-8'))
+
             print(f"News data fetched: {len(self.stories)} stories")
                 
         except Exception as e:
