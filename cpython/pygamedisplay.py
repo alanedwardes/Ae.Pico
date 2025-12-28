@@ -29,7 +29,7 @@ class PygameDisplay:
         self._lut565_rgba = lut
 
     def create(provider):
-        driver = PygameDisplay(debug_regions=True)
+        driver = PygameDisplay(debug_regions=False)
         drawing = Drawing(driver._width, driver._height)
         drawing.set_driver(driver)
         provider['display'] = drawing

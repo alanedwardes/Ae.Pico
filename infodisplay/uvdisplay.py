@@ -22,9 +22,6 @@ class UvDisplay:
         refresh_period = provider['config']['uv'].get('refresh_period_seconds', 300)
         return UvDisplay(provider['display'], provider['config']['uv']['url'], refresh_period)
     
-    def entity_updated(self, entity_id, entity):
-        pass  # No longer using Home Assistant entities
-    
     async def start(self):
         while True:
             await self.fetch_uv_data()
@@ -60,7 +57,6 @@ class UvDisplay:
         self.is_active = new_active
         if self.is_active:
             self.update()
-    
     
     async def fetch_uv_data(self):
         try:               
@@ -146,11 +142,10 @@ class UvDisplay:
             position = hour // 2
             sx = position * label_width
             
-            height = 1 * 8
-            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 8, label_width, height, color=0xFFFF, font='small')
+            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=0xFFFF, font='small')
 
         chart_y = y_start + 20  # Move chart up to start after UV values
-        chart_height = self.display_height - y_start - 35  # Make chart fill more space
+        chart_height = self.display_height - y_start - 40  # Make chart fill more space
         
         # Draw vertical grid lines after chart area is defined
         for i, hour in enumerate(label_hours):
@@ -181,21 +176,19 @@ class UvDisplay:
         
         for uv_value, label in uv_levels:
             # Calculate Y position (invert because 0 is at top)
-            y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
+            y_pos = chart_y + chart_height - (uv_value / 12) * chart_height
             
             # Draw label on the left
-            textbox.draw_textbox(self.display, label, 0, int(y_pos - 3), 48, 10, color=0xFFFF, font='small', align='left')
+            textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFF, font='small', align='left')
 
-        # Display UV values above the graph
-        if self.uv_data:
-            # Calculate spacing for 12 values (every other data point)
-            label_width = self.display_width // 12
-            
-            for i in range(0, len(self.uv_data), 2):  # Step by 2 to get every other value
-                uv = self.uv_data[i]
-                label_index = i // 2  # Index for positioning
-                x_pos = label_index * label_width
-                textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 10, color=0xFFFF, font='small')
+        # Calculate spacing for 12 values (every other data point)
+        label_width = self.display_width // 12
+        
+        for i in range(0, len(self.uv_data), 2):  # Step by 2 to get every other value
+            uv = self.uv_data[i]
+            label_index = i // 2  # Index for positioning
+            x_pos = label_index * label_width
+            textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFF, font='small')
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
