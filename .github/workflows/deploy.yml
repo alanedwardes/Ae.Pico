@@ -25,6 +25,9 @@ jobs:
   deploy_bundles:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         bundle:
