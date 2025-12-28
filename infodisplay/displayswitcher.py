@@ -5,11 +5,22 @@ class DisplaySwitcher:
         self.provider = provider
         self.services = services
         self.time_ms = time_ms
+        self.active_task = None  # Track the currently active display task
     
     def create(provider):
         config = provider['config']['switcher']
         return DisplaySwitcher(provider, config['services'], config['time_ms'])
-                 
+
+    async def _cancel_active_task(self):
+        """Cancel and clean up the active display task."""
+        if self.active_task is not None:
+            self.active_task.cancel()
+            try:
+                await self.active_task
+            except asyncio.CancelledError:
+                pass
+            self.active_task = None
+
     async def start(self):
         for service in self.services:
             await self.provider[service].activate(False)
@@ -27,21 +38,20 @@ class DisplaySwitcher:
                 # Check if the service wants to be activated
                 if hasattr(service, 'should_activate') and not service.should_activate():
                     continue
-                
-                await service.activate(True)
+
+                # Cancel any previous active task and start new one
+                await self._cancel_active_task()
+                self.active_task = asyncio.create_task(service.activate(True))
 
                 if focus_queue is None:
-                    if hasattr(asyncio, 'sleep_ms'):
-                        await asyncio.sleep_ms(self.time_ms)
-                    else:
-                        await asyncio.sleep(self.time_ms / 1000)
+                    await asyncio.sleep(self.time_ms / 1000)
                 else:
                     # Use wait_for to race focus request vs timeout
                     try:
                         timeout_seconds = self.time_ms / 1000
                         ev = await asyncio.wait_for(focus_queue.get(), timeout_seconds)
                         print(f"DisplaySwitcher: Focus requested, switching to {ev.data.get('instance', 'unknown')}")
-                        await service.activate(False)
+                        await self._cancel_active_task()
                         
                         # Handle focus request
                         target_instance = ev.data.get('instance') if isinstance(ev.data, dict) else None
@@ -61,14 +71,14 @@ class DisplaySwitcher:
 
                         if target is not None:
                             print(f"DisplaySwitcher: Activating target display: {target}")
-                            await target.activate(True)
+                            self.active_task = asyncio.create_task(target.activate(True))
                             try:
                                 # Show focused display for hold_ms, allow chaining
                                 while True:
                                     try:
                                         hold_seconds = hold_ms / 1000
                                         ev2 = await asyncio.wait_for(focus_queue.get(), hold_seconds)
-                                        await target.activate(False)
+                                        await self._cancel_active_task()
                                         # Chain to next focus request
                                         target_instance = ev2.data.get('instance') if isinstance(ev2.data, dict) else None
                                         target_service = ev2.data.get('service') if isinstance(ev2.data, dict) else None
@@ -81,18 +91,16 @@ class DisplaySwitcher:
                                             target = None
                                         if target is None:
                                             break
-                                        target.activate(True)
+                                        self.active_task = asyncio.create_task(target.activate(True))
                                     except asyncio.TimeoutError:
                                         # Hold time expired, exit focus mode
                                         break
                             finally:
-                                await target.activate(False)
+                                await self._cancel_active_task()
                         continue
                     except asyncio.TimeoutError:
                         # Normal timeout, continue rotation
                         pass
-                        
-                await service.activate(False)
 
         if cancel_focus_stream is not None:
             cancel_focus_stream()
