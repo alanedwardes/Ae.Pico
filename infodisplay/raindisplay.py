@@ -244,12 +244,6 @@ class RainDisplay:
         self.display.rect(key_width, precip_row_y - 10, data_width, 2, 0x4208, True)
         self.display.rect(key_width, chart_y - 10, data_width, 2, 0x4208, True)
 
-        # Update key column
-        self.display.update((0, y_start, key_width, self.display_height - y_start))
-
-        # Allow other work to continue
-        await asyncio.sleep(0)
-
         # Draw data for each hour
         # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
         for i in range(num_points):
@@ -290,6 +284,8 @@ class RainDisplay:
             beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(self.weather_data[idx + 3])
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
             textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
+            
+            await asyncio.sleep(0)
 
         # Draw chart segment for this column
         # We need to draw the chart segments that fall within this column
