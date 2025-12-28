@@ -50,7 +50,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::687908690092:role/GitHub.Ae.Pico
-          aws-region: eu-west-1
-          role-session-name: github-actions-frontend-deploy
+          aws-region: eu-west-2
+          role-session-name: github-actions-deploy
       - name: deploy ${{ matrix.bundle.name }} bundle
         run: bash .github/scripts/deploy_bundle.sh "${{ matrix.bundle.name }}" "${{ matrix.bundle.dest }}" "${{ matrix.bundle.dirs }}"
