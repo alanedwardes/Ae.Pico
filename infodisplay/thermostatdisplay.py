@@ -56,8 +56,6 @@ class ThermostatDisplay:
                 'instance': self,
                 'hold_ms': 8000  # Show for 8 seconds when thermostat changes
             })
-        
-        self.update()
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
@@ -67,15 +65,15 @@ class ThermostatDisplay:
         #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
-    def update(self):
+    async def update(self):
         if not self.is_active:
             return
         start_update_ms = utime.ticks_ms()
-        self.__update()
+        await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"ThermostatDisplay: {update_time_ms}ms")
 
-    def __update(self):
+    async def __update(self):
         default_entity = dict(s = '0')
         thermostat_entity = self.entities.get(self.entity_id, default_entity)
         current_target = float(thermostat_entity['a']['temperature'])
@@ -106,10 +104,7 @@ class ThermostatDisplay:
         # Render only the thermostat region (below the time/temperature displays)
         self.display.update((0, 70, self.display_width, self.display_height - 70))
     
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
-    
-    def should_activate(self):
-        return True
+            await self.update()
