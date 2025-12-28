@@ -44,13 +44,13 @@ jobs:
             dest: infodisplaysensor/
             dirs: "libraries infodisplay sensor"
     steps:
-      - name: credentials
-        uses: aws-actions/configure-aws-credentials@v4.1.0
-        with:
-          aws-region: eu-west-2
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: checkout repo
         uses: actions/checkout@v4
+      - name: credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::687908690092:role/GitHub.Ae.Pico
+          aws-region: eu-west-1
+          role-session-name: github-actions-frontend-deploy
       - name: deploy ${{ matrix.bundle.name }} bundle
         run: bash .github/scripts/deploy_bundle.sh "${{ matrix.bundle.name }}" "${{ matrix.bundle.dest }}" "${{ matrix.bundle.dirs }}"
