@@ -10,10 +10,7 @@ class NewsDisplay:
         self.url = url
         self.is_active = True
         self.stories = []
-
-        self.display_width, self.display_height = self.display.get_bounds()
-        
-        self.last_updated = utime.localtime()
+        self.display_width, self.display_height = self.display.get_bounds()        
         self.story_index = 0
 
     CREATION_PRIORITY = 1
@@ -21,15 +18,11 @@ class NewsDisplay:
         config = provider['config']['news']
         return NewsDisplay(provider['display'], config['url'])
     
-    def entity_updated(self, entity_id, entity):
-        self.last_updated = utime.localtime()
-        self.update()
-    
     async def start(self):
         while True:
             await self.fetch_news_data()
             self.update()
-            await asyncio.sleep(300)  # Fetch every 5 minutes
+            await asyncio.sleep(300) # Fetch every 5 minutes
 
     def activate(self, new_active):
         self.is_active = new_active
