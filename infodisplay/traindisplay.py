@@ -301,11 +301,9 @@ class TrainDisplay:
         # Draw departure rows
         for row in range(9):
             row_start = y_start + row_height + row * row_height
-            print(row_start)
 
             # Clear this row
             self.display.rect(0, row_start, self.display_width, row_height, 0x0000, True)
-            print(row_start + row_height)
 
             self.__draw_departure_row(row, row_start)
 
