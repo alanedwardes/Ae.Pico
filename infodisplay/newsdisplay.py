@@ -24,7 +24,7 @@ class NewsDisplay:
             self.update()
             await asyncio.sleep(300) # Fetch every 5 minutes
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
             self.update()

@@ -119,13 +119,10 @@ class TrainDisplay:
         config = provider['config']['trains']
         return TrainDisplay(provider['display'], config['url'])
     
-    def entity_updated(self, entity_id, entity):
-        pass  # No longer using Home Assistant entities
-    
     async def start(self):
         while True:
             await self.fetch_departures()
-            self.update()
+            await self.update()
             await asyncio.sleep(300)  # Fetch every 5 minutes (API caches for 5m)
 
     def should_activate(self):
@@ -133,19 +130,19 @@ class TrainDisplay:
         num_departures = len(self.departures) // 7
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            await self.update()
 
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
-        self.__update()
+        await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"TrainDisplay: {update_time_ms}ms")
-        
+
     def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""
         header_color = 0x8410  # Grey for header
@@ -163,12 +160,13 @@ class TrainDisplay:
         textbox.draw_textbox(self.display, 'Plt', time_width + destination_width, y_offset, platform_width, 20, color=header_color, font='small')
         textbox.draw_textbox(self.display, 'Cls', time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=header_color, font='small')
         textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
-        
-        return 19
     
     def __draw_departure_row(self, departure_idx, y_offset):
         # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
         idx = departure_idx * 7
+        if idx > len(self.departures) -1:
+            return
+        
         scheduled = self.departures[idx] or 'TBC'
         destination = self.departures[idx + 1] or ''
         platform = self.departures[idx + 2] or '-'
@@ -192,8 +190,6 @@ class TrainDisplay:
         textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
         textbox.draw_textbox(self.display, train_class, time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=row_pen, font='small')
         textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=row_pen, font='small')
-        
-        return 19
     
     async def fetch_departures(self):
         try:
@@ -287,20 +283,34 @@ class TrainDisplay:
         # Return number of departures for backward compatibility
         return len(self.departures) // 7
 
-    def __update(self):
-        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
-        num_departures = len(self.departures) // 7
+    async def __update(self):
+        y_start = 70
+        row_height = 17
 
-        y_offset = 70
+        # Clear header area
+        self.display.rect(0, y_start, self.display_width, row_height, 0x0000, True)
 
-        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x0000, True)
+        self.__draw_header_row(y_start)
 
-        # Draw header row
-        y_offset += self.__draw_header_row(y_offset)
+        # Update header
+        self.display.update((0, y_start, self.display_width, row_height))
+
+        # Allow other work to continue
+        await asyncio.sleep(0)
 
         # Draw departure rows
-        for row in range(num_departures):
-            y_offset += self.__draw_departure_row(row, y_offset)
+        for row in range(9):
+            row_start = y_start + row_height + row * row_height
+            print(row_start)
 
-        # Render only the train display region (below the time/temperature displays)
-        self.display.update((0, 70, self.display_width, self.display_height - 70))
+            # Clear this row
+            self.display.rect(0, row_start, self.display_width, row_height, 0x0000, True)
+            print(row_start + row_height)
+
+            self.__draw_departure_row(row, row_start)
+
+            # Update just this row
+            self.display.update((0, row_start, self.display_width, row_height))
+
+            # Allow other work to continue
+            await asyncio.sleep(0)

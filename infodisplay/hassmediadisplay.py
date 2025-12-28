@@ -85,7 +85,7 @@ class HassMediaDisplay:
         
         return state == 'playing' and entity_picture is not None
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
             self.update()

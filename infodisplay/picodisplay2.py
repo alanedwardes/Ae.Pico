@@ -4,7 +4,7 @@ from pimoroni import RGBLED
 # Provides a service registration for 'display'
 # Which is a PicoGraphics instance for the current display
 class PicoGraphicsLimitedPalette(PicoGraphics):
-    def activate(self, max_palette_size):
+    async def activate(self, max_palette_size):
         self.max_palette_size = max_palette_size
         self.palette = []
         self.lookup_cache = {}

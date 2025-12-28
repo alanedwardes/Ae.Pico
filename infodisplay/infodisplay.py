@@ -67,7 +67,7 @@ class InfoDisplay:
     def should_activate(self):
         return True
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
             self.update()

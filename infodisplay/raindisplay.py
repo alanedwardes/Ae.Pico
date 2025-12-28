@@ -60,7 +60,7 @@ class RainDisplay:
     async def start(self):
         while True:
             await self.fetch_weather_data()
-            self.update()
+            await self.update()
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
@@ -88,10 +88,10 @@ class RainDisplay:
 
         return has_rain or has_high_wind
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            await self.update()
     
     
     async def fetch_weather_data(self):
@@ -201,20 +201,19 @@ class RainDisplay:
             print(f"Error fetching weather data: {e}")
        
         
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
-        
+
         start_update_ms = utime.ticks_ms()
-        self.__update()
+        await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"RainDisplay: {update_time_ms}ms")
-    
-    def __update(self):
+
+    async def __update(self):
         if len(self.weather_data) == 0:
             return
 
-        # Clear the display area
         y_start = 70
         key_width = 30
         data_width = self.display_width - key_width
@@ -223,30 +222,34 @@ class RainDisplay:
         num_points = len(self.weather_data) // 4
         denom = (num_points - 1) if num_points > 1 else 1
         column_width_int = max(1, data_width // denom)
-        
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x0000, True)
-        
-        # Draw key column
+
+        # Draw key column first
         self.display.rect(0, y_start, key_width, self.display_height - y_start, 0x2104, True)
-        
+
         # Define row positions with proper spacing
         hour_row_y = y_start
         precip_row_y = y_start + 30
         chart_y = y_start + 60
         wind_row_y = self.display_height - 20  # Position wind speed near bottom of screen
         chart_height = wind_row_y - chart_y - 5
-        
+
         # Draw key labels
         white_pen = 0xFFFF
         textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='small')
         textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='small')
         textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='small')
         textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='small')
-        
+
         # Draw separator lines
         self.display.rect(key_width, precip_row_y - 10, data_width, 2, 0x4208, True)
         self.display.rect(key_width, chart_y - 10, data_width, 2, 0x4208, True)
-        
+
+        # Update key column
+        self.display.update((0, y_start, key_width, self.display_height - y_start))
+
+        # Allow other work to continue
+        await asyncio.sleep(0)
+
         # Draw data for each hour
         # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
         for i in range(num_points):
@@ -259,10 +262,19 @@ class RainDisplay:
             rate_int = self._rate_ints[i] if i < len(self._rate_ints) else int(self.weather_data[idx + 2])
 
             sx = key_width + (i * data_width) // denom
+            next_sx = key_width + ((i + 1) * data_width) // denom if i < num_points - 1 else self.display_width
+            column_width = next_sx - sx
+
+            # Clear this column
+            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x0000, True)
 
             # Draw vertical separator
             if i > 0:
                 self.display.rect(sx, y_start, 2, self.display_height - y_start, 0x4208, True)
+
+            # Redraw horizontal separator lines for this column
+            self.display.rect(sx, precip_row_y - 10, column_width, 2, 0x4208, True)
+            self.display.rect(sx, chart_y - 10, column_width, 2, 0x4208, True)
 
             # Hour numbers
             textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='small')
@@ -279,11 +291,15 @@ class RainDisplay:
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
             textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
 
-        # Draw chart
-        chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
-                                   self._r_values, self._normalized_r, rain_color_fn)
-        chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
-                                   self._r_values, self._normalized_r, rain_color_fn, radius=2)
+            # Draw chart segment for this column
+            # We need to draw the chart segments that fall within this column
+            chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
+                                       self._r_values, self._normalized_r, rain_color_fn)
+            chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
+                                       self._r_values, self._normalized_r, rain_color_fn, radius=2)
 
-        # Render only the rain display region (below the time/temperature displays)
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
+            # Update just this column
+            self.display.update((sx, y_start, column_width, self.display_height - y_start))
+
+            # Allow other work to continue
+            await asyncio.sleep(0)

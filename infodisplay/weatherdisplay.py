@@ -29,16 +29,16 @@ class WeatherDisplay:
     async def start(self):
         while True:
             await self.fetch_weather_data()
-            self.update()
+            await self.update()
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
         return True
 
-    def activate(self, new_active):
+    async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            await self.update()
     
     
     async def fetch_weather_data(self):
@@ -115,64 +115,66 @@ class WeatherDisplay:
             return
     
         
-    def update(self):
+    async def update(self):
         if self.is_active == False:
             return
         
         start_update_ms = utime.ticks_ms()
-        self.__update()
+        await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         print(f"WeatherDisplay: {update_time_ms}ms")
     
-    def __update(self):
+    async def __update(self):
         if len(self.weather_data) == 0:
             return
         
         y_start = 70
-        
-        palette = []        
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x0000, True)
-        
+
+        palette = []
+
         day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-        
+
         # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
         num_days = len(self.weather_data) // 4
-        
+
         day_row_y = y_start
         icon_row_y = day_row_y + 15
         max_row_y = icon_row_y + 54
         min_row_y = max_row_y + 32
         rain_row_y = min_row_y + 32
-               
+
         for i in range(num_days):
             data_index = i * 4
             if data_index + 3 >= len(self.weather_data):
                 break
-                
+
             weather_code = self.weather_data[data_index]
             max_temperature = self.weather_data[data_index + 1]
             min_temperature = self.weather_data[data_index + 2]
             rain = self.weather_data[data_index + 3]
-            
+
             # Calculate column position and width to fill the screen evenly
             sx = (i * self.display_width) // num_days
             next_sx = ((i + 1) * self.display_width) // num_days
             column_width = next_sx - sx
-            
+
+            # Clear this column
+            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x0000, True)
+
             # Get current day of week (0 = Monday, 6 = Sunday)
             # Use utime to get current time and calculate day of week
             now = utime.localtime()
             # Calculate day of week (0 = Monday) and increment for each column
             day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
-            
+
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
                 day_pen = 0xCE7A
             else:
                 day_pen = 0xFFFF
-            
+
             height = 2 * 8
             textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')
-            
+
             icon = self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, 50)
             # icon is blitted directly; no color state
 
@@ -184,13 +186,16 @@ class WeatherDisplay:
 
             height = 2 * 8
             textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, height, color=colors.get_color_for_temperature(max_temperature), font='small')
-            
+
             height = 2 * 8
             textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, height, color=colors.get_color_for_temperature(min_temperature), font='small')
-            
+
             rain_color = colors.get_color_for_rain_percentage(rain)
             height = 2 * 8
             textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
 
-        # Render only the weather region (below the time/temperature displays)
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
+            # Update just this column
+            self.display.update((sx, y_start, column_width, self.display_height - y_start))
+
+            # Allow other work to continue
+            await asyncio.sleep(0)

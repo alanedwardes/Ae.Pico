@@ -12,7 +12,7 @@ class DisplaySwitcher:
                  
     async def start(self):
         for service in self.services:
-            self.provider[service].activate(False)
+            await self.provider[service].activate(False)
 
         bus = self.provider.get('libraries.eventbus.EventBus') or self.provider.get('eventbus.EventBus')
         focus_queue = None
@@ -28,7 +28,7 @@ class DisplaySwitcher:
                 if hasattr(service, 'should_activate') and not service.should_activate():
                     continue
                 
-                service.activate(True)
+                await service.activate(True)
 
                 if focus_queue is None:
                     if hasattr(asyncio, 'sleep_ms'):
@@ -41,7 +41,7 @@ class DisplaySwitcher:
                         timeout_seconds = self.time_ms / 1000
                         ev = await asyncio.wait_for(focus_queue.get(), timeout_seconds)
                         print(f"DisplaySwitcher: Focus requested, switching to {ev.data.get('instance', 'unknown')}")
-                        service.activate(False)
+                        await service.activate(False)
                         
                         # Handle focus request
                         target_instance = ev.data.get('instance') if isinstance(ev.data, dict) else None
@@ -61,14 +61,14 @@ class DisplaySwitcher:
 
                         if target is not None:
                             print(f"DisplaySwitcher: Activating target display: {target}")
-                            target.activate(True)
+                            await target.activate(True)
                             try:
                                 # Show focused display for hold_ms, allow chaining
                                 while True:
                                     try:
                                         hold_seconds = hold_ms / 1000
                                         ev2 = await asyncio.wait_for(focus_queue.get(), hold_seconds)
-                                        target.activate(False)
+                                        await target.activate(False)
                                         # Chain to next focus request
                                         target_instance = ev2.data.get('instance') if isinstance(ev2.data, dict) else None
                                         target_service = ev2.data.get('service') if isinstance(ev2.data, dict) else None
@@ -86,13 +86,13 @@ class DisplaySwitcher:
                                         # Hold time expired, exit focus mode
                                         break
                             finally:
-                                target.activate(False)
+                                await target.activate(False)
                         continue
                     except asyncio.TimeoutError:
                         # Normal timeout, continue rotation
                         pass
                         
-                service.activate(False)
+                await service.activate(False)
 
         if cancel_focus_stream is not None:
             cancel_focus_stream()
