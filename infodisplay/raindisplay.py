@@ -291,15 +291,14 @@ class RainDisplay:
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
             textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
 
-            # Draw chart segment for this column
-            # We need to draw the chart segments that fall within this column
-            chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
-                                       self._r_values, self._normalized_r, rain_color_fn)
-            chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
-                                       self._r_values, self._normalized_r, rain_color_fn, radius=2)
+        # Draw chart segment for this column
+        # We need to draw the chart segments that fall within this column
+        chart.draw_segmented_area(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+                                    self._r_values, self._normalized_r, rain_color_fn)
+        await asyncio.sleep(0)
 
-            # Update just this column
-            self.display.update((sx, y_start, column_width, self.display_height - y_start))
+        chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+                                    self._r_values, self._normalized_r, rain_color_fn, radius=2)
+        await asyncio.sleep(0)
 
-            # Allow other work to continue
-            await asyncio.sleep(0)
+        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
