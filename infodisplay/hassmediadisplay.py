@@ -79,7 +79,7 @@ class HassMediaDisplay:
 
     async def update(self):
         start_fetch_ms = utime.ticks_ms()
-        await self.__update()
+        await asyncio.wait_for(self.__update(), timeout=5)
         fetch_time_ms = utime.ticks_diff(utime.ticks_ms(), start_fetch_ms)
         print(f"HassMediaDisplay: {fetch_time_ms}ms")
 
