@@ -64,48 +64,26 @@ class HassMediaDisplay:
                 'instance': self,
                 'hold_ms': 5000  # Show for 5 seconds when media starts
             })
-        
-        # Always call update when entity changes
-        self.update()
     
     async def start(self):
-        # Subscribe to the media entity
         await self.hass.subscribe([self.entity_id], self.entity_updated)
-        # Wait indefinitely for entity updates
         await asyncio.Event().wait()
     
     def should_activate(self):
-        if not self.entity:
-            return False
-        
-        # Check if media is playing and has an image
-        state = self.entity.get('s', '')
-        attributes = self.entity.get('a', {})
-        entity_picture = attributes.get('entity_picture_local') or attributes.get('entity_picture')
-        
-        return state == 'playing' and entity_picture is not None
+        return self.current_image_url is not None
 
     async def activate(self, new_active):
         self.is_active = new_active
         if self.is_active:
-            self.update()
+            await self.update()
 
-    def update(self):
-        if not self.is_active:
-            return
-        
-        asyncio.create_task(self.fetch_framebuffer())
-    
-    async def fetch_framebuffer(self):
-        if not self.current_image_url:
-            return
-            
+    async def update(self):
         start_fetch_ms = utime.ticks_ms()
-        await self.__fetch_framebuffer()
+        await self.__update()
         fetch_time_ms = utime.ticks_diff(utime.ticks_ms(), start_fetch_ms)
         print(f"HassMediaDisplay: {fetch_time_ms}ms")
 
-    async def __fetch_framebuffer(self):
+    async def __update(self):
         # Construct the background converter URL with the image source
         converter_url = f"{self.background_converter}{self.current_image_url}"
         

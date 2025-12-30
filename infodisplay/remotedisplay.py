@@ -34,10 +34,7 @@ class RemoteDisplay:
 
     async def update(self):
         start_fetch_ms = utime.ticks_ms()
-        try:
-            await self.__update()
-        except Exception as e:
-            print(f"Error streaming framebuffer data: {e}")
+        await self.__update()
         fetch_time_ms = utime.ticks_diff(utime.ticks_ms(), start_fetch_ms)
         print(f"RemoteDisplay: {fetch_time_ms}ms")
 
