@@ -81,6 +81,10 @@ class WeatherDisplay:
             writer.close()
             await writer.wait_closed()
 
+            # Clean up after HTTP request
+            import gc
+            gc.collect()
+
             print(f"Weather data fetched: {len(self.weather_data)} data points")
             for i in range(0, len(self.weather_data), 4):
                 if i + 3 < len(self.weather_data):

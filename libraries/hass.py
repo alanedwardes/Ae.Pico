@@ -7,11 +7,19 @@ import asyncio
 from httpstream import parse_url
 
 class Hass:
-    
+
     def __init__(self, endpoint, token, keep_alive = False):
         self.uri = parse_url(endpoint)
         self.token = token
         self.keep_alive = keep_alive
+
+        # Pre-allocate commonly used header strings to reduce memory allocations
+        self._hostname_bytes = self.uri.hostname.encode('utf-8')
+        self._path_bytes = self.uri.path.encode('utf-8')
+        self._token_bytes = self.token.encode('utf-8')
+        self._host_header = b'Host: %s\r\n' % self._hostname_bytes
+        self._auth_header = b'Authorization: Bearer %s\r\n' % self._token_bytes
+        self._json_content_type = b'Content-Type: application/json; charset=utf-8\r\n'
         
     def create(provider):
         config = provider['config']['hass']
@@ -66,8 +74,13 @@ class Hass:
         content = await reader.readexactly(content_length)
         writer.close()
         await writer.wait_closed()
-        
+
         print(content)
+
+        # Clean up after HTTP request
+        import gc
+        gc.collect()
+
         return content
     
     async def post_event(self, event_type, payload):
@@ -83,19 +96,24 @@ class Hass:
         content = await reader.readexactly(content_length)
         writer.close()
         await writer.wait_closed()
-        
+
         print(content)
+
+        # Clean up after HTTP request
+        import gc
+        gc.collect()
+
         return content
     
     def write_protocol(self, writer, method, path):
-        writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self.uri.path.encode('utf-8'), path))
-        writer.write(b'Host: %s\r\n' % self.uri.hostname.encode('utf-8'))
+        writer.write(b'%s %sapi%s HTTP/1.0\r\n' % (method, self._path_bytes, path))
+        writer.write(self._host_header)
 
     def write_auth_header(self, writer):
-        writer.write(b'Authorization: Bearer %s\r\n' % self.token.encode('utf-8'))
+        writer.write(self._auth_header)
 
     def write_json_content_type_header(self, writer):
-        writer.write(b'Content-Type: application/json; charset=utf-8\r\n')
+        writer.write(self._json_content_type)
 
     def write_content(self, writer, content):
         writer.write(b'Content-Length: %i\r\n' % len(content))
@@ -135,6 +153,10 @@ class Hass:
         content = await reader.readexactly(content_length)
         writer.close()
         await writer.wait_closed()
+
+        # Clean up after HTTP request
+        import gc
+        gc.collect()
 
         return content
 

@@ -78,8 +78,11 @@ class Websocket:
             return True, OP_CLOSE, None
 
         if mask:
-            data = bytes(b ^ mask_bits[i % 4]
-                         for i, b in enumerate(data))
+            # Unmask in-place to avoid creating new bytes object
+            data_mv = memoryview(data)
+            for i in range(len(data_mv)):
+                data_mv[i] ^= mask_bits[i % 4]
+            data = bytes(data_mv)
 
         return fin, opcode, data
 

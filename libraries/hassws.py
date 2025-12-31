@@ -49,14 +49,14 @@ class HassWs:
         self._reset()
     
     async def _process_message(self):
-        message = await self.socket.recv()        
+        message = await self.socket.recv()
         if message is None:
             return
-        
+
         message = json.loads(message)
         message_type = message.get('type')
         self.last_message_time = utime.ticks_ms()
-        
+
         if message_type == 'auth_required':
             await self._authenticate()
         elif message_type == 'auth_invalid':
@@ -72,6 +72,10 @@ class HassWs:
             pass
         else:
             raise Exception("Unknown message: %s" % message)
+
+        # Clean up temporary objects after processing message
+        import gc
+        gc.collect()
     
     def _reset(self):
         self.socket = None

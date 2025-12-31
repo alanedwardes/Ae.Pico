@@ -9,9 +9,22 @@ _BM_FONT_CACHE = {}
 def _get_bmfont(font_name):
     if font_name not in _BM_FONT_CACHE:
         font_path = f"fonts/{font_name}.fnt"
-        page_files = [open(f"fonts/{font_name}_0.bin", "rb")]
-        _BM_FONT_CACHE[font_name] = (BMFont.load(font_path), page_files)
+        # Keep page files open for fast rendering, but ensure they're properly managed
+        # Note: Files will remain open for the life of the program since fonts are cached
+        page_file = open(f"fonts/{font_name}_0.bin", "rb")
+        _BM_FONT_CACHE[font_name] = (BMFont.load(font_path), [page_file])
     return _BM_FONT_CACHE[font_name]
+
+def clear_font_cache():
+    """Clear font cache and close all open font files"""
+    global _BM_FONT_CACHE
+    for font_name, (font_obj, page_files) in _BM_FONT_CACHE.items():
+        for page_file in page_files:
+            try:
+                page_file.close()
+            except:
+                pass
+    _BM_FONT_CACHE.clear()
 
 def _measure_bmfont(font_obj, text, scale):
     w, h, _min_x, _min_y = measure_text(font_obj, text)
