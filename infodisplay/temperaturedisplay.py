@@ -3,6 +3,7 @@ import textbox
 import math
 import utime
 import asyncio
+import gc
 
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
@@ -55,9 +56,11 @@ class TemperatureDisplay:
         
     def update(self):
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"TemperatureDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"TemperatureDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     def __update(self):
         if len(self.temperature_data) < 3:

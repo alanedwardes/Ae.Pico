@@ -1,5 +1,6 @@
 import asyncio
 import utime
+import gc
 import chart
 import colors
 import re
@@ -188,9 +189,11 @@ class RainDisplay:
             return
 
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"RainDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"RainDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     async def __update(self):
         if len(self.weather_data) == 0:

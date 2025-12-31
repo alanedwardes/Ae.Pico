@@ -1,5 +1,6 @@
 import asyncio
 import utime
+import gc
 
 from httpstream import parse_url, stream_reader_to_buffer
 
@@ -79,9 +80,11 @@ class HassMediaDisplay:
 
     async def update(self):
         start_fetch_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         await asyncio.wait_for(self.__update(), timeout=5)
         fetch_time_ms = utime.ticks_diff(utime.ticks_ms(), start_fetch_ms)
-        print(f"HassMediaDisplay: {fetch_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"HassMediaDisplay: {fetch_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     async def __update(self):
         # Construct the background converter URL with the image source

@@ -1,6 +1,7 @@
 import utime
 import colors
 import asyncio
+import gc
 import textbox
 
 class InfoDisplay:
@@ -76,9 +77,11 @@ class InfoDisplay:
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"InfoDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"InfoDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     def __update(self):
         self.white = 0xFFFF

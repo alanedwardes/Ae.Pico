@@ -1,6 +1,7 @@
 import math
 import utime
 import asyncio
+import gc
 from array import array
 
 WIDTH = 320
@@ -106,6 +107,7 @@ class MeshDisplay:
 
     def update(self):
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         # Clear with black
         self.display.fill(0x0000)
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
@@ -113,4 +115,5 @@ class MeshDisplay:
         # Render full screen for mesh display
         self.display.update((0, 0, self.display_width, self.display_height))
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"MeshDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"MeshDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")

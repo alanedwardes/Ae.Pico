@@ -11,6 +11,7 @@ except ImportError:
 
 import utime
 import asyncio
+import gc
 import textbox
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
@@ -142,9 +143,11 @@ class TrainDisplay:
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         await self.__update()
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"TrainDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"TrainDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""

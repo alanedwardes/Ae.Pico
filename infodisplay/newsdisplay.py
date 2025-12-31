@@ -1,5 +1,6 @@
 import utime
 import asyncio
+import gc
 import textbox
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
@@ -62,13 +63,14 @@ class NewsDisplay:
         if self.is_active == False:
             return
         start_update_ms = utime.ticks_ms()
-        
+        mem_before = gc.mem_alloc()
+
         stories = self.get_stories()
-            
+
         y_offset = 70
-        
+
         self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x0000, True)
-        
+
         try:
             story = stories[self.story_index]
         except IndexError:
@@ -81,4 +83,5 @@ class NewsDisplay:
         # Render only the news display region (below the time/temperature displays)
         self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"NewsDisplay: {update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"NewsDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")

@@ -1,6 +1,7 @@
 import math
 import utime
 import asyncio
+import gc
 import textbox
 
 class TimeDisplay:
@@ -38,11 +39,13 @@ class TimeDisplay:
             sleep_ms = max(min(1000 - self.rtc.datetime()[7], 1000), 0)
             await asyncio.sleep(sleep_ms / 1000)
 
-    def update(self):      
+    def update(self):
         start_update_ms = utime.ticks_ms()
+        mem_before = gc.mem_alloc()
         self.__update()
         self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        print(f"TimeDisplay: {self.last_update_time_ms}ms")
+        mem_after = gc.mem_alloc()
+        print(f"TimeDisplay: {self.last_update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     def __update(self):
         # Layout constants
