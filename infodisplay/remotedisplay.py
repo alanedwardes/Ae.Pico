@@ -2,7 +2,7 @@ import asyncio
 import utime
 import socket
 
-from httpstream import parse_url, stream_reader_to_buffer
+from httpstream import HttpRequest, stream_reader_to_buffer
 
 class RemoteDisplay:
     def __init__(self, display, url, refresh_period=1, start_offset=0):
@@ -13,6 +13,9 @@ class RemoteDisplay:
         self.is_active = False
 
         self.display_width, self.display_height = self.display.get_bounds()
+
+        # Pre-allocate HTTP request helper
+        self._http_request = HttpRequest(url)
 
     CREATION_PRIORITY = 1
     def create(provider):
@@ -39,35 +42,9 @@ class RemoteDisplay:
         print(f"RemoteDisplay: {fetch_time_ms}ms")
 
     async def __update(self):
-        url = self.url
-        uri = parse_url(url)
-        host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-        
-        reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-        
-        # Write HTTP request
-        writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-        writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-        writer.write(b'\r\n')
-        await writer.drain()
-        
-        # Read response status
-        line = await reader.readline()
-        status = line.split(b' ', 2)
-        status_code = int(status[1])
-        
-        if status_code != 200:
-            print(f"Failed to fetch framebuffer data: HTTP {status_code}")
-            writer.close()
-            await writer.wait_closed()
-            return
-        
-        # Skip headers
-        while True:
-            line = await reader.readline()
-            if line == b'\r\n':
-                break
-        
+        # Use unified HTTP request helper
+        reader, writer = await self._http_request.get()
+
         # Check if still active before reading into framebuffer
         if not self.is_active:
             writer.close()
@@ -82,6 +59,10 @@ class RemoteDisplay:
         
         writer.close()
         await writer.wait_closed()
+
+        # Clean up after HTTP request
+        import gc
+        gc.collect()
 
         # Tell display to update the screen (only the region we wrote to)
         # start_offset is in bytes, RGB565 uses 2 bytes per pixel

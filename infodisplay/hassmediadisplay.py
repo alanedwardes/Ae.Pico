@@ -86,36 +86,14 @@ class HassMediaDisplay:
     async def __update(self):
         # Construct the background converter URL with the image source
         converter_url = f"{self.background_converter}{self.current_image_url}"
-        
+
         print(f"HassMediaDisplay: {converter_url}")
-        uri = parse_url(converter_url)
-        host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-        
-        reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-        
-        # Write HTTP request
-        writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-        writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-        writer.write(b'\r\n')
-        await writer.drain()
-        
-        # Read response status
-        line = await reader.readline()
-        status = line.split(b' ', 2)
-        status_code = int(status[1])
-        
-        if status_code != 200:
-            print(f"Failed to fetch framebuffer data: HTTP {status_code}")
-            writer.close()
-            await writer.wait_closed()
-            return
-        
-        # Skip headers
-        while True:
-            line = await reader.readline()
-            if line == b'\r\n':
-                break
-        
+
+        # Use HttpRequest for dynamic URL (creates temporary instance)
+        from httpstream import HttpRequest
+        http_request = HttpRequest(converter_url)
+        reader, writer = await http_request.get()
+
         # Check if still active before reading into framebuffer
         if not self.is_active:
             writer.close()
@@ -130,6 +108,10 @@ class HassMediaDisplay:
         
         writer.close()
         await writer.wait_closed()
+
+        # Clean up after HTTP request
+        import gc
+        gc.collect()
 
         # Tell display to update the screen (only the region we wrote to)
         # start_offset is in bytes, RGB565 uses 2 bytes per pixel

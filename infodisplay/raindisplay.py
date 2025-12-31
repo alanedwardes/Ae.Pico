@@ -4,7 +4,7 @@ import chart
 import colors
 import re
 import textbox
-from httpstream import parse_url
+from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
 def rain_color_fn(idx, value):
@@ -48,6 +48,9 @@ class RainDisplay:
         self._normalized_r = []
         self._beaufort_values = []
         self._rate_ints = []
+
+        # Pre-allocate HTTP request helper
+        self._http_request = HttpRequest(url)
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -95,35 +98,9 @@ class RainDisplay:
     
     
     async def fetch_weather_data(self):
-        try:               
-            url = self.url
-            uri = parse_url(url)
-            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-            
-            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-            
-            # Write HTTP request
-            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-            writer.write(b'\r\n')
-            await writer.drain()
-            
-            # Read response
-            line = await reader.readline()
-            status = line.split(b' ', 2)
-            status_code = int(status[1])
-            
-            if status_code != 200:
-                print(f"Failed to fetch weather data: {status_code}")
-                writer.close()
-                await writer.wait_closed()
-                return
-            
-            # Skip headers
-            while True:
-                line = await reader.readline()
-                if line == b'\r\n':
-                    break
+        try:
+            # Use unified HTTP request helper
+            reader, writer = await self._http_request.get()
 
             # Stream parse JSON array without buffering entire response
             # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
@@ -154,6 +131,11 @@ class RainDisplay:
 
             writer.close()
             await writer.wait_closed()
+
+            # Clean up after HTTP request
+            import gc
+            gc.collect()
+
             # Precompute and cache arrays for rendering
             # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
             num_hours = len(self.weather_data) // 4

@@ -73,14 +73,90 @@ def parse_url(url):
     
     return URI(host, port, path, secure, protocol)
 
+class HttpRequest:
+    """
+    Memory-efficient HTTP request helper that pre-allocates headers.
+    Reduces memory fragmentation by caching encoded strings.
+    """
+
+    def __init__(self, url, headers=None):
+        """
+        Initialize HTTP request helper.
+
+        Args:
+            url (str): The URL to request
+            headers (dict, optional): Additional headers as key-value pairs
+        """
+        self.uri = parse_url(url)
+
+        # Pre-allocate commonly used header strings to reduce allocations
+        self._path_bytes = self.uri.path.encode('utf-8')
+        self._hostname_bytes = self.uri.hostname.encode('utf-8')
+        self._get_line = b'GET %s HTTP/1.0\r\n' % self._path_bytes
+        self._host_header = b'Host: %s\r\n' % self._hostname_bytes
+        self._crlf = b'\r\n'
+
+        # Pre-encode additional headers if provided
+        self._extra_headers = []
+        if headers:
+            for key, value in headers.items():
+                header_line = b'%s: %s\r\n' % (key.encode('utf-8'), value.encode('utf-8'))
+                self._extra_headers.append(header_line)
+
+    async def get(self):
+        """
+        Perform HTTP GET request and return (reader, writer) tuple.
+        Caller is responsible for closing the writer.
+
+        Returns:
+            tuple: (reader, writer) from asyncio.open_connection
+
+        Raises:
+            Exception: If status code is not 200
+        """
+        import asyncio
+
+        reader, writer = await asyncio.open_connection(
+            self.uri.hostname,
+            self.uri.port,
+            ssl=self.uri.secure
+        )
+
+        # Write pre-allocated headers
+        writer.write(self._get_line)
+        writer.write(self._host_header)
+        for header in self._extra_headers:
+            writer.write(header)
+        writer.write(self._crlf)
+        await writer.drain()
+
+        # Read and check status
+        line = await reader.readline()
+        status = line.split(b' ', 2)
+        status_code = int(status[1])
+
+        if status_code != 200:
+            writer.close()
+            await writer.wait_closed()
+            raise Exception(f"HTTP {status_code}")
+
+        # Skip headers until blank line
+        while True:
+            line = await reader.readline()
+            if line == b'\r\n':
+                break
+
+        return reader, writer
+
+
 async def stream_reader_to_buffer(reader, framebuffer):
     """
     Stream data from a reader directly into a framebuffer.
-    
+
     Args:
         reader: The async reader to read from
         framebuffer (memoryview): The framebuffer to stream data into
-        
+
     Returns:
         int: Number of bytes read
     """

@@ -1,7 +1,7 @@
 import utime
 import asyncio
 import textbox
-from httpstream import parse_url
+from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
 class NewsDisplay:
@@ -10,8 +10,11 @@ class NewsDisplay:
         self.url = url
         self.is_active = True
         self.stories = []
-        self.display_width, self.display_height = self.display.get_bounds()        
+        self.display_width, self.display_height = self.display.get_bounds()
         self.story_index = 0
+
+        # Pre-allocate HTTP request helper
+        self._http_request = HttpRequest(url)
 
     CREATION_PRIORITY = 1
     def create(provider):
@@ -35,34 +38,8 @@ class NewsDisplay:
     
     async def fetch_news_data(self):
         try:
-            url = self.url
-            uri = parse_url(url)
-            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-            
-            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-            
-            # Write HTTP request
-            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-            writer.write(b'\r\n')
-            await writer.drain()
-            
-            # Read response
-            line = await reader.readline()
-            status = line.split(b' ', 2)
-            status_code = int(status[1])
-            
-            if status_code != 200:
-                print(f"Failed to fetch news data: {status_code}")
-                writer.close()
-                await writer.wait_closed()
-                return
-            
-            # Skip headers
-            while True:
-                line = await reader.readline()
-                if line == b'\r\n':
-                    break
+            # Use unified HTTP request helper
+            reader, writer = await self._http_request.get()
 
             # Stream parse JSON array without buffering entire response
             self.stories = []
@@ -72,8 +49,12 @@ class NewsDisplay:
             writer.close()
             await writer.wait_closed()
 
+            # Clean up after HTTP request
+            import gc
+            gc.collect()
+
             print(f"News data fetched: {len(self.stories)} stories")
-                
+
         except Exception as e:
             print(f"Error fetching news data: {e}")
 

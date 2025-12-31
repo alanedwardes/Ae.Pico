@@ -5,7 +5,7 @@ import struct
 import textbox
 from bitblt import blit_region
 
-from httpstream import parse_url
+from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
 class WeatherDisplay:
@@ -17,6 +17,9 @@ class WeatherDisplay:
         self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
+
+        # Pre-allocate HTTP request helper to reduce memory allocations
+        self._http_request = HttpRequest(url)
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -42,35 +45,9 @@ class WeatherDisplay:
     
     
     async def fetch_weather_data(self):
-        try:               
-            url = self.url
-            uri = parse_url(url)
-            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-            
-            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-            
-            # Write HTTP request
-            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-            writer.write(b'\r\n')
-            await writer.drain()
-            
-            # Read response
-            line = await reader.readline()
-            status = line.split(b' ', 2)
-            status_code = int(status[1])
-            
-            if status_code != 200:
-                print(f"Failed to fetch weather data: {status_code}")
-                writer.close()
-                await writer.wait_closed()
-                return
-            
-            # Skip headers
-            while True:
-                line = await reader.readline()
-                if line == b'\r\n':
-                    break
+        try:
+            # Use unified HTTP request helper
+            reader, writer = await self._http_request.get()
 
             # Stream parse JSON array without buffering entire response
             # Format: [code, max_temp, min_temp, rain, code, max_temp, min_temp, rain, ...]
@@ -93,7 +70,7 @@ class WeatherDisplay:
                     min_temp = self.weather_data[i + 2]
                     rain = self.weather_data[i + 3]
                     print(f"  Day {i//4}: Code {code}, Max {max_temp}°C, Min {min_temp}°C, Rain {rain}%")
-                
+
         except Exception as e:
             print(f"Error fetching weather data: {e}")
     

@@ -26,6 +26,9 @@ class FlatJsonParser:
         self.pos = 0
         self.started = False
         self.finished = False
+        # Pre-allocate reusable buffers to reduce allocations
+        self._string_buf = bytearray(256)  # For parsing strings
+        self._number_buf = bytearray(32)   # For parsing numbers
 
     async def _read_byte(self):
         """Read a single byte, buffering if necessary."""
@@ -51,7 +54,8 @@ class FlatJsonParser:
 
     async def _parse_string(self):
         """Parse a JSON string. Assumes opening quote already consumed."""
-        result = bytearray()
+        # Reuse pre-allocated buffer
+        result_len = 0
         escaped = False
 
         while True:
@@ -62,59 +66,80 @@ class FlatJsonParser:
             if escaped:
                 # Handle escape sequences
                 if b == ord('n'):
-                    result.append(ord('\n'))
+                    char_byte = ord('\n')
                 elif b == ord('t'):
-                    result.append(ord('\t'))
+                    char_byte = ord('\t')
                 elif b == ord('r'):
-                    result.append(ord('\r'))
+                    char_byte = ord('\r')
                 elif b == ord('b'):
-                    result.append(ord('\b'))
+                    char_byte = ord('\b')
                 elif b == ord('f'):
-                    result.append(ord('\f'))
+                    char_byte = ord('\f')
                 elif b == ord('"'):
-                    result.append(ord('"'))
+                    char_byte = ord('"')
                 elif b == ord('\\'):
-                    result.append(ord('\\'))
+                    char_byte = ord('\\')
                 elif b == ord('/'):
-                    result.append(ord('/'))
+                    char_byte = ord('/')
                 elif b == ord('u'):
                     # Unicode escape - read 4 hex digits
-                    hex_chars = bytearray()
-                    for _ in range(4):
+                    hex_chars = bytearray(4)
+                    for i in range(4):
                         hb = await self._read_byte()
                         if hb is None:
                             raise ValueError("Unexpected end in unicode escape")
-                        hex_chars.append(hb)
+                        hex_chars[i] = hb
                     # Convert hex to int and then to UTF-8
                     try:
                         code_point = int(hex_chars.decode('ascii'), 16)
                         # Simple UTF-8 encoding for common range
                         if code_point < 0x80:
-                            result.append(code_point)
+                            if result_len >= len(self._string_buf):
+                                self._string_buf.extend(bytearray(256))
+                            self._string_buf[result_len] = code_point
+                            result_len += 1
                         elif code_point < 0x800:
-                            result.append(0xC0 | (code_point >> 6))
-                            result.append(0x80 | (code_point & 0x3F))
+                            if result_len + 2 >= len(self._string_buf):
+                                self._string_buf.extend(bytearray(256))
+                            self._string_buf[result_len] = 0xC0 | (code_point >> 6)
+                            self._string_buf[result_len + 1] = 0x80 | (code_point & 0x3F)
+                            result_len += 2
                         else:
-                            result.append(0xE0 | (code_point >> 12))
-                            result.append(0x80 | ((code_point >> 6) & 0x3F))
-                            result.append(0x80 | (code_point & 0x3F))
+                            if result_len + 3 >= len(self._string_buf):
+                                self._string_buf.extend(bytearray(256))
+                            self._string_buf[result_len] = 0xE0 | (code_point >> 12)
+                            self._string_buf[result_len + 1] = 0x80 | ((code_point >> 6) & 0x3F)
+                            self._string_buf[result_len + 2] = 0x80 | (code_point & 0x3F)
+                            result_len += 3
                     except:
                         raise ValueError("Invalid unicode escape")
+                    escaped = False
+                    continue
                 else:
                     # Unknown escape, keep as-is
-                    result.append(b)
+                    char_byte = b
+
+                if result_len >= len(self._string_buf):
+                    self._string_buf.extend(bytearray(256))
+                self._string_buf[result_len] = char_byte
+                result_len += 1
                 escaped = False
             elif b == ord('\\'):
                 escaped = True
             elif b == ord('"'):
-                # End of string
-                return result.decode('utf-8')
+                # End of string - decode only the used portion
+                return memoryview(self._string_buf)[:result_len].tobytes().decode('utf-8')
             else:
-                result.append(b)
+                if result_len >= len(self._string_buf):
+                    self._string_buf.extend(bytearray(256))
+                self._string_buf[result_len] = b
+                result_len += 1
 
     async def _parse_number(self, first_byte):
         """Parse a JSON number. First byte already read."""
-        num_bytes = bytearray([first_byte])
+        # Reuse pre-allocated number buffer
+        self._number_buf[0] = first_byte
+        num_len = 1
 
         while True:
             b = await self._read_byte()
@@ -123,13 +148,17 @@ class FlatJsonParser:
 
             # Number characters: 0-9, -, +, ., e, E
             if b in (0x2D, 0x2B, 0x2E, 0x45, 0x65) or (0x30 <= b <= 0x39):
-                num_bytes.append(b)
+                if num_len >= len(self._number_buf):
+                    self._number_buf.extend(bytearray(16))
+                self._number_buf[num_len] = b
+                num_len += 1
             else:
                 # Put byte back by moving position back
                 self.pos -= 1
                 break
 
-        num_str = num_bytes.decode('ascii')
+        # Decode only the used portion
+        num_str = memoryview(self._number_buf)[:num_len].tobytes().decode('ascii')
 
         # Parse as int or float
         if '.' in num_str or 'e' in num_str or 'E' in num_str:

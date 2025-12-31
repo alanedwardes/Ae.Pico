@@ -12,7 +12,7 @@ except ImportError:
 import utime
 import asyncio
 import textbox
-from httpstream import parse_url
+from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
 # Define Departure named tuple for memory efficiency
@@ -113,6 +113,9 @@ class TrainDisplay:
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.departures_last_updated = utime.ticks_ms()
+
+        # Pre-allocate HTTP request helper
+        self._http_request = HttpRequest(url)
    
     CREATION_PRIORITY = 1
     def create(provider):
@@ -193,33 +196,8 @@ class TrainDisplay:
     
     async def fetch_departures(self):
         try:
-            uri = parse_url(self.url)
-            host, port, path, secure = uri.hostname, uri.port, uri.path, uri.secure
-            
-            reader, writer = await asyncio.open_connection(host, port, ssl=secure)
-            
-            # Write HTTP request
-            writer.write(f'GET {path} HTTP/1.0\r\n'.encode('utf-8'))
-            writer.write(f'Host: {host}\r\n'.encode('utf-8'))
-            writer.write(b'\r\n')
-            await writer.drain()
-            
-            # Read response
-            line = await reader.readline()
-            status = line.split(b' ', 2)
-            status_code = int(status[1])
-            
-            if status_code != 200:
-                print(f"Failed to fetch train data: {status_code}")
-                writer.close()
-                await writer.wait_closed()
-                return
-            
-            # Skip headers
-            while True:
-                line = await reader.readline()
-                if line == b'\r\n':
-                    break
+            # Use unified HTTP request helper
+            reader, writer = await self._http_request.get()
 
             # Stream parse JSON array without buffering entire response
             # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
@@ -271,11 +249,15 @@ class TrainDisplay:
             writer.close()
             await writer.wait_closed()
 
+            # Clean up after HTTP request
+            import gc
+            gc.collect()
+
             self.departures_last_updated = utime.ticks_ms()
             # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
             num_departures = len(self.departures) // 7
             print(f"Train data fetched: {num_departures} departures")
-            
+
         except Exception as e:
             print(f"Error fetching train data: {e}")
     
