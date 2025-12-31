@@ -41,7 +41,7 @@ if [[ "${BUNDLE_NAME}" != "entry" ]]; then
   for file in "$WORKDIR"/*.py; do
     [ -f "$file" ] || continue
     echo "  Compiling $(basename "$file")..."
-    python -m mpy_cross "$file"
+    python -m mpy_cross -march=armv6m "$file"
     rm "$file"  # Remove the .py file after successful compilation
   done
 fi
