@@ -48,27 +48,25 @@ class RemoteDisplay:
         # Use unified HTTP request helper
         reader, writer = await self._http_request.get()
 
-        # Check if still active before reading into framebuffer
-        if not self.is_active:
+        try:
+            # Check if still active before reading into framebuffer
+            if not self.is_active:
+                return
+
+            # Get direct access to the display framebuffer with offset
+            framebuffer = memoryview(self.display)[self.start_offset:]
+
+            # Stream data directly into framebuffer using shared method
+            await stream_reader_to_buffer(reader, framebuffer)
+
+            # Tell display to update the screen (only the region we wrote to)
+            # start_offset is in bytes, RGB565 uses 2 bytes per pixel
+            y_offset = (self.start_offset // 2) // self.display_width
+            height = self.display_height - y_offset
+            self.display.update((0, y_offset, self.display_width, height))
+        finally:
             writer.close()
             await writer.wait_closed()
-            return
-        
-        # Get direct access to the display framebuffer with offset
-        framebuffer = memoryview(self.display)[self.start_offset:]
-        
-        # Stream data directly into framebuffer using shared method
-        await stream_reader_to_buffer(reader, framebuffer)
-        
-        writer.close()
-        await writer.wait_closed()
 
-        # Clean up after HTTP request
-        import gc
-        gc.collect()
-
-        # Tell display to update the screen (only the region we wrote to)
-        # start_offset is in bytes, RGB565 uses 2 bytes per pixel
-        y_offset = (self.start_offset // 2) // self.display_width
-        height = self.display_height - y_offset
-        self.display.update((0, y_offset, self.display_width, height))
+            # Clean up after HTTP request
+            gc.collect()
