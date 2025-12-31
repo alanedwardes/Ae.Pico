@@ -5,6 +5,7 @@ import chart
 import colors
 import re
 import textbox
+import random
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
@@ -62,6 +63,7 @@ class RainDisplay:
         pass  # No longer using Home Assistant entities
     
     async def start(self):
+        await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_weather_data()
             await self.update()

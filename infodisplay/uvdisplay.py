@@ -4,6 +4,7 @@ import gc
 import chart
 import colors
 import textbox
+import random
 
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
@@ -27,9 +28,9 @@ class UvDisplay:
         return UvDisplay(provider['display'], provider['config']['uv']['url'], refresh_period)
     
     async def start(self):
+        await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_uv_data()
-            self.update()
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):

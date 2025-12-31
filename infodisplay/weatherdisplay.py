@@ -4,6 +4,7 @@ import gc
 import colors
 import struct
 import textbox
+import random
 from bitblt import blit_region
 
 from httpstream import HttpRequest
@@ -31,9 +32,9 @@ class WeatherDisplay:
         pass  # No longer using Home Assistant entities
     
     async def start(self):
+        await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_weather_data()
-            await self.update()
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):

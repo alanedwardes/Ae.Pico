@@ -2,6 +2,7 @@ import utime
 import asyncio
 import gc
 import textbox
+import random
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
 
@@ -23,9 +24,9 @@ class NewsDisplay:
         return NewsDisplay(provider['display'], config['url'])
     
     async def start(self):
+        await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_news_data()
-            self.update()
             await asyncio.sleep(300) # Fetch every 5 minutes
 
     async def activate(self, new_active):

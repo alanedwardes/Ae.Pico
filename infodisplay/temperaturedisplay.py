@@ -4,6 +4,7 @@ import math
 import utime
 import asyncio
 import gc
+import random
 
 from httpstream import HttpRequest
 from flatjson import parse_flat_json_array
@@ -49,6 +50,7 @@ class TemperatureDisplay:
             print(f"Error fetching temperature data: {e}")
 
     async def start(self):
+        await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_temperature_data()
             self.update()
