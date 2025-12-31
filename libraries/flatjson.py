@@ -128,7 +128,8 @@ class FlatJsonParser:
                 escaped = True
             elif b == ord('"'):
                 # End of string - decode only the used portion
-                return memoryview(self._string_buf)[:result_len].tobytes().decode('utf-8')
+                # MicroPython: convert memoryview to bytes via bytearray
+                return bytes(self._string_buf[:result_len]).decode('utf-8')
             else:
                 if result_len >= len(self._string_buf):
                     self._string_buf.extend(bytearray(256))
@@ -158,7 +159,8 @@ class FlatJsonParser:
                 break
 
         # Decode only the used portion
-        num_str = memoryview(self._number_buf)[:num_len].tobytes().decode('ascii')
+        # MicroPython: convert memoryview to bytes via bytearray
+        num_str = bytes(self._number_buf[:num_len]).decode('ascii')
 
         # Parse as int or float
         if '.' in num_str or 'e' in num_str or 'E' in num_str:
