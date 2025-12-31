@@ -35,15 +35,36 @@ for dir in $DIRS; do
   fi
 done
 
+# Compile .py to .mpy for all bundles except 'entry'
+if [[ "${BUNDLE_NAME}" != "entry" ]]; then
+  echo "Compiling Python files to .mpy format..."
+  for file in "$WORKDIR"/*.py; do
+    [ -f "$file" ] || continue
+    echo "  Compiling $(basename "$file")..."
+    python -m mpy_cross "$file"
+    rm "$file"  # Remove the .py file after successful compilation
+  done
+fi
+
 MANIFEST="$WORKDIR/manifest.txt"
 echo "" >> "$MANIFEST"
 
-for file in "$WORKDIR"/*.py; do
-  [ -f "$file" ] || continue
-  filename="$(basename "$file")"
-  hash="$(sha256sum "$file" | cut -d' ' -f1)"
-  echo "$filename $hash" >> "$MANIFEST"
-done
+# Generate manifest for .py files (entry bundle) or .mpy files (other bundles)
+if [[ "${BUNDLE_NAME}" == "entry" ]]; then
+  for file in "$WORKDIR"/*.py; do
+    [ -f "$file" ] || continue
+    filename="$(basename "$file")"
+    hash="$(sha256sum "$file" | cut -d' ' -f1)"
+    echo "$filename $hash" >> "$MANIFEST"
+  done
+else
+  for file in "$WORKDIR"/*.mpy; do
+    [ -f "$file" ] || continue
+    filename="$(basename "$file")"
+    hash="$(sha256sum "$file" | cut -d' ' -f1)"
+    echo "$filename $hash" >> "$MANIFEST"
+  done
+fi
 
 aws s3 sync "$WORKDIR"/ "s3://ae-pico/$DEST_PREFIX" --delete
 
