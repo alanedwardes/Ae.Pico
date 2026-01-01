@@ -5,8 +5,12 @@ import asyncio
 import utime
 import uos
 import gc
+from micropython import const
 
 HEADER_TERMINATOR = b'\r\n'
+KB = const(1024)
+DUTY_MAX = const(65535)
+DEFAULT_CHUNKSIZE = const(512)
 
 MINIMAL_CSS = b'<style>' \
     b'form{display:inline;}' \
@@ -99,7 +103,7 @@ async def parse_headers(reader):
         
     return (offset, headers)
 
-async def writechunks(reader, length, destination, chunk_processor = None, chunksize = 512):
+async def writechunks(reader, length, destination, chunk_processor = None, chunksize = DEFAULT_CHUNKSIZE):
     remaining = length
     while remaining > 0:
         chunk = await reader.readexactly(min(chunksize, remaining))
@@ -108,7 +112,7 @@ async def writechunks(reader, length, destination, chunk_processor = None, chunk
             chunk = chunk_processor(chunk)
         destination.write(chunk)
 
-async def readchunks(writer, length, source, chunk_processor = None, chunksize = 512):
+async def readchunks(writer, length, source, chunk_processor = None, chunksize = DEFAULT_CHUNKSIZE):
     remaining = length
     while remaining > 0:
         chunk = source.read(min(chunksize, remaining))
@@ -149,9 +153,7 @@ class IndexController:
         def unique_id():
             unique_id = machine.unique_id()
             return ''.join([f"{b:02x}" for b in unique_id])
-        
-        KB = 1024
-        
+
         uname = uos.uname()
         mac = mac_address().encode('utf-8')
         ip = ifconfig[0].encode('utf-8')
@@ -210,7 +212,6 @@ class FilesystemController:
         return b' <form action="filesystem" method="post"><button>Filesystem</button></form>'
     
     async def serve(self, method, path, headers, reader, writer):
-        KB = 1024
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
         writer.write(HEADER_TERMINATOR)
@@ -432,7 +433,6 @@ class PWMController:
         body = await reader.readexactly(content_length)
         pin_number = int(path.split(b'/pwm/')[1])
         pwm = machine.PWM(pin_number)
-        DUTY_MAX = float(65535)
 
         if body:
             form = parse_form(body)
