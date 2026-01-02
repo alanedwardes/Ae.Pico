@@ -251,6 +251,38 @@ class FilesystemController:
         writer.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
         writer.write(BACK_LINK)
 
+class MemoryController:
+    def __init__(self):
+        self.allocated = bytearray()
+
+    def route(self, method, path):
+        return path == b'/memory'
+    
+    def widget(self):
+        return b' <form action="memory" method="post"><button>Memory</button></form>'
+    
+    async def serve(self, method, path, headers, reader, writer):
+        content_length = int(headers.get(b'content-length', '0'))
+        form = parse_form(await reader.readexactly(content_length))
+
+        allocate = int(form.get(b'allocate', '0'))
+        
+        if allocate > 0:
+            self.allocated += bytearray(allocate)
+        
+        if form.get(b'action') == b'reset':
+            self.allocated = bytearray()
+
+        writer.write(OK_STATUS)
+        writer.write(HTML_HEADER)
+        writer.write(HEADER_TERMINATOR)
+        writer.write(MINIMAL_CSS)
+        writer.write(b'<h1>Memory</h1>')
+        writer.write(b'<p>Allocated: %i</p>' % len(self.allocated))
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="2000"/><button>Allocate 2KB</button></form>')
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="reset"/><button>Reset</button></form>')
+        writer.write(BACK_LINK)
+
 class EditController:
     def route(self, method, path):
         return path == b'/edit' or path == b'/new'
@@ -541,7 +573,7 @@ class ManagementServer:
         self.controllers = [IndexController(self), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
                             ResetController(), ShellController(),
-                            GPIOController(), PWMController()]
+                            GPIOController(), PWMController(), MemoryController()]
         self.authorization_header = None
         self.server = None
     
