@@ -38,12 +38,17 @@ done
 # Compile .py to .mpy for all bundles except 'entry'
 if [[ "${BUNDLE_NAME}" != "entry" ]]; then
   echo "Compiling Python files to .mpy format..."
-  for file in "$WORKDIR"/*.py; do
+  # Set SOURCE_DATE_EPOCH for reproducible builds
+  export SOURCE_DATE_EPOCH=0
+  # Change to WORKDIR so only basenames are embedded in .mpy files
+  pushd "$WORKDIR" > /dev/null
+  for file in *.py; do
     [ -f "$file" ] || continue
-    echo "  Compiling $(basename "$file")..."
+    echo "  Compiling $file..."
     python -m mpy_cross -march=armv6m "$file"
     rm "$file"  # Remove the .py file after successful compilation
   done
+  popd > /dev/null
 fi
 
 MANIFEST="$WORKDIR/manifest.txt"
