@@ -9,8 +9,12 @@ import webrepl
 import network
 
 def save_exception(file_name, exception):
-    with open(file_name, 'w') as file:
-        sys.print_exception(exception, file)
+    try:
+        with open(file_name, 'w') as file:
+            sys.print_exception(exception, file)
+    except:
+        print('Unable to write exception to flash')
+        pass
 
 def handle_factory_exception(exception):
     save_exception('factory.log', exception)
