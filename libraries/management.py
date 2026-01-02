@@ -253,7 +253,7 @@ class FilesystemController:
 
 class MemoryController:
     def __init__(self):
-        self.allocated = bytearray()
+        self.allocated = []
 
     def route(self, method, path):
         return path == b'/memory'
@@ -265,13 +265,15 @@ class MemoryController:
         content_length = int(headers.get(b'content-length', '0'))
         form = parse_form(await reader.readexactly(content_length))
 
-        allocate = int(form.get(b'allocate', '0'))
-        
+        allocate = int(form.get(b'allocate', '0'))        
         if allocate > 0:
-            self.allocated += bytearray(allocate)
+            self.allocated.append(bytearray(allocate))
         
         if form.get(b'action') == b'reset':
-            self.allocated = bytearray()
+            self.allocated = []
+
+        if form.get(b'action') == b'collect':
+            gc.collect()
 
         writer.write(OK_STATUS)
         writer.write(HTML_HEADER)
@@ -281,11 +283,21 @@ class MemoryController:
         used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
         free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
         writer.write(b'<p><b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress></p>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
-        writer.write(b'<p><b>Allocated</b> %i</p>' % len(self.allocated))
+
+        total_allocated = 0
+        for allocation in self.allocated:
+            total_allocated += len(allocation)
+
+        writer.write(b'<p><b>Allocated</b> %i</p>' % total_allocated)
+        writer.write(b'<p>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20"/><button>Allocate 20B</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="200"/><button>Allocate 200B</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="2000"/><button>Allocate 2KB</button></form>')
+        writer.write(b'</p>')
+        writer.write(b'<p>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="reset"/><button>Reset</button></form>')
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="collect"/><button>Collect</button></form>')
+        writer.write(b'</p>')
         writer.write(BACK_LINK)
 
 class EditController:
