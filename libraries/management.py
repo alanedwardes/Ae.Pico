@@ -278,7 +278,12 @@ class MemoryController:
         writer.write(HEADER_TERMINATOR)
         writer.write(MINIMAL_CSS)
         writer.write(b'<h1>Memory</h1>')
-        writer.write(b'<p>Allocated: %i</p>' % len(self.allocated))
+        used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
+        free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
+        writer.write(b'<p><b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress></p>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
+        writer.write(b'<p><b>Allocated</b> %i</p>' % len(self.allocated))
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20"/><button>Allocate 20B</button></form>')
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="200"/><button>Allocate 200B</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="2000"/><button>Allocate 2KB</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="reset"/><button>Reset</button></form>')
         writer.write(BACK_LINK)
