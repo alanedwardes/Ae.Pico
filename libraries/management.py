@@ -293,6 +293,7 @@ class MemoryController:
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20"/><button>Allocate 20B</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="200"/><button>Allocate 200B</button></form>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="2000"/><button>Allocate 2KB</button></form>')
+        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20000"/><button>Allocate 20KB</button></form>')
         writer.write(b'</p>')
         writer.write(b'<p>')
         writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="reset"/><button>Reset</button></form>')
