@@ -15,13 +15,10 @@ class TimeDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
         
-        self.last_update_time_ms = 0
-        
         # Cache last-rendered strings to avoid unnecessary redraws
         self._last_time_text = None   # HH:MM
         self._last_day_text = None    # Day-of-week
         self._last_sec_text = None    # SS
-        
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -34,18 +31,10 @@ class TimeDisplay:
     
     async def start(self):
         while True:
-            self.update()
+            self.__update()
             # Assume subseconds component of RTC means milliseconds
             sleep_ms = max(min(1000 - self.rtc.datetime()[7], 1000), 0)
             await asyncio.sleep(sleep_ms / 1000)
-
-    def update(self):
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
-        self.__update()
-        self.last_update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"TimeDisplay: {self.last_update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     def __update(self):
         # Layout constants
