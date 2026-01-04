@@ -75,10 +75,6 @@ class UvDisplay:
             # Clean up after HTTP request
             import gc
             gc.collect()
-
-            print(f"UV data fetched: {len(self.uv_data)} data points")
-            for hour, uv_value in enumerate(self.uv_data):
-                print(f"  Hour {hour:02d}: UV {uv_value}")
                 
         except Exception as e:
             print(f"Error fetching UV data: {e}")

@@ -61,15 +61,6 @@ class WeatherDisplay:
             import gc
             gc.collect()
 
-            print(f"Weather data fetched: {len(self.weather_data)} data points")
-            for i in range(0, len(self.weather_data), 4):
-                if i + 3 < len(self.weather_data):
-                    code = self.weather_data[i]
-                    max_temp = self.weather_data[i + 1]
-                    min_temp = self.weather_data[i + 2]
-                    rain = self.weather_data[i + 3]
-                    print(f"  Day {i//4}: Code {code}, Max {max_temp}°C, Min {min_temp}°C, Rain {rain}%")
-
         except Exception as e:
             print(f"Error fetching weather data: {e}")
     

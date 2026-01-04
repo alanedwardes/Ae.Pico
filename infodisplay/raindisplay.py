@@ -168,16 +168,6 @@ class RainDisplay:
                 self._normalized_r = []
                 self._beaufort_values = []
                 self._rate_ints = []
-
-            print(f"Weather data fetched: {num_hours} hours")
-            for i in range(num_hours):
-                idx = i * 4
-                hour = self.weather_data[idx]
-                rain_prob = self.weather_data[idx + 1]
-                rate_mmh = self.weather_data[idx + 2]
-                wind_speed = self.weather_data[idx + 3]
-                beaufort_number = wind_speed_to_beaufort(wind_speed)
-                print(f"  Hour {hour:02d}: Rain {rain_prob}%, Rate {rate_mmh} mm/h, Wind {wind_speed} m/s (Bft {beaufort_number})")
                 
         except Exception as e:
             print(f"Error fetching weather data: {e}")
