@@ -17,8 +17,8 @@ class DisplaySwitcher:
             self.active_task.cancel()
             try:
                 await self.active_task
-            except asyncio.CancelledError:
-                pass
+            except Exception:
+                print("DisplaySwitcher - exception when cancelling active task: %s" % str(exception))
             self.active_task = None
 
     async def start(self):
