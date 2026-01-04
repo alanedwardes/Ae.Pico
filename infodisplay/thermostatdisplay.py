@@ -69,12 +69,8 @@ class ThermostatDisplay:
     async def update(self):
         if not self.is_active:
             return
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
+        
         await self.__update()
-        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"ThermostatDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     async def __update(self):
         default_entity = dict(s = '0')
