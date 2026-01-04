@@ -97,5 +97,5 @@ class ThermostatDisplay:
     
     async def activate(self):
         while True:
-            await self.update()
+            self.update()
             await self.tsf.wait()
