@@ -82,18 +82,12 @@ class UvDisplay:
                 
         except Exception as e:
             print(f"Error fetching UV data: {e}")
-       
         
     def update(self):
         if self.is_active == False:
             return
 
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
         self.__update()
-        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"UvDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
    
     def __update(self):
         if len(self.uv_data) == 0:

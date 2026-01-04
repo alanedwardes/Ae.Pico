@@ -44,8 +44,6 @@ class SolarDisplay:
             self.current_solar = entity.get('s')
         elif entity_id == self.entity_ids.get('current_load'):
             self.current_load = entity.get('s')
-        
-        self.update()
     
     async def start(self):
         # Subscribe to all solar entities
@@ -75,13 +73,11 @@ class SolarDisplay:
     
     async def activate(self, new_active):
         self.is_active = new_active
-        if self.is_active:
-            self.update()
+        while self.is_active:
+            await self.update()
+            await asyncio.sleep(1)
     
-    def update(self):
-        if self.is_active == False:
-            return
-
+    async def update(self):
         self.__update()
     
     def __update(self):

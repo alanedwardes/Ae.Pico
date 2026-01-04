@@ -28,9 +28,6 @@ class WeatherDisplay:
         refresh_period = provider['config']['weather'].get('refresh_period_seconds', 300)
         return WeatherDisplay(provider['display'], provider['config']['weather']['url'], refresh_period)
     
-    def entity_updated(self, entity_id, entity):
-        pass  # No longer using Home Assistant entities
-    
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
         while True:
@@ -102,12 +99,7 @@ class WeatherDisplay:
         if self.is_active == False:
             return
 
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
         await self.__update()
-        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"WeatherDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
     
     async def __update(self):
         if len(self.weather_data) == 0:

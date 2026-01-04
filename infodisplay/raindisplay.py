@@ -59,9 +59,6 @@ class RainDisplay:
         refresh_period = provider['config']['rain'].get('refresh_period_seconds', 300)
         return RainDisplay(provider['display'], provider['config']['rain']['url'], refresh_period)
     
-    def entity_updated(self, entity_id, entity):
-        pass  # No longer using Home Assistant entities
-    
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
         while True:

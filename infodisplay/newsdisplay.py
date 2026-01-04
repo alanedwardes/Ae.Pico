@@ -63,8 +63,6 @@ class NewsDisplay:
     def update(self):
         if self.is_active == False:
             return
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
 
         stories = self.get_stories()
 
@@ -83,6 +81,3 @@ class NewsDisplay:
 
         # Render only the news display region (below the time/temperature displays)
         self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))
-        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"NewsDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
