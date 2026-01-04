@@ -10,7 +10,6 @@ class NewsDisplay:
     def __init__(self, display, url):
         self.display = display
         self.url = url
-        self.is_active = True
         self.stories = []
         self.display_width, self.display_height = self.display.get_bounds()
         self.story_index = 0
@@ -29,11 +28,9 @@ class NewsDisplay:
             await self.fetch_news_data()
             await asyncio.sleep(300) # Fetch every 5 minutes
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
-            self.update()
-            self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
+    async def activate(self):
+        self.update()
+        self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
     
     def get_stories(self):
         return self.stories
@@ -61,9 +58,6 @@ class NewsDisplay:
             print(f"Error fetching news data: {e}")
 
     def update(self):
-        if self.is_active == False:
-            return
-
         stories = self.get_stories()
 
         y_offset = 70

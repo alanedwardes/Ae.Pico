@@ -85,7 +85,6 @@ def draw_mesh(display, angle, vertices, faces):
 class MeshDisplay:
     def __init__(self, display, mesh_vertices, mesh_faces):
         self.display = display
-        self.is_active = True        
         self.display_width, self.display_height = self.display.get_bounds()
         self.angle = 0
         self.vertices = mesh_vertices

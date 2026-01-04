@@ -73,18 +73,11 @@ class HassMediaDisplay:
     def should_activate(self):
         return self.current_image_url is not None
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
-            await self.update()
+    async def activate(self):
+        await self.update()
 
     async def update(self):
-        start_fetch_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
         await asyncio.wait_for(self.__update(), timeout=5)
-        fetch_time_ms = utime.ticks_diff(utime.ticks_ms(), start_fetch_ms)
-        mem_after = gc.mem_alloc()
-        print(f"HassMediaDisplay: {fetch_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
 
     async def __update(self):
         # Construct the background converter URL with the image source
@@ -97,11 +90,8 @@ class HassMediaDisplay:
         http_request = HttpRequest(converter_url)
         reader, writer = await http_request.get()
 
-        # Check if still active before reading into framebuffer
-        if not self.is_active:
-            writer.close()
-            await writer.wait_closed()
-            return
+        # Yield to check if still active before reading into framebuffer
+        await asyncio.sleep(0)
         
         # Get direct access to the display framebuffer with offset
         framebuffer = memoryview(self.display)[self.start_offset:]

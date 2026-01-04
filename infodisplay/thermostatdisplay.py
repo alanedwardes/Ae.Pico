@@ -15,12 +15,13 @@ class ThermostatDisplay:
         
         self.entities = dict()
         self.alpha = 0
-        self.is_active = True
         
         # Track previous values for focus detection
         self.prev_temperature = None
         self.prev_hvac_action = None
         self.prev_state = None
+
+        self.tsf = asyncio.ThreadSafeFlag()
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -51,6 +52,7 @@ class ThermostatDisplay:
         
         # Update entities
         self.entities[entity_id] = entity
+        self.tsf.set()
         
         if should_request_focus:
             self.event_bus.publish('focus.request', {
@@ -60,19 +62,9 @@ class ThermostatDisplay:
     
     async def start(self):
         await self.hass.subscribe([self.entity_id], self.entity_updated)
-        # For testing
-        #while True:
-        #    self.update()
-        #    await asyncio.sleep(1)
         await asyncio.Event().wait()
         
-    async def update(self):
-        if not self.is_active:
-            return
-        
-        await self.__update()
-
-    async def __update(self):
+    def update(self):       
         default_entity = dict(s = '0')
         thermostat_entity = self.entities.get(self.entity_id, default_entity)
         current_target = float(thermostat_entity['a']['temperature'])
@@ -103,7 +95,7 @@ class ThermostatDisplay:
         # Render only the thermostat region (below the time/temperature displays)
         self.display.update((0, 70, self.display_width, self.display_height - 70))
     
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
+    async def activate(self):
+        while True:
             await self.update()
+            await self.tsf.wait()

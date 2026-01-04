@@ -8,7 +8,6 @@ class InfoDisplay:
     def __init__(self, display, middle_row, bottom_row, hass):
         self.display = display
         self.hass = hass
-        self.is_active = True
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -68,22 +67,10 @@ class InfoDisplay:
     def should_activate(self):
         return True
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
-            self.update()
+    async def activate(self):
+        self.update()
 
     def update(self):
-        if self.is_active == False:
-            return
-        start_update_ms = utime.ticks_ms()
-        mem_before = gc.mem_alloc()
-        self.__update()
-        update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
-        mem_after = gc.mem_alloc()
-        print(f"InfoDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")
-
-    def __update(self):
         self.white = 0xFFFF
         self.black = 0x0000
         self.grey = 0x8410

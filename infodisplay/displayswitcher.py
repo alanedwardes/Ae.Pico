@@ -17,21 +17,21 @@ class DisplaySwitcher:
             self.active_task.cancel()
             try:
                 await self.active_task
-            except Exception as exception:
-                print("DisplaySwitcher - exception when cancelling active task: %s" % str(exception))
-            self.active_task = None
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                print("DisplaySwitcher - exception when cancelling active task: %s" % type(e))
+            finally:
+                self.active_task = None
 
     async def start(self):
-        for service in self.services:
-            await self.provider[service].activate(False)
-
-        bus = self.provider.get('libraries.eventbus.EventBus') or self.provider.get('eventbus.EventBus')
+        bus = self.provider.get('eventbus.EventBus')
         focus_queue = None
         cancel_focus_stream = None
         if bus is not None:
             focus_queue, cancel_focus_stream = bus.stream('focus.request')
 
-        while True:           
+        while True:
             for service_name in self.services:
                 service = self.provider[service_name]
                 
@@ -41,7 +41,7 @@ class DisplaySwitcher:
 
                 # Cancel any previous active task and start new one
                 await self._cancel_active_task()
-                self.active_task = asyncio.create_task(service.activate(True))
+                self.active_task = asyncio.create_task(service.activate())
 
                 if focus_queue is None:
                     await asyncio.sleep(self.time_ms / 1000)
@@ -71,7 +71,7 @@ class DisplaySwitcher:
 
                         if target is not None:
                             print(f"DisplaySwitcher: Activating target display: {target}")
-                            self.active_task = asyncio.create_task(target.activate(True))
+                            self.active_task = asyncio.create_task(target.activate())
                             try:
                                 # Show focused display for hold_ms, allow chaining
                                 while True:
@@ -91,7 +91,7 @@ class DisplaySwitcher:
                                             target = None
                                         if target is None:
                                             break
-                                        self.active_task = asyncio.create_task(target.activate(True))
+                                        self.active_task = asyncio.create_task(target.activate())
                                     except asyncio.TimeoutError:
                                         # Hold time expired, exit focus mode
                                         break

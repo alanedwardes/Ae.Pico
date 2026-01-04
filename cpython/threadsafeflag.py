@@ -2,7 +2,6 @@ import asyncio
 import threading
 from typing import Optional
 
-
 class ThreadSafeFlag:
     def __init__(self):
         self._event = asyncio.Event()
@@ -37,3 +36,5 @@ class ThreadSafeFlag:
         finally:
             with self._lock:
                 self._waiting_task = None
+
+asyncio.ThreadSafeFlag = ThreadSafeFlag

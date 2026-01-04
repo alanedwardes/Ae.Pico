@@ -111,7 +111,6 @@ class TrainDisplay:
         self.display = display
         self.url = url
         self.departures = []
-        self.is_active = True
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.departures_last_updated = utime.ticks_ms()
@@ -135,16 +134,8 @@ class TrainDisplay:
         num_departures = len(self.departures) // 7
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
-            await self.update()
-
-    async def update(self):
-        if self.is_active == False:
-            return
-
-        await self.__update()
+    async def activate(self):
+        await self.update()
 
     def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""
@@ -265,7 +256,7 @@ class TrainDisplay:
         # Return number of departures for backward compatibility
         return len(self.departures) // 7
 
-    async def __update(self):
+    async def update(self):
         y_start = 70
         row_height = 17
 

@@ -41,7 +41,6 @@ class RainDisplay:
         self.display = display
         self.url = url
         self.weather_data = []
-        self.is_active = True
         self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -63,7 +62,6 @@ class RainDisplay:
         await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_weather_data()
-            await self.update()
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
@@ -91,12 +89,9 @@ class RainDisplay:
 
         return has_rain or has_high_wind
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
-            await self.update()
-    
-    
+    async def activate(self):
+        await self.update()
+
     async def fetch_weather_data(self):
         try:
             # Use unified HTTP request helper
@@ -174,12 +169,6 @@ class RainDisplay:
        
         
     async def update(self):
-        if self.is_active == False:
-            return
-
-        await self.__update()
-
-    async def __update(self):
         if len(self.weather_data) == 0:
             return
 

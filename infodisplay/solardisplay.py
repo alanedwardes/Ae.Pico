@@ -8,7 +8,6 @@ class SolarDisplay:
         self.display = display
         self.hass = hass
         self.entity_ids = entity_ids
-        self.is_active = True
         
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -71,9 +70,8 @@ class SolarDisplay:
         
         return False
     
-    async def activate(self, new_active):
-        self.is_active = new_active
-        while self.is_active:
+    async def activate(self):
+        while True:
             await self.update()
             await asyncio.sleep(1)
     

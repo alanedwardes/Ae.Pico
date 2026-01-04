@@ -11,7 +11,6 @@ class RemoteDisplay:
         self.url = url
         self.refresh_period = refresh_period
         self.start_offset = start_offset
-        self.is_active = False
 
         self.display_width, self.display_height = self.display.get_bounds()
 
@@ -31,9 +30,8 @@ class RemoteDisplay:
     async def start(self):
         await asyncio.Event().wait()
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        while self.is_active:
+    async def activate(self):
+        while True:
             await self.update()
 
     async def update(self):
@@ -44,10 +42,6 @@ class RemoteDisplay:
         reader, writer = await self._http_request.get()
 
         try:
-            # Check if still active before reading into framebuffer
-            if not self.is_active:
-                return
-
             # Get direct access to the display framebuffer with offset
             framebuffer = memoryview(self.display)[self.start_offset:]
 

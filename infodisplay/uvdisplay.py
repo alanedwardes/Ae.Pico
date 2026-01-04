@@ -14,7 +14,6 @@ class UvDisplay:
         self.display = display
         self.url = url
         self.uv_data = []
-        self.is_active = True
         self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -54,10 +53,10 @@ class UvDisplay:
             return False
         return True
 
-    async def activate(self, new_active):
-        self.is_active = new_active
-        if self.is_active:
+    async def activate(self):
+        while True:
             self.update()
+            await asyncio.sleep(1)
     
     async def fetch_uv_data(self):
         try:
@@ -80,12 +79,6 @@ class UvDisplay:
             print(f"Error fetching UV data: {e}")
         
     def update(self):
-        if self.is_active == False:
-            return
-
-        self.__update()
-   
-    def __update(self):
         if len(self.uv_data) == 0:
             return
         
