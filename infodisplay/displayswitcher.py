@@ -24,6 +24,16 @@ class DisplaySwitcher:
             finally:
                 self.active_task = None
 
+    def _get_service_from_focus_event(self, ev):
+        target_instance = ev.data.get('instance') if isinstance(ev.data, dict) else None
+        target_service = ev.data.get('service') if isinstance(ev.data, dict) else None
+
+        if target_instance:
+            return target_instance
+        elif target_service:
+            return self.provider.get(target_service)
+        return None
+
     async def start(self):
         bus = self.provider.get('eventbus.EventBus')
         focus_queue = None
@@ -50,24 +60,13 @@ class DisplaySwitcher:
                     try:
                         timeout_seconds = self.time_ms / 1000
                         ev = await asyncio.wait_for(focus_queue.get(), timeout_seconds)
-                        print(f"DisplaySwitcher: Focus requested, switching to {ev.data.get('instance', 'unknown')}")
+
+                        target = self._get_service_from_focus_event(ev)
+                        print(f"DisplaySwitcher: Focus requested, switching to {target} (cancelling {self.active_task})")
                         await self._cancel_active_task()
                         
                         # Handle focus request
-                        target_instance = ev.data.get('instance') if isinstance(ev.data, dict) else None
-                        target_service = ev.data.get('service') if isinstance(ev.data, dict) else None
                         hold_ms = ev.data.get('hold_ms', self.time_ms) if isinstance(ev.data, dict) else self.time_ms
-
-                        if target_instance:
-                            target = target_instance
-                        elif target_service:
-                            target = self.provider.get(target_service)
-                        else:
-                            target = None
-                        
-                        print(f"DisplaySwitcher: target_instance={target_instance}")
-                        print(f"DisplaySwitcher: target_service={target_service}")  
-                        print(f"DisplaySwitcher: target={target}")
 
                         if target is not None:
                             print(f"DisplaySwitcher: Activating target display: {target}")
