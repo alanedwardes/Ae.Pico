@@ -28,12 +28,12 @@ class NewsDisplay:
             await self.fetch_news_data()
             await asyncio.sleep(300) # Fetch every 5 minutes
 
+    def should_activate(self):
+        return len(self.stories) > 0
+
     async def activate(self):
         self.update()
-        self.story_index = (self.story_index + 1) % len(self.get_stories()) if len(self.get_stories()) > 0 else 0
-    
-    def get_stories(self):
-        return self.stories
+        self.story_index = (self.story_index + 1) % len(self.stories) if len(self.stories) > 0 else 0
     
     async def fetch_news_data(self):
         try:
@@ -58,7 +58,7 @@ class NewsDisplay:
             print(f"Error fetching news data: {e}")
 
     def update(self):
-        stories = self.get_stories()
+        stories = self.stories
 
         y_offset = 70
 
