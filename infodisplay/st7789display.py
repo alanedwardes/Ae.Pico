@@ -27,14 +27,12 @@ class ST7789Display:
         spi = SPI(0, baudrate=40000000, polarity=0, phase=0, sck=Pin(18), mosi=Pin(19))
         dc = Pin(16, Pin.OUT, value=0)
         cs = Pin(17, Pin.OUT, value=1)
-        rst = Pin(12, Pin.OUT, value=1)
         backlight = Pin(20, Pin.OUT, value=1)
 
         st = ST7789(
             spi,
             cs=cs,
             dc=dc,
-            rst=rst,
             backlight=backlight,
             height=display_height,
             width=display_width,

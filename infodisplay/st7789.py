@@ -66,7 +66,6 @@ class ST7789:
         spi,
         cs,
         dc,
-        rst=None,
         backlight=None,
         height=240,
         width=240,
@@ -78,7 +77,6 @@ class ST7789:
         if not 0 <= disp_mode <= 7:
             raise ValueError("Invalid display mode:", disp_mode)
         self._spi = spi  # Clock cycle time for write 16ns 62.5MHz max (read is 150ns)
-        self._rst = rst  # Pins
         self._dc = dc
         self._cs = cs
         self._backlight = backlight  # Backlight pin
@@ -92,17 +90,6 @@ class ST7789:
         self._linebuf = bytearray(self.width * 2)
         self._init(disp_mode, orientation, display[3:])
         self._backlight_pwm = None
-
-    # Hardware reset
-    def _hwreset(self):
-        if self._rst is not None:
-            self._dc(0)
-            self._rst(1)
-            sleep_ms(1)
-            self._rst(0)
-            sleep_ms(1)
-            self._rst(1)
-            sleep_ms(1)
 
     # Write a command, a bytes instance (in practice 1 byte).
     def _wcmd(self, buf):
@@ -131,7 +118,6 @@ class ST7789:
         # Persist configuration needed for runtime rotation changes
         self._bgr = bgr
         self._orientation = orientation
-        self._hwreset()  # Hardware reset. Blocks 3ms
         if self._spi_init:  # A callback was passed
             self._spi_init(self._spi)  # Bus may be shared
         cmd = self._wcmd
