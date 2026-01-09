@@ -7,6 +7,7 @@ class Drawing(framebuf.FrameBuffer):
         self.mode = framebuf.RGB565
         self._buf = bytearray(width * height * 2)
         super().__init__(self._buf, width, height, self.mode)
+        self.fill(0)
         self._driver = None
 
     @staticmethod
