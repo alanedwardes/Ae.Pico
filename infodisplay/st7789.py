@@ -37,6 +37,23 @@ def _swapline(dest: ptr8, source: ptr8, length: int):
         n += 2
         length -= 2
 
+@micropython.viper
+def _upscale_line(dest: ptr8, source: ptr8, src_pixels: int, scale: int):
+    """Upscale a line by duplicating each pixel 'scale' times horizontally, with byte swap."""
+    s: int = 0  # source byte index
+    d: int = 0  # dest byte index
+    while src_pixels:
+        # Read source pixel (2 bytes), swap for SPI
+        b0 = source[s]
+        b1 = source[s + 1]
+        # Write duplicated pixels (swapped byte order)
+        for _ in range(scale):
+            dest[d] = b1
+            dest[d + 1] = b0
+            d += 2
+        s += 2
+        src_pixels -= 1
+
 class ST7789:
     # Convert r, g, b in range 0-255 to a 16-bit RGB565 colour value
     @staticmethod
@@ -56,6 +73,7 @@ class ST7789:
         disp_mode=LANDSCAPE,
         init_spi=False,
         display=GENERIC,
+        scale=1,
     ):
         if not 0 <= disp_mode <= 7:
             raise ValueError("Invalid display mode:", disp_mode)
@@ -64,6 +82,7 @@ class ST7789:
         self._dc = dc
         self._cs = cs
         self._backlight = backlight  # Backlight pin
+        self._scale = scale  # Upscaling factor (1 = no upscaling)
         self.height = height  # Required by Writer class
         self.width = width
         self._offset = display[:2]  # display arg is (x, y, orientation)
@@ -267,17 +286,19 @@ class ST7789:
         self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
 
     def render(self, framebuffer, width, height, region):
-        # Unpack and validate region
+        # Unpack and validate region (region is in framebuffer coordinates)
         x, y, rw, rh = region
         if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
         if x + rw > width or y + rh > height:
             return
-        if width != self.width or height != self.height:
+        # Check scaled dimensions match display size
+        scale = self._scale
+        if width * scale != self.width or height * scale != self.height:
             return
 
-        # Set hardware window to region
-        self._set_region_window(x, y, rw, rh)
+        # Set hardware window to scaled region
+        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
 
         # Send RAMWR command
         if self._spi_init:
@@ -288,20 +309,27 @@ class ST7789:
         self._dc(1)
 
         # Prepare buffers
-        lb = memoryview(self._linebuf)
         src = memoryview(framebuffer)
         row_bytes = width * 2  # Full framebuffer row width
-        region_bytes = rw * 2  # Region width in bytes
 
-        # Adjust linebuf view if region is smaller
-        if region_bytes < len(self._linebuf):
-            lb = memoryview(self._linebuf[:region_bytes])
-
-        # Swap and write only region rows
-        for row in range(rh):
-            fb_offset = (y + row) * row_bytes + x * 2
-            _swapline(lb, src[fb_offset:], region_bytes)
-            self._spi.write(lb)
+        if scale == 1:
+            # No upscaling - original behavior
+            region_bytes = rw * 2
+            lb = memoryview(self._linebuf[:region_bytes]) if region_bytes < len(self._linebuf) else memoryview(self._linebuf)
+            for row in range(rh):
+                fb_offset = (y + row) * row_bytes + x * 2
+                _swapline(lb, src[fb_offset:], region_bytes)
+                self._spi.write(lb)
+        else:
+            # Upscaling: duplicate each pixel scale times horizontally and vertically
+            output_line_bytes = rw * scale * 2
+            lb = memoryview(self._linebuf[:output_line_bytes])
+            for row in range(rh):
+                fb_offset = (y + row) * row_bytes + x * 2
+                _upscale_line(lb, src[fb_offset:], rw, scale)
+                # Write the line 'scale' times for vertical upscaling
+                for _ in range(scale):
+                    self._spi.write(lb)
         self._cs(1)
 
     def set_backlight(self, brightness):

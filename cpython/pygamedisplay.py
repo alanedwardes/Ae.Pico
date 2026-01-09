@@ -6,16 +6,17 @@ from array import array
 from drawing import Drawing
 
 class PygameDisplay:
-    def __init__(self, debug_regions=False):
+    def __init__(self, display_width, display_height, scale=1, debug_regions=False):
         pygame.init()
-        self.screen = pygame.display.set_mode((320, 240), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=32)
-        self._width = 320
-        self._height = 240
+        self.screen = pygame.display.set_mode((display_width, display_height), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=32)
+        self._display_width = display_width
+        self._display_height = display_height
+        self._scale = scale
         self._debug_regions = debug_regions
-        # Persistent RGBA buffer and surface (avoid per-frame allocations)
-        self._rgba = bytearray(self._width * self._height * 4)
+        # Persistent RGBA buffer and surface at display resolution (avoid per-frame allocations)
+        self._rgba = bytearray(display_width * display_height * 4)
         self._rgba_view32 = memoryview(self._rgba).cast('I')
-        self._surf = pygame.image.frombuffer(self._rgba, (self._width, self._height), 'RGBA')
+        self._surf = pygame.image.frombuffer(self._rgba, (display_width, display_height), 'RGBA')
         # Precompute 16-bit RGB565 -> 32-bit RGBA8888 lookup table
         lut = array('I', [0]) * 65536
         for val in range(65536):
@@ -29,9 +30,21 @@ class PygameDisplay:
         self._lut565_rgba = lut
 
     def create(provider):
-        driver = PygameDisplay(debug_regions=False)
-        drawing = Drawing(driver._width, driver._height)
+        config = provider['config']['display']
+
+        # Get configurable dimensions and scale
+        display_width = config['width']
+        display_height = config['height']
+        scale = config.get('scale', 1)
+
+        # Framebuffer dimensions are display dimensions divided by scale
+        fb_width = display_width // scale
+        fb_height = display_height // scale
+
+        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False)
+        drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
+
         provider['display'] = drawing
         return driver
               
@@ -42,22 +55,22 @@ class PygameDisplay:
                     sys.exit()
             await asyncio.sleep(0.1)
 
+    def set_backlight(self, brightness):
+        pass  # No backlight on pygame
+
     def render(self, framebuffer, width, height, region):
-        # Unpack and validate region
+        # Unpack and validate region (region is in framebuffer coordinates)
         x, y, rw, rh = region
         if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
         if x + rw > width or y + rh > height:
             return
+        # Check scaled dimensions match display size
+        scale = self._scale
+        if width * scale != self._display_width or height * scale != self._display_height:
+            return
 
-        # Handle window resize
-        if width != self._width or height != self._height:
-            self._width, self._height = width, height
-            self._rgba = bytearray(self._width * self._height * 4)
-            self._rgba_view32 = memoryview(self._rgba).cast('I')
-            self._surf = pygame.image.frombuffer(self._rgba, (self._width, self._height), 'RGBA')
-
-        # Convert only region pixels from RGB565 to RGBA
+        # Convert region pixels from RGB565 to RGBA with upscaling
         src16 = memoryview(framebuffer).cast('H')  # native-endian uint16
         dest32 = self._rgba_view32
         lut = self._lut565_rgba
@@ -66,47 +79,51 @@ class PygameDisplay:
             fb_row = y + row
             for col in range(rw):
                 fb_col = x + col
-                idx = fb_row * width + fb_col
-                dest32[idx] = lut[src16[idx]]
+                src_idx = fb_row * width + fb_col
+                rgba = lut[src16[src_idx]]
+                # Write upscaled pixel block
+                for dy in range(scale):
+                    for dx in range(scale):
+                        dest_x = (x + col) * scale + dx
+                        dest_y = (y + row) * scale + dy
+                        dest_idx = dest_y * self._display_width + dest_x
+                        dest32[dest_idx] = rgba
 
-        # Draw debug rectangle into framebuffer (persistent)
+        # Draw debug rectangle into display buffer (at display resolution)
         if self._debug_regions:
-            # Generate random color and convert to RGB565
+            # Generate random color and convert to RGBA via LUT
             r = random.randint(0, 255)
             g = random.randint(0, 255)
             b = random.randint(0, 255)
-            debug_color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+            debug_color_565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+            debug_rgba = lut[debug_color_565]
+
+            # Scaled region bounds
+            sx, sy = x * scale, y * scale
+            srw, srh = rw * scale, rh * scale
 
             # Top and bottom edges
-            for col in range(x, min(x + rw, width)):
+            for col in range(sx, min(sx + srw, self._display_width)):
                 for border_row in range(2):
                     # Top edge
-                    if y + border_row < height:
-                        idx = (y + border_row) * width + col
-                        if idx < len(src16):
-                            src16[idx] = debug_color
-                            dest32[idx] = lut[debug_color]
+                    if sy + border_row < self._display_height:
+                        idx = (sy + border_row) * self._display_width + col
+                        dest32[idx] = debug_rgba
                     # Bottom edge
-                    if y + rh - 1 - border_row >= 0 and y + rh - 1 - border_row < height:
-                        idx = (y + rh - 1 - border_row) * width + col
-                        if idx < len(src16):
-                            src16[idx] = debug_color
-                            dest32[idx] = lut[debug_color]
+                    if sy + srh - 1 - border_row >= 0 and sy + srh - 1 - border_row < self._display_height:
+                        idx = (sy + srh - 1 - border_row) * self._display_width + col
+                        dest32[idx] = debug_rgba
             # Left and right edges
-            for row in range(y, min(y + rh, height)):
+            for row in range(sy, min(sy + srh, self._display_height)):
                 for border_col in range(2):
                     # Left edge
-                    if x + border_col < width:
-                        idx = row * width + (x + border_col)
-                        if idx < len(src16):
-                            src16[idx] = debug_color
-                            dest32[idx] = lut[debug_color]
+                    if sx + border_col < self._display_width:
+                        idx = row * self._display_width + (sx + border_col)
+                        dest32[idx] = debug_rgba
                     # Right edge
-                    if x + rw - 1 - border_col >= 0 and x + rw - 1 - border_col < width:
-                        idx = row * width + (x + rw - 1 - border_col)
-                        if idx < len(src16):
-                            src16[idx] = debug_color
-                            dest32[idx] = lut[debug_color]
+                    if sx + srw - 1 - border_col >= 0 and sx + srw - 1 - border_col < self._display_width:
+                        idx = row * self._display_width + (sx + srw - 1 - border_col)
+                        dest32[idx] = debug_rgba
 
         self.screen.blit(self._surf, (0, 0))
         pygame.display.flip()
