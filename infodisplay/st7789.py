@@ -167,7 +167,18 @@ class ST7789:
         self._current_mode = mode
         self.set_window(mode)
         wcd(b"\x36", int.to_bytes(mode, 1, "little"))
+        self._clear_display()
         cmd(b"\x29")  # DISPON. Adafruit then delay 500ms.
+
+    def _clear_display(self):
+        self._wcmd(b"\x2c")  # RAMWR
+        self._dc(1)
+        self._cs(0)
+        for i in range(len(self._linebuf)):
+            self._linebuf[i] = 0
+        for _ in range(self.height):
+            self._spi.write(self._linebuf)
+        self._cs(1)
 
     # Change display rotation at runtime using the same flags as constructor
     # disp_mode is a value 0..7 composed from LANDSCAPE|REFLECT|USD|PORTRAIT
