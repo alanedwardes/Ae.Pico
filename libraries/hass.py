@@ -4,7 +4,7 @@ except ModuleNotFoundError:
     import json as ujson
 
 import asyncio
-from httpstream import parse_url
+from httpstream import parse_url, ScopedConnection
 
 class Hass:
 
@@ -20,6 +20,9 @@ class Hass:
         self._host_header = b'Host: %s\r\n' % self._hostname_bytes
         self._auth_header = b'Authorization: Bearer %s\r\n' % self._token_bytes
         self._json_content_type = b'Content-Type: application/json; charset=utf-8\r\n'
+
+    async def _connect(self):
+        return await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl=self.uri.port == 443)
         
     def create(provider):
         config = provider['config']['hass']
@@ -35,16 +38,14 @@ class Hass:
         await asyncio.Event().wait()
             
     async def ensure_api_reachable(self):
-        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        self.write_protocol(writer, b'GET', b'/')
-        self.write_auth_header(writer)
-        writer.write('\r\n')
-        await writer.drain()
-        await self.ensure_success_status_code(reader)
-        content_length = await self.get_content_length(reader)
-        print(await reader.readexactly(content_length))
-        writer.close()
-        await writer.wait_closed()
+        async with ScopedConnection(self._connect) as (reader, writer):
+            self.write_protocol(writer, b'GET', b'/')
+            self.write_auth_header(writer)
+            writer.write('\r\n')
+            await writer.drain()
+            await self.ensure_success_status_code(reader)
+            content_length = await self.get_content_length(reader)
+            print(await reader.readexactly(content_length))
 
     async def send_update(self, state, unit, device_class, friendly_name, sensor):
         data = { "state": state, "attributes": {} }
@@ -62,18 +63,16 @@ class Hass:
         return await self.post_state(sensor, data)
     
     async def post_state(self, sensor_type, payload):
-        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        self.write_protocol(writer, b'POST', b'/states/%s' % sensor_type.encode('utf-8'))
-        self.write_auth_header(writer)
-        self.write_json_content_type_header(writer)
-        self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
-        await writer.drain()
-        await self.ensure_success_status_code(reader)
+        async with ScopedConnection(self._connect) as (reader, writer):
+            self.write_protocol(writer, b'POST', b'/states/%s' % sensor_type.encode('utf-8'))
+            self.write_auth_header(writer)
+            self.write_json_content_type_header(writer)
+            self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
+            await writer.drain()
+            await self.ensure_success_status_code(reader)
 
-        content_length = await self.get_content_length(reader)
-        content = await reader.readexactly(content_length)
-        writer.close()
-        await writer.wait_closed()
+            content_length = await self.get_content_length(reader)
+            content = await reader.readexactly(content_length)
 
         print(content)
 
@@ -84,18 +83,16 @@ class Hass:
         return content
     
     async def post_event(self, event_type, payload):
-        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        self.write_protocol(writer, b'POST', b'/events/%s' % event_type.encode('utf-8'))
-        self.write_auth_header(writer)
-        self.write_json_content_type_header(writer)
-        self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
-        await writer.drain()
-        await self.ensure_success_status_code(reader)
+        async with ScopedConnection(self._connect) as (reader, writer):
+            self.write_protocol(writer, b'POST', b'/events/%s' % event_type.encode('utf-8'))
+            self.write_auth_header(writer)
+            self.write_json_content_type_header(writer)
+            self.write_content(writer, ujson.dumps(payload).encode('utf-8'))
+            await writer.drain()
+            await self.ensure_success_status_code(reader)
 
-        content_length = await self.get_content_length(reader)
-        content = await reader.readexactly(content_length)
-        writer.close()
-        await writer.wait_closed()
+            content_length = await self.get_content_length(reader)
+            content = await reader.readexactly(content_length)
 
         print(content)
 
@@ -141,18 +138,16 @@ class Hass:
     async def render_template(self, template):
         data = { "template": template }
 
-        reader, writer = await asyncio.open_connection(self.uri.hostname, self.uri.port, ssl = self.uri.port == 443)
-        self.write_protocol(writer, b'POST', b'/template')
-        self.write_auth_header(writer)
-        self.write_json_content_type_header(writer)
-        self.write_content(writer, ujson.dumps(data).encode('utf-8'))
-        await writer.drain()
-        await self.ensure_success_status_code(reader)
+        async with ScopedConnection(self._connect) as (reader, writer):
+            self.write_protocol(writer, b'POST', b'/template')
+            self.write_auth_header(writer)
+            self.write_json_content_type_header(writer)
+            self.write_content(writer, ujson.dumps(data).encode('utf-8'))
+            await writer.drain()
+            await self.ensure_success_status_code(reader)
 
-        content_length = await self.get_content_length(reader)
-        content = await reader.readexactly(content_length)
-        writer.close()
-        await writer.wait_closed()
+            content_length = await self.get_content_length(reader)
+            content = await reader.readexactly(content_length)
 
         # Clean up after HTTP request
         import gc

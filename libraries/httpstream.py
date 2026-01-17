@@ -160,7 +160,7 @@ class HttpRequest:
             async with http_request.get_scoped() as (reader, writer):
                 ...
         """
-        return ScopedConnection(self)
+        return ScopedConnection(self.get)
 
 
 async def stream_reader_to_buffer(reader, framebuffer):
@@ -196,12 +196,12 @@ async def stream_reader_to_buffer(reader, framebuffer):
 
 
 class ScopedConnection:
-    def __init__(self, http_request):
-        self.http_request = http_request
+    def __init__(self, connect_func):
+        self.connect_func = connect_func
         self.writer = None
 
     async def __aenter__(self):
-        self.reader, self.writer = await self.http_request.get()
+        self.reader, self.writer = await self.connect_func()
         return self.reader, self.writer
 
     async def __aexit__(self, exc_type, exc, tb):
