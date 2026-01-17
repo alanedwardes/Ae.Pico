@@ -39,9 +39,7 @@ class RemoteDisplay:
 
     async def __update(self):
         # Use unified HTTP request helper
-        reader, writer = await self._http_request.get()
-
-        try:
+        async with self._http_request.get_scoped() as (reader, writer):
             # Get direct access to the display framebuffer with offset
             framebuffer = memoryview(self.display)[self.start_offset:]
 
@@ -53,9 +51,6 @@ class RemoteDisplay:
             y_offset = (self.start_offset // 2) // self.display_width
             height = self.display_height - y_offset
             self.display.update((0, y_offset, self.display_width, height))
-        finally:
-            writer.close()
-            await writer.wait_closed()
 
             # Clean up after HTTP request
             gc.collect()

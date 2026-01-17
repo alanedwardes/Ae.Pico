@@ -188,57 +188,53 @@ class TrainDisplay:
     async def fetch_departures(self):
         try:
             # Use unified HTTP request helper
-            reader, writer = await self._http_request.get()
+            async with self._http_request.get_scoped() as (reader, writer):
+                # Stream parse JSON array without buffering entire response
+                # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
+                # Store as flat array: [std_formatted, station, platform, class, atd_formatted, cancelled, delayed, ...]
+                self.departures = []
+                element_buffer = []
 
-            # Stream parse JSON array without buffering entire response
-            # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
-            # Store as flat array: [std_formatted, station, platform, class, atd_formatted, cancelled, delayed, ...]
-            self.departures = []
-            element_buffer = []
+                async for element in parse_flat_json_array(reader):
+                    element_buffer.append(element)
 
-            async for element in parse_flat_json_array(reader):
-                element_buffer.append(element)
+                    # Process in groups of 5 (std, station, platform, class, atd)
+                    if len(element_buffer) == 5:
+                        std = element_buffer[0]
+                        station = element_buffer[1]
+                        platform = element_buffer[2]
+                        train_class = element_buffer[3]
+                        atd = element_buffer[4]
 
-                # Process in groups of 5 (std, station, platform, class, atd)
-                if len(element_buffer) == 5:
-                    std = element_buffer[0]
-                    station = element_buffer[1]
-                    platform = element_buffer[2]
-                    train_class = element_buffer[3]
-                    atd = element_buffer[4]
+                        # Format times to HH:MM
+                        std_formatted = format_time_to_hhmm(std)
+                        atd_formatted = format_time_to_hhmm(atd)
 
-                    # Format times to HH:MM
-                    std_formatted = format_time_to_hhmm(std)
-                    atd_formatted = format_time_to_hhmm(atd)
+                        # Determine if cancelled or delayed
+                        cancelled = False
+                        delayed = False
 
-                    # Determine if cancelled or delayed
-                    cancelled = False
-                    delayed = False
+                        # If atd is empty or "On time", check for delays
+                        if atd_formatted and atd_formatted != std_formatted and atd_formatted != "On time":
+                            delayed = True
 
-                    # If atd is empty or "On time", check for delays
-                    if atd_formatted and atd_formatted != std_formatted and atd_formatted != "On time":
-                        delayed = True
+                        # Convert empty strings to display values
+                        scheduled_time_display = std_formatted if std_formatted else ''
+                        expected_time_display = atd_formatted if atd_formatted else scheduled_time_display
+                        destination_display = station if station else ''
+                        platform_display = platform if platform else ''
+                        train_class_display = train_class if train_class else ''
 
-                    # Convert empty strings to display values
-                    scheduled_time_display = std_formatted if std_formatted else ''
-                    expected_time_display = atd_formatted if atd_formatted else scheduled_time_display
-                    destination_display = station if station else ''
-                    platform_display = platform if platform else ''
-                    train_class_display = train_class if train_class else ''
+                        # Append as flat array: std, station, platform, class, atd, cancelled, delayed
+                        self.departures.append(scheduled_time_display)
+                        self.departures.append(destination_display)
+                        self.departures.append(platform_display)
+                        self.departures.append(train_class_display)
+                        self.departures.append(expected_time_display)
+                        self.departures.append(cancelled)
+                        self.departures.append(delayed)
 
-                    # Append as flat array: std, station, platform, class, atd, cancelled, delayed
-                    self.departures.append(scheduled_time_display)
-                    self.departures.append(destination_display)
-                    self.departures.append(platform_display)
-                    self.departures.append(train_class_display)
-                    self.departures.append(expected_time_display)
-                    self.departures.append(cancelled)
-                    self.departures.append(delayed)
-
-                    element_buffer = []
-
-            writer.close()
-            await writer.wait_closed()
+                        element_buffer = []
 
             # Clean up after HTTP request
             import gc

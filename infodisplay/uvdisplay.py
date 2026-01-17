@@ -61,15 +61,11 @@ class UvDisplay:
     async def fetch_uv_data(self):
         try:
             # Use unified HTTP request helper
-            reader, writer = await self._http_request.get()
-
-            # Stream parse JSON array without buffering entire response
-            self.uv_data = []
-            async for uv_value in parse_flat_json_array(reader):
-                self.uv_data.append(uv_value)
-
-            writer.close()
-            await writer.wait_closed()
+            async with self._http_request.get_scoped() as (reader, writer):
+                # Stream parse JSON array without buffering entire response
+                self.uv_data = []
+                async for uv_value in parse_flat_json_array(reader):
+                    self.uv_data.append(uv_value)
 
             # Clean up after HTTP request
             import gc
