@@ -21,11 +21,19 @@ class HassWs:
         return HassWs(config['ws'], config['token'])
     
     async def start(self):
-        try:
-            self.socket = await ws.connect(self.url + '/api/websocket')
-            await asyncio.gather(self.__listen(), self.__keepalive())
-        finally:
-            await self.stop()
+        while True:
+            try:
+                self.socket = await ws.connect(self.url + '/api/websocket')
+                await asyncio.gather(self.__listen(), self.__keepalive())
+            except asyncio.CancelledError:
+                await self.stop()
+                break # Exit the loop if the task is cancelled
+            except Exception as e:
+                print("HassWs connection failed: %s" % e)
+            finally:
+                await self.stop()
+            
+            await asyncio.sleep(5)
     
     async def __listen(self):
         while True:
