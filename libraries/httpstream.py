@@ -122,31 +122,45 @@ class HttpRequest:
             ssl=self.uri.secure
         )
 
-        # Write pre-allocated headers
-        writer.write(self._get_line)
-        writer.write(self._host_header)
-        for header in self._extra_headers:
-            writer.write(header)
-        writer.write(self._crlf)
-        await writer.drain()
+        try:
+            # Write pre-allocated headers
+            writer.write(self._get_line)
+            writer.write(self._host_header)
+            for header in self._extra_headers:
+                writer.write(header)
+            writer.write(self._crlf)
+            await writer.drain()
 
-        # Read and check status
-        line = await reader.readline()
-        status = line.split(b' ', 2)
-        status_code = int(status[1])
+            # Read and check status
+            line = await reader.readline()
+            status = line.split(b' ', 2)
+            status_code = int(status[1])
 
-        if status_code != 200:
+            if status_code != 200:
+                raise Exception(f"HTTP {status_code}")
+
+            # Skip headers until blank line
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+            
+            return reader, writer
+        
+        except Exception:
             writer.close()
             await writer.wait_closed()
-            raise Exception(f"HTTP {status_code}")
+            raise
 
-        # Skip headers until blank line
-        while True:
-            line = await reader.readline()
-            if line == b'\r\n':
-                break
-
-        return reader, writer
+    def get_scoped(self):
+        """
+        Returns an async context manager that automatically closes the connection.
+        
+        Usage:
+            async with http_request.get_scoped() as (reader, writer):
+                ...
+        """
+        return ScopedConnection(self)
 
 
 async def stream_reader_to_buffer(reader, framebuffer):
@@ -179,4 +193,20 @@ async def stream_reader_to_buffer(reader, framebuffer):
             framebuffer[bytes_read:bytes_read + chunk_len] = chunk
             bytes_read += chunk_len
     return bytes_read
+
+
+class ScopedConnection:
+    def __init__(self, http_request):
+        self.http_request = http_request
+        self.writer = None
+
+    async def __aenter__(self):
+        self.reader, self.writer = await self.http_request.get()
+        return self.reader, self.writer
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self.writer:
+            self.writer.close()
+            await self.writer.wait_closed()
+
 

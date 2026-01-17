@@ -179,28 +179,33 @@ async def connect(uri):
     
     reader, writer = await asyncio.open_connection(uri.hostname, uri.port, ssl = uri.port == 443)
     
-    # Sec-WebSocket-Key is 16 bytes of random base64 encoded
-    key = binascii.b2a_base64(bytes(random.getrandbits(8)
-                                    for _ in range(16)))[:-1]
+    try:
+        # Sec-WebSocket-Key is 16 bytes of random base64 encoded
+        key = binascii.b2a_base64(bytes(random.getrandbits(8)
+                                        for _ in range(16)))[:-1]
 
-    writer.write(b'GET %s HTTP/1.1\r\n' % (uri.path or '/').encode('utf-8'))
-    writer.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
-    writer.write(b'Connection: Upgrade\r\n')
-    writer.write(b'Upgrade: websocket\r\n')
-    writer.write(b'Sec-WebSocket-Key: %s\r\n' % key)
-    writer.write(b'Sec-WebSocket-Version: 13\r\n')
-    writer.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
-    writer.write(b'\r\n')
-    await writer.drain()
-    
-    line = await reader.readline()
+        writer.write(b'GET %s HTTP/1.1\r\n' % (uri.path or '/').encode('utf-8'))
+        writer.write(b'Host: %s:%i\r\n' % (uri.hostname.encode('utf-8'), uri.port))
+        writer.write(b'Connection: Upgrade\r\n')
+        writer.write(b'Upgrade: websocket\r\n')
+        writer.write(b'Sec-WebSocket-Key: %s\r\n' % key)
+        writer.write(b'Sec-WebSocket-Version: 13\r\n')
+        writer.write(b'Origin: %s://%s:%i\r\n' % (b'http', uri.hostname.encode('utf-8'), uri.port))
+        writer.write(b'\r\n')
+        await writer.drain()
+        
+        line = await reader.readline()
 
-    header = line[:-2]
-    assert header.startswith(b'HTTP/1.1 101 '), header
+        header = line[:-2]
+        assert header.startswith(b'HTTP/1.1 101 '), header
 
-    while header is not None:
-        header = await reader.readline()
-        if header == b'\r\n':
-            break
+        while header is not None:
+            header = await reader.readline()
+            if header == b'\r\n':
+                break
 
-    return WebsocketClient(reader, writer)
+        return WebsocketClient(reader, writer)
+    except Exception:
+        writer.close()
+        await writer.wait_closed()
+        raise

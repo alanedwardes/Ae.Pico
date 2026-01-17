@@ -95,37 +95,34 @@ class RainDisplay:
     async def fetch_weather_data(self):
         try:
             # Use unified HTTP request helper
-            reader, writer = await self._http_request.get()
+            async with self._http_request.get_scoped() as (reader, writer):
 
-            # Stream parse JSON array without buffering entire response
-            # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
-            # Store as flat array: [hour, rain_prob, rate_mmh, wind_speed, hour, rain_prob, rate_mmh, wind_speed, ...]
-            self.weather_data = []
-            current_hour = utime.localtime()[3]  # Get current hour
-            element_buffer = []
-            hour_offset = 0
+                # Stream parse JSON array without buffering entire response
+                # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
+                # Store as flat array: [hour, rain_prob, rate_mmh, wind_speed, hour, rain_prob, rate_mmh, wind_speed, ...]
+                self.weather_data = []
+                current_hour = utime.localtime()[3]  # Get current hour
+                element_buffer = []
+                hour_offset = 0
 
-            async for element in parse_flat_json_array(reader):
-                element_buffer.append(element)
+                async for element in parse_flat_json_array(reader):
+                    element_buffer.append(element)
 
-                # Process in groups of 3 (rain_prob, rate_mmh, windSpeed10m)
-                if len(element_buffer) == 3:
-                    rain_prob = element_buffer[0]
-                    rate_mmh = element_buffer[1]
-                    wind_speed = element_buffer[2]
-                    actual_hour = (current_hour + hour_offset) % 24
+                    # Process in groups of 3 (rain_prob, rate_mmh, windSpeed10m)
+                    if len(element_buffer) == 3:
+                        rain_prob = element_buffer[0]
+                        rate_mmh = element_buffer[1]
+                        wind_speed = element_buffer[2]
+                        actual_hour = (current_hour + hour_offset) % 24
 
-                    # Append as flat array: hour, rain_prob, rate_mmh, wind_speed
-                    self.weather_data.append(actual_hour)
-                    self.weather_data.append(rain_prob)
-                    self.weather_data.append(rate_mmh)
-                    self.weather_data.append(wind_speed)
+                        # Append as flat array: hour, rain_prob, rate_mmh, wind_speed
+                        self.weather_data.append(actual_hour)
+                        self.weather_data.append(rain_prob)
+                        self.weather_data.append(rate_mmh)
+                        self.weather_data.append(wind_speed)
 
-                    element_buffer = []
-                    hour_offset += 1
-
-            writer.close()
-            await writer.wait_closed()
+                        element_buffer = []
+                        hour_offset += 1
 
             # Clean up after HTTP request
             import gc

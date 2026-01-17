@@ -38,15 +38,11 @@ class NewsDisplay:
     async def fetch_news_data(self):
         try:
             # Use unified HTTP request helper
-            reader, writer = await self._http_request.get()
-
-            # Stream parse JSON array without buffering entire response
-            self.stories = []
-            async for story in parse_flat_json_array(reader):
-                self.stories.append(story)
-
-            writer.close()
-            await writer.wait_closed()
+            async with self._http_request.get_scoped() as (reader, writer):
+                # Stream parse JSON array without buffering entire response
+                self.stories = []
+                async for story in parse_flat_json_array(reader):
+                    self.stories.append(story)
 
             # Clean up after HTTP request
             import gc
