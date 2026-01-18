@@ -36,10 +36,11 @@ class RGBLED:
         self._pwm_b.duty_u16(b16)
 
 class PicoDisplay2Led:
-    def __init__(self, hass, rgb_entity_id, led_pins):
+    def __init__(self, hass, rgb_entity_id, led_pins, brightness=1.0):
         self.hass = hass
         self.rgb_entity_id = rgb_entity_id
         self.led = RGBLED(*led_pins)
+        self.brightness = brightness
         self._last_rgb = None
         self._fade_task = None
         
@@ -47,16 +48,21 @@ class PicoDisplay2Led:
     def create(provider):
         led_config = provider['config'].get('led', {})
         led_pins = led_config.get('pins')
-        return PicoDisplay2Led(provider['hassws.HassWs'], led_config['entity_id'], led_pins)
+        brightness = float(led_config.get('brightness', 1.0))
+        return PicoDisplay2Led(provider['hassws.HassWs'], led_config['entity_id'], led_pins, brightness)
     
     def entity_updated(self, entity_id, entity):
         color_str = entity.get('s', '')
         r, g, b = [int(x.strip()) for x in color_str.split(',')[:3]]
-        target = (r, g, b)
+        target = (
+            int(r * self.brightness),
+            int(g * self.brightness),
+            int(b * self.brightness)
+        )
         if self._last_rgb is None:
             self._last_rgb = target
-            self.led.set_rgb(r, g, b)
-            print(f"LED color updated to {r}, {g}, {b}")
+            self.led.set_rgb(*target)
+            print(f"LED color updated to {target[0]}, {target[1]}, {target[2]}")
             return
         if target == self._last_rgb:
             return
