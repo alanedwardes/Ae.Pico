@@ -18,6 +18,14 @@ class WeatherDisplay:
         self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
+        
+        # Calculate bytes per pixel once
+        total_pixels = self.display_width * self.display_height
+        self.bytes_per_pixel = len(memoryview(display)) // total_pixels
+        
+        # Pre-allocate line buffer for blitting
+        # Size needed is max width * bytes per pixel
+        self._line_buffer = bytearray(self.display_width * self.bytes_per_pixel)
 
         # Pre-allocate HTTP request helper to reduce memory allocations
         self._http_request = HttpRequest(url)
@@ -66,15 +74,11 @@ class WeatherDisplay:
                 icon_x = x + (box_width - icon_width) // 2
                 icon_y = y + (box_height - icon_height) // 2
 
-                # Calculate bytes per pixel from framebuffer size and display dimensions
-                total_pixels = self.display_width * self.display_height
-                bytes_per_pixel = len(memoryview(framebuffer)) // total_pixels
-
-                icon_row_bytes = icon_width * bytes_per_pixel
-                blit_region(framebuffer, self.display_width, self.display_height, bytes_per_pixel,
+                icon_row_bytes = icon_width * self.bytes_per_pixel
+                blit_region(framebuffer, self.display_width, self.display_height, self.bytes_per_pixel,
                             icon_file, 4, icon_row_bytes,
                             0, 0, icon_width, icon_height,
-                            icon_x, icon_y)
+                            icon_x, icon_y, buffer=self._line_buffer)
         except OSError as e:
             print(f"Warning: Could not load icon '{icon_name}': {e}")
             return
