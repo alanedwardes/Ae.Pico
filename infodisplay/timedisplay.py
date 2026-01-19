@@ -68,29 +68,25 @@ class TimeDisplay:
             # Render only the day region
             self.display.update((time_width, 0, date_seconds_width, section_height))
 
-        # Redraw seconds and ms each time they change
-        if sec_text != self._last_sec_text or ms_text != self._last_ms_text:
-            self.display.rect(time_width, section_height, date_seconds_width, section_height, 0x0000, True)
-            
-            # Layout
-            sec_width = 36
-            sec_height = section_height
-            sec_x = time_width + (date_seconds_width - sec_width) // 2 - 6 # Shift left slightly
-            
-            ms_width = 15
-            ms_height = section_height
-            ms_x = sec_x + sec_width
+        # Helper vars for layout
+        sec_width = 36
+        sec_height = section_height
+        sec_x = time_width + (date_seconds_width - sec_width) // 2 - 6 # Shift left slightly
+        
+        ms_width = 15
+        ms_height = section_height
+        ms_x = sec_x + sec_width
 
-            # Redraw seconds only when they change
-            if sec_text != self._last_sec_text:
-                self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
-                textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
-                self._last_sec_text = sec_text
-                self.display.update((sec_x, section_height, sec_width, sec_height))
+        # Redraw seconds only when they change
+        if sec_text != self._last_sec_text:
+            self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
+            textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
+            self._last_sec_text = sec_text
+            self.display.update((sec_x, section_height, sec_width, sec_height))
 
-            # Redraw MS only when they change
-            if ms_text != self._last_ms_text:
-                self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
-                textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
-                self._last_ms_text = ms_text
-                self.display.update((ms_x, section_height, ms_width, ms_height))
+        # Redraw MS only when they change
+        if ms_text != self._last_ms_text:
+            self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
+            textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
+            self._last_ms_text = ms_text
+            self.display.update((ms_x, section_height, ms_width, ms_height))
