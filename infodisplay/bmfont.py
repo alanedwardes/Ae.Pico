@@ -80,22 +80,52 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
 
     src_x = sx + left_clip
     fb_x = dx + left_clip
-    # GS8 source: 1 byte per pixel
-    scratch = linebuf if (linebuf is not None and len(linebuf) >= copy_width) else bytearray(copy_width)
-    linebuf_view = memoryview(scratch)[:copy_width]
-    source_framebuffer = (linebuf_view, copy_width, 1, framebuf.GS8)
+    
+    # Use provided linebuf or allocate a minimal one (fallback)
+    # The batch size is determined by how many rows fit in the available buffer.
+    if linebuf is not None and len(linebuf) >= copy_width:
+        scratch = linebuf
+        rows_per_batch = len(scratch) // copy_width
+    else:
+        # Fallback if no buffer provided or too small: process 1 row at a time with a temp buffer
+        scratch = bytearray(copy_width)
+        rows_per_batch = 1
+        
+    if rows_per_batch == 0:
+        rows_per_batch = 1 # Should not happen given logic above but safety check
 
     # Build/resolve RGB565 palette for GS8 source (white cached when tint is None/white)
     palette = _resolve_palette(tint_color)
-    for row in range(start_row, end_row):
-        fb_y = dy + row
-        src_y = sy + row
-        src_offset = 4 + src_y * src_row_bytes + src_x
-        fh.seek(src_offset)
-        fh.readinto(linebuf_view)
-        # Use RGB565 palette for proper grayscale/tint across channels
-        # 1-bit transparency: treat intensity 0 as transparent via key=0
-        framebuffer.blit(source_framebuffer, fb_x, fb_y, 0, (palette, 256, 1, framebuf.RGB565))
+
+    current_row = start_row
+    while current_row < end_row:
+        # Determine how many rows we can process in this batch
+        batch_h = min(rows_per_batch, end_row - current_row)
+        
+        # Read the batch of rows from the file into the contiguous buffer
+        # We must seek per row because file storage is stride-based (src_row_bytes)
+        for i in range(batch_h):
+            row_index = current_row + i
+            src_y = sy + row_index
+            src_offset = 4 + src_y * src_row_bytes + src_x
+            fh.seek(src_offset)
+            
+            # Read into the correct slice of the scratch buffer
+            start_idx = i * copy_width
+            view = memoryview(scratch)[start_idx : start_idx + copy_width]
+            fh.readinto(view)
+
+        # Create a FrameBuffer for this batch of rows
+        # The buffer must be just the size we used
+        total_bytes = copy_width * batch_h
+        batch_view = memoryview(scratch)[:total_bytes]
+        source_framebuffer = (batch_view, copy_width, batch_h, framebuf.GS8)
+
+        # Blit the entire batch
+        # Destination Y is offset by current_row
+        framebuffer.blit(source_framebuffer, fb_x, dy + current_row, 0, (palette, 256, 1, framebuf.RGB565))
+
+        current_row += batch_h
 
 class BMFont:
     def __init__(self):
