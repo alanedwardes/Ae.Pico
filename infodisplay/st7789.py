@@ -341,6 +341,10 @@ class ST7789:
         # Clamp brightness to valid range (0.0 to 1.0)
         brightness = max(0.0, min(1.0, float(brightness)))
         
+        if self._backlight_pwm is not None:
+            self._backlight_pwm.duty_u16(int(brightness * 65535))
+            return
+
         if brightness == 0.0:
             # Turn off backlight completely
             self._backlight.value(0)
@@ -349,9 +353,8 @@ class ST7789:
             self._backlight.value(1)
         else:
             # Use PWM for intermediate brightness levels
-            if self._backlight_pwm is None:
-                self._backlight_pwm = PWM(self._backlight)
-                self._backlight_pwm.freq(1000)  # 1kHz PWM frequency
+            self._backlight_pwm = PWM(self._backlight)
+            self._backlight_pwm.freq(1000)  # 1kHz PWM frequency
             
             # Convert brightness (0.0-1.0) to duty cycle (0-65535)
             duty = int(brightness * 65535)
