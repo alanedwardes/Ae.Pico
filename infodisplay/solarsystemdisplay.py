@@ -5,9 +5,8 @@ import textbox
 import random
 
 class SolarSystemDisplay:
-    def __init__(self, display, rtc):
+    def __init__(self, display):
         self.display = display
-        self.rtc = rtc
         
         self.display_width, self.display_height = self.display.get_bounds()
         self.center_x = int(self.display_width / 2)
@@ -90,11 +89,7 @@ class SolarSystemDisplay:
     
     @staticmethod
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            import machine
-            rtc = machine.RTC()
-        return SolarSystemDisplay(provider['display'], rtc)
+        return SolarSystemDisplay(provider['display'])
         
     async def start(self):
         await asyncio.Event().wait()
