@@ -19,6 +19,7 @@ class TimeDisplay:
         self._last_time_text = None   # HH:MM
         self._last_day_text = None    # Day-of-week
         self._last_sec_text = None    # SS
+        self._last_ms_text = None     # M (tenths)
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -32,9 +33,8 @@ class TimeDisplay:
     async def start(self):
         while True:
             self.__update()
-            # Assume subseconds component of RTC means milliseconds
-            sleep_ms = max(min(1000 - self.rtc.datetime()[7], 1000), 0)
-            await asyncio.sleep(sleep_ms / 1000)
+            # Update frequently for milliseconds (approx 20fps)
+            await asyncio.sleep(0.05)
 
     def __update(self):
         # Layout constants
@@ -49,6 +49,7 @@ class TimeDisplay:
         time_text = '%02i:%02i' % (now[4], now[5])
         day_text = f'{self.DAYS[now[3]-1]}'
         sec_text = '%02i' % now[6]
+        ms_text = '%i' % (now[7] // 100) # Tenths
 
         # Redraw HH:MM only when it changes
         if time_text != self._last_time_text:
@@ -67,10 +68,29 @@ class TimeDisplay:
             # Render only the day region
             self.display.update((time_width, 0, date_seconds_width, section_height))
 
-        # Redraw seconds each time they change
-        if sec_text != self._last_sec_text:
+        # Redraw seconds and ms each time they change
+        if sec_text != self._last_sec_text or ms_text != self._last_ms_text:
             self.display.rect(time_width, section_height, date_seconds_width, section_height, 0x0000, True)
-            textbox.draw_textbox(self.display, sec_text, time_width, section_height, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
-            self._last_sec_text = sec_text
-            # Render only the seconds region
-            self.display.update((time_width, section_height, date_seconds_width, section_height))
+            
+            # Layout
+            sec_width = 36
+            sec_height = section_height
+            sec_x = time_width + (date_seconds_width - sec_width) // 2 - 6 # Shift left slightly
+            
+            ms_width = 15
+            ms_height = section_height
+            ms_x = sec_x + sec_width
+
+            # Redraw seconds only when they change
+            if sec_text != self._last_sec_text:
+                self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
+                textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
+                self._last_sec_text = sec_text
+                self.display.update((sec_x, section_height, sec_width, sec_height))
+
+            # Redraw MS only when they change
+            if ms_text != self._last_ms_text:
+                self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
+                textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
+                self._last_ms_text = ms_text
+                self.display.update((ms_x, section_height, ms_width, ms_height))
