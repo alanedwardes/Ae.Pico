@@ -3,7 +3,7 @@ import gc
 
 from httpstream import HttpRequest, stream_reader_to_buffer
 
-class StaticImageDisplay:
+class StaticDisplay:
     def __init__(self, display, url, start_offset=0):
         self.display = display
         self.url = url
@@ -25,7 +25,7 @@ class StaticImageDisplay:
             url = config['url']
             start_offset = config.get('start_offset', 0)
             
-        return StaticImageDisplay(
+        return StaticDisplay(
             provider['display'],
             url,
             start_offset
