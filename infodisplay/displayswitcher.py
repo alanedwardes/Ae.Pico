@@ -42,6 +42,7 @@ class DisplaySwitcher:
             focus_queue, cancel_focus_stream = bus.stream('focus.request')
 
         while True:
+            any_activated = False
             for service_name in self.services:
                 service = self.provider[service_name]
                 
@@ -49,6 +50,7 @@ class DisplaySwitcher:
                 if hasattr(service, 'should_activate') and not service.should_activate():
                     continue
 
+                any_activated = True
                 # Cancel any previous active task and start new one
                 await self._cancel_active_task()
                 self.active_task = asyncio.create_task(service.activate())
@@ -100,6 +102,9 @@ class DisplaySwitcher:
                     except asyncio.TimeoutError:
                         # Normal timeout, continue rotation
                         pass
+
+            if not any_activated:
+                await asyncio.sleep(1)
 
         if cancel_focus_stream is not None:
             cancel_focus_stream()
