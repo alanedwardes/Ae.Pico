@@ -16,7 +16,7 @@ class StaticImageDisplay:
 
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['static_image']
+        config = provider['config']['static']
         # Support both simple URL string and config dict
         if isinstance(config, str):
             url = config
