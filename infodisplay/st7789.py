@@ -779,27 +779,29 @@ class ST7789:
              remaining = row_bytes
              while remaining > 0:
                  try:
-                     # Attempt to await readinto (MicroPython)
-                     # If reader is standard file, it might not be awaitable?
-                     # But we are designing for async stream readers here.
                      n = await reader.readinto(view[row_bytes-remaining:])
+                     if not n:
+                         break
+                     remaining -= n
                  except (AttributeError, TypeError):
-                     # Fallback for sync readers (internal files?)
-                     # Or if readinto is not async (standard file objects in MP are sync?)
-                     # If we use `open('file.bin', 'rb')`, readinto is sync.
-                     # But `remotedisplay` passes async stream.
-                     # We should support both if possible? 
-                     # Or just assume async for this method as it's named load_stream (implying streaming).
-                     # Let's keep it simple: assume async stream for now as that's the use case.
-                     # But if we want to fix it properly:
-                     if hasattr(reader, 'readinto'):
-                         n = reader.readinto(view[row_bytes-remaining:])
-                     else:
-                          raise
-                          
-                 if not n:
-                     break # EOF handling?
-                 remaining -= n
+                     # Fallback for readers without async readinto (e.g. uasyncio.StreamReader)
+                     # Try async read (standard for asyncio streams)
+                     try:
+                         chunk = await reader.read(remaining)
+                         if not chunk:
+                             break
+                         n = len(chunk)
+                         view[row_bytes-remaining : row_bytes-remaining+n] = chunk
+                         remaining -= n
+                     except (AttributeError, TypeError):
+                         # Fallback for sync readers (internal files)
+                         if hasattr(reader, 'readinto'):
+                             n = reader.readinto(view[row_bytes-remaining:])
+                             if not n:
+                                 break
+                             remaining -= n
+                         else:
+                             raise
             
              _swapline(dest_ptr, src_ptr, row_bytes)
              self._spi.write(lb[:row_bytes])
