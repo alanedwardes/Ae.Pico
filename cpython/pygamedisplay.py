@@ -238,7 +238,7 @@ class PygameDisplay:
              src16 = memoryview(source_buf).cast('H') if isinstance(source_buf, (bytearray, memoryview)) else array('H', source_buf)
              # But if source_buf is bytes, cast might need read-write?
              # Let's assume bytes.
-             if isinstance(source_buf, bytes):
+             if isinstance(source_buf, (bytes, bytearray, memoryview)):
                   # copy to array or use struct unpack loop?
                   # easiest:
                   import struct
@@ -252,8 +252,6 @@ class PygameDisplay:
                       
                   surf = pygame.image.frombuffer(pixels_rgba, (w, h), 'RGBA')
              else:
-                  # memoryview/bytearray
-                  # TODO optimization
                   return
 
         # Scale if needed

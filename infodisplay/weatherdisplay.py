@@ -46,9 +46,7 @@ class WeatherDisplay:
         return True
 
     async def activate(self):
-        while True:
-            await self.update()
-            await asyncio.sleep(1)
+        await self.update()
 
     async def fetch_weather_data(self):
         try:
