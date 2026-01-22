@@ -9,14 +9,6 @@ import gc
 import micropython
 from machine import PWM
 
-# Fix for Viper types not being defined at runtime
-if 'ptr8' not in globals():
-    ptr8 = int
-if 'ptr16' not in globals():
-    ptr16 = int
-if 'ptr32' not in globals():
-    ptr32 = int
-
 # User orientation constants
 # Waveshare Pico res touch defaults to portrait. Requires PORTRAIT for landscape orientation.
 LANDSCAPE = 0  # Default
@@ -692,14 +684,14 @@ class ST7789:
             lb = self._linebuf
             stride = source[1] # original width
             
-            dest_ptr = ptr8(lb)
-            pal_ptr = ptr8(pal_bytes)
+            dest_ptr = lb
+            pal_ptr = pal_bytes
             
             for row in range(h):
                 # Source is linear chunk for this batch
                 start_idx = row * w
                 src_slice = src_mv[start_idx : start_idx + w]
-                src_ptr = ptr8(src_slice)
+                src_ptr = src_slice
                 
                 # Convert line using Viper
                 _blit_line_palette(dest_ptr, src_ptr, w, pal_ptr)
@@ -716,7 +708,7 @@ class ST7789:
             lb = self._linebuf
             
             stride = source[1] * 2 # 2 bytes per pixel
-            dest_ptr = ptr8(lb)
+            dest_ptr = lb
             
             for row in range(h):
                 start_idx = row * stride
@@ -730,7 +722,7 @@ class ST7789:
                 # So we are blitting the whole source.
                 
                 src_slice = src_mv[start_idx : start_idx + w*2]
-                src_ptr = ptr8(src_slice)
+                src_ptr = src_slice
                 
                 # Check buffer size
                 if len(lb) < w*2:
@@ -774,8 +766,8 @@ class ST7789:
         
         read_buf = bytearray(row_bytes)
         lb = self._linebuf
-        dest_ptr = ptr8(lb)
-        src_ptr = ptr8(read_buf)
+        dest_ptr = lb
+        src_ptr = read_buf
 
         # We need to perform this loop h times
         # But wait, reader.readinto might not return full amount? 
