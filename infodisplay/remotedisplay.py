@@ -3,7 +3,7 @@ import utime
 import gc
 import socket
 
-from httpstream import HttpRequest, stream_reader_to_buffer
+from httpstream import HttpRequest
 
 class RemoteDisplay:
     def __init__(self, display, url, refresh_period=1, start_offset=0):
@@ -40,17 +40,15 @@ class RemoteDisplay:
     async def __update(self):
         # Use unified HTTP request helper
         async with self._http_request.get_scoped() as (reader, writer):
-            # Get direct access to the display framebuffer with offset
-            framebuffer = memoryview(self.display)[self.start_offset:]
-
-            # Stream data directly into framebuffer using shared method
-            await stream_reader_to_buffer(reader, framebuffer)
-
             # Tell display to update the screen (only the region we wrote to)
             # start_offset is in bytes, RGB565 uses 2 bytes per pixel
+            # y_offset = (self.start_offset // 2) // self.display_width
+            # height = self.display_height - y_offset
+            # self.display.update((0, y_offset, self.display_width, height))
+            
             y_offset = (self.start_offset // 2) // self.display_width
             height = self.display_height - y_offset
-            self.display.update((0, y_offset, self.display_width, height))
+            await self.display.load_stream(reader, 0, y_offset, self.display_width, height)
 
             # Clean up after HTTP request
             gc.collect()

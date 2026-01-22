@@ -2,7 +2,7 @@ import asyncio
 import utime
 import gc
 
-from httpstream import parse_url, stream_reader_to_buffer
+from httpstream import parse_url
 
 class HassMediaDisplay:
     def __init__(self, display, hass, event_bus, entity_id, background_converter, start_offset=0):
@@ -96,17 +96,17 @@ class HassMediaDisplay:
             await asyncio.sleep(0)
             
             # Get direct access to the display framebuffer with offset
-            framebuffer = memoryview(self.display)[self.start_offset:]
+            # framebuffer = memoryview(self.display)[self.start_offset:]
             
             # Stream data directly into framebuffer using shared method
-            await stream_reader_to_buffer(reader, framebuffer)
+            # await stream_reader_to_buffer(reader, framebuffer)
 
-        # Clean up after HTTP request
-        import gc
-        gc.collect()
-
-        # Tell display to update the screen (only the region we wrote to)
-        # start_offset is in bytes, RGB565 uses 2 bytes per pixel
-        y_offset = (self.start_offset // 2) // self.display_width
-        height = self.display_height - y_offset
-        self.display.update((0, y_offset, self.display_width, height))
+            # Tell display to update the screen (only the region we wrote to)
+            # start_offset is in bytes, RGB565 uses 2 bytes per pixel
+            # y_offset = (self.start_offset // 2) // self.display_width
+            # height = self.display_height - y_offset
+            # self.display.update((0, y_offset, self.display_width, height))
+            
+            y_offset = (self.start_offset // 2) // self.display_width
+            height = self.display_height - y_offset
+            await self.display.load_stream(reader, 0, y_offset, self.display_width, height)

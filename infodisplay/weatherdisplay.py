@@ -20,8 +20,9 @@ class WeatherDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         
         # Calculate bytes per pixel once
-        total_pixels = self.display_width * self.display_height
-        self.bytes_per_pixel = len(memoryview(display)) // total_pixels
+        # total_pixels = self.display_width * self.display_height
+        # self.bytes_per_pixel = len(memoryview(display)) // total_pixels
+        self.bytes_per_pixel = 2 # RGB565
         
         # Pre-allocate line buffer for blitting
         # Size needed is max width * bytes per pixel

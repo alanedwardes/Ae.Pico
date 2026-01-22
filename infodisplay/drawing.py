@@ -1,14 +1,9 @@
-import framebuf
 import math
 
-class Drawing(framebuf.FrameBuffer):
+class Drawing:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.mode = framebuf.RGB565
-        self._buf = bytearray(width * height * 2)
-        super().__init__(self._buf, width, height, self.mode)
-        self.fill(0)
         self._driver = None
 
     @staticmethod
@@ -27,13 +22,8 @@ class Drawing(framebuf.FrameBuffer):
         self._driver.set_backlight(brightness)
 
     def update(self, region=None):
-        if self._driver is None:
-            return
-
-        if region is None:
-            region = (0, 0, self.width, self.height)
-        
-        self._driver.render(self._buf, self.width, self.height, region)
+        # No-op in direct rendering mode as changes are immediate
+        pass
 
     def _dim_color(self, color, factor):
         # Factor 0.0 to 1.0
@@ -47,8 +37,55 @@ class Drawing(framebuf.FrameBuffer):
         
         return (r << 11) | (g << 5) | b
 
+    def pixel(self, x, y, color):
+        if self._driver:
+            self._driver.pixel(x, y, color)
+
+    def line(self, x1, y1, x2, y2, color):
+        if self._driver:
+            self._driver.line(x1, y1, x2, y2, color)
+
+    def hline(self, x, y, w, color):
+        if self._driver:
+            self._driver.hline(x, y, w, color)
+
+    def vline(self, x, y, h, color):
+        if self._driver:
+            self._driver.vline(x, y, h, color)
+
+    def ellipse(self, x, y, xr, yr, color, fill=False, m=15):
+        if self._driver:
+            self._driver.ellipse(x, y, xr, yr, color, fill, m)
+
+    def poly(self, x, y, coords, color, fill=False):
+        if self._driver:
+            self._driver.poly(x, y, coords, color, fill)
+
+    def rect(self, x, y, w, h, color, fill=False):
+        if self._driver:
+            self._driver.rect(x, y, w, h, color, fill)
+
+    def fill_rect(self, x, y, w, h, color):
+        if self._driver:
+            # fill_rect is usually same as rect with fill=True, but framebuf has it separate?
+            # framebuf has fill_rect(x, y, w, h, c)
+            self._driver.fill_rect(x, y, w, h, color)
+
+    def fill(self, color):
+        if self._driver:
+            self._driver.fill(color)    
+
+    def blit(self, source, x, y, key=0, palette=None):
+        if self._driver:
+            self._driver.blit(source, x, y, key, palette)
+
+    async def load_stream(self, reader, x, y, w, h):
+        if self._driver:
+            await self._driver.load_stream(reader, x, y, w, h)
+            
     def aa_circle(self, cx, cy, radius, color):
         # Draw an anti-aliased circle
+        # This will be slow with direct pixel calls but functional
         r_int = int(radius) + 1
         for dy in range(-r_int, r_int + 1):
              for dx in range(-r_int, r_int + 1):
@@ -65,3 +102,7 @@ class Drawing(framebuf.FrameBuffer):
                         c = self._dim_color(color, factor)
                         if 0 <= cy + dy < self.height and 0 <= cx + dx < self.width:
                             self.pixel(cx + dx, cy + dy, c)
+
+    def text(self, s, x, y, color=0xFFFF):
+        if self._driver:
+            self._driver.text(s, x, y, color)
