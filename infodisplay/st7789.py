@@ -739,42 +739,14 @@ class ST7789:
         if w <= 0 or h <= 0:
             return
             
-        self._set_region_window(x, y, w, h)
-        
-        self._dc(0)
-        self._cs(0)
-        self._spi.write(b"\x2c")
-        self._dc(1)
-        
-        # We need a buffer for reading chunks. 
-        # _linebuf is self.width * 2. 
-        # If w > self.width (shouldn't happen), we'd be in trouble.
-        # But we can chunk any amount.
-        
-        # Read a row at a time to be safe and allow swapping?
-        # Or read larger chunks if w is small?
-        # Simpler: read row by row, swap, write. 
-        
         row_bytes = w * 2
-        # Use a temporary buffer for reading so we can swap into _linebuf
-        # Note: _swapline(dest, src, ...)
-        
-        # If we read directly into _linebuf, we'd need to swap in-place? 
-        # _swapline isn't in-place.
-        # So we need a second buffer. 
-        # We can allocate one row buffer.
-        
         read_buf = bytearray(row_bytes)
         lb = self._linebuf
+        
         dest_ptr = lb
         src_ptr = read_buf
 
-        # We need to perform this loop h times
-        # But wait, reader.readinto might not return full amount? 
-        # It's a stream. We should ensure we read exactly row_bytes.
-        
-        for _ in range(h):
-             # Read exactly row_bytes
+        for i in range(h):
              view = memoryview(read_buf)
              remaining = row_bytes
              while remaining > 0:
@@ -784,8 +756,6 @@ class ST7789:
                          break
                      remaining -= n
                  except (AttributeError, TypeError):
-                     # Fallback for readers without async readinto (e.g. uasyncio.StreamReader)
-                     # Try async read (standard for asyncio streams)
                      try:
                          chunk = await reader.read(remaining)
                          if not chunk:
@@ -794,7 +764,6 @@ class ST7789:
                          view[row_bytes-remaining : row_bytes-remaining+n] = chunk
                          remaining -= n
                      except (AttributeError, TypeError):
-                         # Fallback for sync readers (internal files)
                          if hasattr(reader, 'readinto'):
                              n = reader.readinto(view[row_bytes-remaining:])
                              if not n:
@@ -803,10 +772,16 @@ class ST7789:
                          else:
                              raise
             
+             self._set_region_window(x, y + i, w, 1)
+             
+             self._dc(0)
+             self._cs(0)
+             self._spi.write(b"\x2c") # RAMWR
+             self._dc(1)
+             
              _swapline(dest_ptr, src_ptr, row_bytes)
              self._spi.write(lb[:row_bytes])
-             
-        self._cs(1)
+             self._cs(1)
 
     def text(self, s, x, y, color=0xFFFF):
         # No built-in font support in ST7789 driver
