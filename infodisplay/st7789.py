@@ -9,6 +9,14 @@ import gc
 import micropython
 from machine import PWM
 
+# Fix for Viper types not being defined at runtime
+if 'ptr8' not in globals():
+    ptr8 = int
+if 'ptr16' not in globals():
+    ptr16 = int
+if 'ptr32' not in globals():
+    ptr32 = int
+
 # User orientation constants
 # Waveshare Pico res touch defaults to portrait. Requires PORTRAIT for landscape orientation.
 LANDSCAPE = 0  # Default
