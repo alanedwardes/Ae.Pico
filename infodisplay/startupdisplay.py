@@ -80,6 +80,3 @@ class StartupDisplay:
             rssi = "?"
             
         textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFF, font='small', align='left')
-        
-        # Update proper region
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))

@@ -111,8 +111,6 @@ class MeshDisplay:
         self.display.fill(0x0000)
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
 
-        # Render full screen for mesh display
-        self.display.update((0, 0, self.display_width, self.display_height))
         update_time_ms = utime.ticks_diff(utime.ticks_ms(), start_update_ms)
         mem_after = gc.mem_alloc()
         print(f"MeshDisplay: {update_time_ms}ms, mem: {mem_before} -> {mem_after} ({mem_after - mem_before:+d})")

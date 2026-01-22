@@ -142,8 +142,6 @@ class SolarSystemDisplay:
             # Draw Planet
             self._draw_planet(p['name'], px, py, p['size'], p['color'])
 
-        self.display.update((0, self.top_margin, self.display_width, self.display_height - self.top_margin))
-
     def _draw_moon(self, cx, cy, radius_px, angle_offset, color):
         # Draw a moon at a given radius and angle from planet center
         # We can animate them based on time if we want, or just static/random

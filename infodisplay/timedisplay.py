@@ -57,16 +57,12 @@ class TimeDisplay:
             self.display.rect(0, 0, time_width, height, 0x0000, True)
             textbox.draw_textbox(self.display, time_text, 0, 0, time_width, height, color=0xFFFF, font='headline', scale=1)
             self._last_time_text = time_text
-            # Render only the time region
-            self.display.update((0, 0, time_width, height))
 
         # Redraw day-of-week only when it changes
         if day_text != self._last_day_text:
             self.display.rect(time_width, 0, date_seconds_width, section_height, 0x0000, True)
             textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
             self._last_day_text = day_text
-            # Render only the day region
-            self.display.update((time_width, 0, date_seconds_width, section_height))
 
         # Helper vars for layout
         sec_width = 36
@@ -82,11 +78,9 @@ class TimeDisplay:
             self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
             textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
             self._last_sec_text = sec_text
-            self.display.update((sec_x, section_height, sec_width, sec_height))
 
         # Redraw MS only when they change
         if ms_text != self._last_ms_text:
             self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
             textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
             self._last_ms_text = ms_text
-            self.display.update((ms_x, section_height, ms_width, ms_height))

@@ -170,6 +170,3 @@ class SolarDisplay:
                 
             except (ValueError, TypeError):
                 textbox.draw_textbox(self.display, "LOAD: ?", x_right, y_bottom, item_width - 20, 30, color=white, font='regular')
-
-        # Render only the solar display region (below the time/temperature displays)
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))

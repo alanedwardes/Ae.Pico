@@ -21,10 +21,6 @@ class Drawing:
             return
         self._driver.set_backlight(brightness)
 
-    def update(self, region=None):
-        # No-op in direct rendering mode as changes are immediate
-        pass
-
     def _dim_color(self, color, factor):
         # Factor 0.0 to 1.0
         r = (color >> 11) & 0x1F

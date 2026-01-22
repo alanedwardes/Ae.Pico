@@ -261,9 +261,6 @@ class TrainDisplay:
 
         self.__draw_header_row(y_start)
 
-        # Update header
-        self.display.update((0, y_start, self.display_width, row_height))
-
         # Allow other work to continue
         await asyncio.sleep(0)
 
@@ -275,9 +272,6 @@ class TrainDisplay:
             self.display.rect(0, row_start, self.display_width, row_height, 0x0000, True)
 
             self.__draw_departure_row(row, row_start)
-
-            # Update just this row
-            self.display.update((0, row_start, self.display_width, row_height))
 
             # Allow other work to continue
             await asyncio.sleep(0)

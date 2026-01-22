@@ -251,5 +251,3 @@ class RainDisplay:
         chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
                                     self._r_values, self._normalized_r, rain_color_fn, radius=2)
         await asyncio.sleep(0)
-
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
