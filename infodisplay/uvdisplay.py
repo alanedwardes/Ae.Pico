@@ -55,7 +55,7 @@ class UvDisplay:
 
     async def activate(self):
         while True:
-            self.update()
+            await self.update()
             await asyncio.sleep(1)
     
     async def fetch_uv_data(self):
@@ -74,7 +74,7 @@ class UvDisplay:
         except Exception as e:
             print(f"Error fetching UV data: {e}")
         
-    def update(self):
+    async def update(self):
         if len(self.uv_data) == 0:
             return
         
