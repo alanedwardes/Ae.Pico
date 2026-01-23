@@ -29,6 +29,8 @@ class WeatherDisplay:
 
         # Pre-allocate HTTP request helper to reduce memory allocations
         self._http_request = HttpRequest(url)
+
+        self.tsf = asyncio.ThreadSafeFlag()
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -42,12 +44,14 @@ class WeatherDisplay:
             await asyncio.sleep(self.refresh_period_seconds)
         
     def should_activate(self):
+        if len(self.weather_data) == 0:
+            return False
         return True
 
     async def activate(self):
         while True:
             await self.update()
-            await asyncio.sleep(1)
+            await self.tsf.wait()
 
     async def fetch_weather_data(self):
         try:
@@ -62,6 +66,8 @@ class WeatherDisplay:
             # Clean up after HTTP request
             import gc
             gc.collect()
+
+            self.tsf.set()
 
         except Exception as e:
             print(f"Error fetching weather data: {e}")

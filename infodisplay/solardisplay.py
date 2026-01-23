@@ -16,6 +16,8 @@ class SolarDisplay:
         self.current_grid = None
         self.current_solar = None
         self.current_load = None
+
+        self.tsf = asyncio.ThreadSafeFlag()
     
     def format_power(self, value):
         try:
@@ -43,6 +45,8 @@ class SolarDisplay:
             self.current_solar = entity.get('s')
         elif entity_id == self.entity_ids.get('current_load'):
             self.current_load = entity.get('s')
+        
+        self.tsf.set()
     
     async def start(self):
         # Subscribe to all solar entities
@@ -73,7 +77,7 @@ class SolarDisplay:
     async def activate(self):
         while True:
             await self.update()
-            await asyncio.sleep(1)
+            await self.tsf.wait()
     
     async def update(self):
         await self.__update()

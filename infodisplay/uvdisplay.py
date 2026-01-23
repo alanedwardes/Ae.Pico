@@ -20,6 +20,8 @@ class UvDisplay:
 
         # Pre-allocate HTTP request helper
         self._http_request = HttpRequest(url)
+
+        self.tsf = asyncio.ThreadSafeFlag()
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -56,7 +58,7 @@ class UvDisplay:
     async def activate(self):
         while True:
             await self.update()
-            await asyncio.sleep(1)
+            await self.tsf.wait()
     
     async def fetch_uv_data(self):
         try:
@@ -70,6 +72,8 @@ class UvDisplay:
             # Clean up after HTTP request
             import gc
             gc.collect()
+
+            self.tsf.set()
                 
         except Exception as e:
             print(f"Error fetching UV data: {e}")
