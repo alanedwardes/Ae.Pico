@@ -102,7 +102,7 @@ class UvDisplay:
             position = hour // 2
             sx = position * label_width
             
-            textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=0xFFFF, font='small')
+            await textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=0xFFFF, font='small')
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 40  # Make chart fill more space
@@ -139,7 +139,7 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12) * chart_height
             
             # Draw label on the left
-            textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFF, font='small', align='left')
+            await textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFF, font='small', align='left')
 
         # Calculate spacing for 12 values (every other data point)
         label_width = self.display_width // 12
@@ -148,7 +148,7 @@ class UvDisplay:
             uv = self.uv_data[i]
             label_index = i // 2  # Index for positioning
             x_pos = label_index * label_width
-            textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFF, font='small')
+            await textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFF, font='small')
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum

@@ -22,10 +22,10 @@ class StartupDisplay:
     async def activate(self):
         self.pending_activation = False
         while True:
-            self.update()
+            await self.update()
             await asyncio.sleep(0.1)
 
-    def update(self):
+    async def update(self):
         y_start = 70
         
         # Clear the display area
@@ -42,7 +42,7 @@ class StartupDisplay:
         except Exception:
             ip = "?"
         
-        textbox.draw_textbox(self.display, f"IP: {ip}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"IP: {ip}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
         y += line_height
         
         # Hostname
@@ -51,7 +51,7 @@ class StartupDisplay:
         except Exception:
             hostname = "?"
             
-        textbox.draw_textbox(self.display, f"Host: {hostname}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"Host: {hostname}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
         y += line_height
         
         # SSID
@@ -60,7 +60,7 @@ class StartupDisplay:
         except Exception:
             ssid = "?"
             
-        textbox.draw_textbox(self.display, f"WiFi: {ssid}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
         y += line_height
 
         # MAC Address
@@ -70,7 +70,7 @@ class StartupDisplay:
         except Exception:
             mac = "?"
             
-        textbox.draw_textbox(self.display, f"MAC: {mac}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"MAC: {mac}", x, y, width, line_height, color=0xFFFF, font='small', align='left')
         y += line_height
         
         # Signal Strength
@@ -79,7 +79,7 @@ class StartupDisplay:
         except Exception:
             rssi = "?"
             
-        textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFF, font='small', align='left')
         
         # Update proper region
         self.display.update((0, y_start, self.display_width, self.display_height - y_start))

@@ -1,5 +1,6 @@
 import math
 import random
+import asyncio
 
 from bmfont import BMFont, draw_text, measure_text
 from font8 import Font8
@@ -30,11 +31,13 @@ def _measure_bmfont(font_obj, text, scale):
     w, h, _min_x, _min_y = measure_text(font_obj, text)
     return w * scale, h * scale
 
-def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
+async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
     words = text.split()
     wrapped_lines = []
     current_line = ""
-    for word in words:
+    for i, word in enumerate(words):
+        if i % 10 == 0:
+            await asyncio.sleep(0)
         test_line = f"{current_line} {word}".strip()
         line_width_pixels, _ = _measure_bmfont(font_obj, test_line, scale)
         if line_width_pixels <= max_width_pixels:
@@ -46,7 +49,7 @@ def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
         wrapped_lines.append(current_line)
     return "\n".join(wrapped_lines)
 
-def word_wrap_text(display, text, max_width_pixels, scale):
+async def word_wrap_text(display, text, max_width_pixels, scale):
     """
     Wrap text to fit within a specified width.
     
@@ -63,7 +66,9 @@ def word_wrap_text(display, text, max_width_pixels, scale):
     wrapped_lines = []
     current_line = ""
 
-    for word in words:
+    for i, word in enumerate(words):
+        if i % 10 == 0:
+            await asyncio.sleep(0)
         # Measure the width of the current line with the new word added
         test_line = f"{current_line} {word}".strip()
         line_width_pixels = Font8.measure_text(test_line, scale)
@@ -93,7 +98,7 @@ def draw_textbox_outline(display, x, y, width, height):
     display.rect(int(x), int(y), 1, int(height), c, True)  # left
     display.rect(int(x + width - 1), int(y), 1, int(height), c, True)  # right
 
-def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
+async def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
     """
     Draw text in a textbox with specified dimensions.
     
@@ -117,9 +122,9 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
     # Apply word wrapping if requested
     if wrap:
         if is_bmfont:
-            text = _word_wrap_bmfont(bmfont_obj, text, width, scale)
+            text = await _word_wrap_bmfont(bmfont_obj, text, width, scale)
         else:
-            text = word_wrap_text(display, text, width, scale)
+            text = await word_wrap_text(display, text, width, scale)
     
     # Calculate text dimensions based on font
     if not is_bmfont:
@@ -170,15 +175,34 @@ def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', s
     if is_bmfont:
         dw, dh = display.get_bounds()
         # Use previously computed integer scale factors and scaled bounds
-        draw_text(
-            display, dw, dh, bmfont_obj, bm_pages, text,
-            # Shift origin by the tight-bounds min bearings so glyphs don't clip
-            math.floor(text_x_position - (min_x * scale_up_i) // scale_down_i),
-            math.floor(text_y_position - (min_y * scale_up_i) // scale_down_i),
-            kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color
-        )
+        origin_x = math.floor(text_x_position - (min_x * scale_up_i) // scale_down_i)
+        origin_y = math.floor(text_y_position - (min_y * scale_up_i) // scale_down_i)
+        
+        current_y = origin_y
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                current_y += bmfont_obj.line_height
+            
+            draw_text(
+                display, dw, dh, bmfont_obj, bm_pages, line,
+                # Shift origin by the tight-bounds min bearings so glyphs don't clip
+                origin_x,
+                current_y,
+                kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color
+            )
+            await asyncio.sleep(0)
     else:
-        Font8.draw_text(display, text, math.floor(text_x_position), math.floor(text_y_position), color, scale=scale)
+        origin_x = math.floor(text_x_position)
+        origin_y = math.floor(text_y_position)
+        current_y = origin_y
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                current_y += Font8.height * scale
+            
+            Font8.draw_text(display, line, origin_x, math.floor(current_y), color, scale=scale)
+            await asyncio.sleep(0)
     
     # DEBUG: Draw outline
     #draw_textbox_outline(display, x, y, width, height)

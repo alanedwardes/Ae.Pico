@@ -32,7 +32,7 @@ class NewsDisplay:
         return len(self.stories) > 0
 
     async def activate(self):
-        self.update()
+        await self.update()
         self.story_index = (self.story_index + 1) % len(self.stories) if len(self.stories) > 0 else 0
     
     async def fetch_news_data(self):
@@ -53,7 +53,7 @@ class NewsDisplay:
         except Exception as e:
             print(f"Error fetching news data: {e}")
 
-    def update(self):
+    async def update(self):
         stories = self.stories
 
         y_offset = 70
@@ -67,7 +67,7 @@ class NewsDisplay:
 
         label_height = 16
 
-        textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
+        await textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFF, font='regular', wrap=True)
 
         # Render only the news display region (below the time/temperature displays)
         self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))

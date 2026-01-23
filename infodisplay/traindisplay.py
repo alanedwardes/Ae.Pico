@@ -137,7 +137,7 @@ class TrainDisplay:
     async def activate(self):
         await self.update()
 
-    def __draw_header_row(self, y_offset):
+    async def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""
         header_color = 0x8410  # Grey for header
         
@@ -149,13 +149,13 @@ class TrainDisplay:
         expected_width = 50
         
         # Draw header labels
-        textbox.draw_textbox(self.display, 'Time', 0, y_offset, time_width, 20, color=header_color, font='small')
-        textbox.draw_textbox(self.display, 'Destination', time_width, y_offset, destination_width, 20, color=header_color, font='small', align='left')
-        textbox.draw_textbox(self.display, 'Plt', time_width + destination_width, y_offset, platform_width, 20, color=header_color, font='small')
-        textbox.draw_textbox(self.display, 'Cls', time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=header_color, font='small')
-        textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
+        await textbox.draw_textbox(self.display, 'Time', 0, y_offset, time_width, 20, color=header_color, font='small')
+        await textbox.draw_textbox(self.display, 'Destination', time_width, y_offset, destination_width, 20, color=header_color, font='small', align='left')
+        await textbox.draw_textbox(self.display, 'Plt', time_width + destination_width, y_offset, platform_width, 20, color=header_color, font='small')
+        await textbox.draw_textbox(self.display, 'Cls', time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=header_color, font='small')
+        await textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
     
-    def __draw_departure_row(self, departure_idx, y_offset):
+    async def __draw_departure_row(self, departure_idx, y_offset):
         # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
         idx = departure_idx * 7
         if idx > len(self.departures) -1:
@@ -179,11 +179,11 @@ class TrainDisplay:
         expected_width = 50
         
         # Draw each column using textbox
-        textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')
-        textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='small', align='left')
-        textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
-        textbox.draw_textbox(self.display, train_class, time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=row_pen, font='small')
-        textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=row_pen, font='small')
+        await textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')
+        await textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='small', align='left')
+        await textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
+        await textbox.draw_textbox(self.display, train_class, time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=row_pen, font='small')
+        await textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=row_pen, font='small')
     
     async def fetch_departures(self):
         try:
@@ -259,7 +259,7 @@ class TrainDisplay:
         # Clear header area
         self.display.rect(0, y_start, self.display_width, row_height, 0x0000, True)
 
-        self.__draw_header_row(y_start)
+        await self.__draw_header_row(y_start)
 
         # Update header
         self.display.update((0, y_start, self.display_width, row_height))
@@ -274,7 +274,7 @@ class TrainDisplay:
             # Clear this row
             self.display.rect(0, row_start, self.display_width, row_height, 0x0000, True)
 
-            self.__draw_departure_row(row, row_start)
+            await self.__draw_departure_row(row, row_start)
 
             # Update just this row
             self.display.update((0, row_start, self.display_width, row_height))

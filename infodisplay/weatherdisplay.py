@@ -132,7 +132,7 @@ class WeatherDisplay:
                 day_pen = 0xFFFF
 
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')
+            await textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')
 
             icon = self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, 50)
             # icon is blitted directly; no color state
@@ -144,14 +144,14 @@ class WeatherDisplay:
             min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
 
             height = 2 * 8
-            textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, height, color=colors.get_color_for_temperature(max_temperature), font='small')
+            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, height, color=colors.get_color_for_temperature(max_temperature), font='small')
 
             height = 2 * 8
-            textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, height, color=colors.get_color_for_temperature(min_temperature), font='small')
+            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, height, color=colors.get_color_for_temperature(min_temperature), font='small')
 
             rain_color = colors.get_color_for_rain_percentage(rain)
             height = 2 * 8
-            textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
+            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
 
             # Update just this column
             self.display.update((sx, y_start, column_width, self.display_height - y_start))
