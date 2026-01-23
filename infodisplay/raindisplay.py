@@ -244,12 +244,10 @@ class RainDisplay:
 
         # Draw chart segment for this column
         # We need to draw the chart segments that fall within this column
-        chart.draw_segmented_area(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+        await chart.draw_segmented_area(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
                                     self._r_values, self._normalized_r, rain_color_fn)
-        await asyncio.sleep(0)
 
-        chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+        await chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
                                     self._r_values, self._normalized_r, rain_color_fn, radius=2)
-        await asyncio.sleep(0)
 
         self.display.update((0, y_start, self.display_width, self.display_height - y_start))

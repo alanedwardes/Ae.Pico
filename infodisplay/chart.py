@@ -79,7 +79,7 @@ def map_px_to_index(px, x, width, num_points):
     return index
 
 
-def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
+async def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
 
@@ -122,9 +122,10 @@ def draw_segmented_area(display, x, y, width, height, raw_values, normalized_val
         display.rect(draw_x, top_y, rect_width, rect_height, transparent_color, True)
 
         last_x_int = x_int
+        await asyncio.sleep(0)
 
 
-def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
+async def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
     num_points = len(raw_values)
@@ -141,3 +142,4 @@ def draw_colored_points(display, x, y, width, height, raw_values, normalized_val
             data_index = max_index
         color = color_fn(data_index, raw_values[data_index])
         display.ellipse(int(px), int(py), int(radius), int(radius), color, True)
+        await asyncio.sleep(0)

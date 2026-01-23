@@ -158,10 +158,10 @@ class UvDisplay:
         def uv_color_fn(idx, value):
             return colors.get_color_for_uv(value)
 
-        chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
+        await chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
                                    self.uv_data, normalized_data, uv_color_fn)
 
-        chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
+        await chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
                                    self.uv_data, normalized_data, uv_color_fn, radius=2)
 
         # Draw current time vertical line
