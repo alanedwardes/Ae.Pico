@@ -192,11 +192,12 @@ class BMFont:
                     font.kerning[(first, second)] = amount
         return font
 
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None):
     # GS8 source atlases: one byte per pixel per row
     row_bytes = font.scale_w * 1
     # Reuse a line buffer for all glyphs to limit per-glyph allocations
-    linebuf = bytearray(max(1, font.scale_w or 1))
+    if linebuf is None:
+        linebuf = bytearray(max(1, font.scale_w or 1))
     pages = {}
     if isinstance(page_files, str):
         raise TypeError("page_files must be file objects (not paths)")

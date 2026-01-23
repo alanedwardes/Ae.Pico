@@ -179,6 +179,9 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
         origin_y = math.floor(text_y_position - (min_y * scale_up_i) // scale_down_i)
         
         current_y = origin_y
+        # Get scratch buffer from the drawing instance
+        linebuf = display.get_scratch_buffer(bmfont_obj.scale_w)
+
         lines = text.split('\n')
         for i, line in enumerate(lines):
             if i > 0:
@@ -189,7 +192,8 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
                 # Shift origin by the tight-bounds min bearings so glyphs don't clip
                 origin_x,
                 current_y,
-                kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color
+                kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color,
+                linebuf=linebuf
             )
             await asyncio.sleep(0)
     else:

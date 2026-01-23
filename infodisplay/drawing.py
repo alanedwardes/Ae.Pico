@@ -10,6 +10,16 @@ class Drawing(framebuf.FrameBuffer):
         super().__init__(self._buf, width, height, self.mode)
         self.fill(0)
         self._driver = None
+        # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
+        self._scratch_buffer = bytearray(1024)
+
+    def get_scratch_buffer(self, required_size=0):
+        """Return a memoryview of the scratch buffer. 
+        If required_size > allocated, it will allocate a new one (should be rare)."""
+        if required_size > len(self._scratch_buffer):
+            # Fallback for unusually large requests
+            return bytearray(required_size)
+        return memoryview(self._scratch_buffer)
 
     @staticmethod
     def rgb(r, g, b):
