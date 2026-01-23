@@ -15,11 +15,15 @@ class TimeDisplay:
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
         
-        # Cache last-rendered strings to avoid unnecessary redraws
-        self._last_time_text = None   # HH:MM
-        self._last_day_text = None    # Day-of-week
-        self._last_sec_text = None    # SS
-        self._last_ms_text = None     # M (tenths)
+        # Pre-allocate strings to prevent ALL allocations during the update loop
+        self._padded_numbers = ['%02i' % i for i in range(60)] # "00".."59"
+        self._tenth_numbers = ['%i' % i for i in range(10)]    # "0".."9"
+        
+        # Cache last-rendered values
+        self._last_minute = -1
+        self._last_day_idx = -1
+        self._last_second = -1
+        self._last_tenth = -1
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -44,27 +48,34 @@ class TimeDisplay:
         date_seconds_width = self.display_width - time_width - 64  # the temp display is 64px
 
         now = self.rtc.datetime()
-
-        # Compute current texts
-        time_text = '%02i:%02i' % (now[4], now[5])
-        day_text = f'{self.DAYS[now[3]-1]}'
-        sec_text = '%02i' % now[6]
-        ms_text = '%i' % (now[7] // 100) # Tenths
-
-        # Redraw HH:MM only when it changes
-        if time_text != self._last_time_text:
+        # datetime format: (year, month, day, weekday, hour, minute, second, subsecond)
+        
+        # 1. HH:MM Display
+        # Only re-format and re-draw if the minute has changed
+        if now[5] != self._last_minute:
+            self._last_minute = now[5]
+            # Use pre-allocated strings
+            hour_str = self._padded_numbers[now[4]]
+            min_str = self._padded_numbers[now[5]]
+            time_text = hour_str + ":" + min_str # String concatenation of interned strings is optimized in MicroPython
+            
             # Clear time area then draw
             self.display.rect(0, 0, time_width, height, 0x0000, True)
             await textbox.draw_textbox(self.display, time_text, 0, 0, time_width, height, color=0xFFFF, font='headline', scale=1)
-            self._last_time_text = time_text
+            
             # Render only the time region
             self.display.update((0, 0, time_width, height))
 
-        # Redraw day-of-week only when it changes
-        if day_text != self._last_day_text:
+        # 2. Day Display
+        # Only update if day changed
+        if now[3] != self._last_day_idx:
+            self._last_day_idx = now[3]
+            # Use direct access
+            day_text = self.DAYS[now[3]-1]
+            
             self.display.rect(time_width, 0, date_seconds_width, section_height, 0x0000, True)
             await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
-            self._last_day_text = day_text
+            
             # Render only the day region
             self.display.update((time_width, 0, date_seconds_width, section_height))
 
@@ -77,16 +88,26 @@ class TimeDisplay:
         ms_height = section_height
         ms_x = sec_x + sec_width
 
-        # Redraw seconds only when they change
-        if sec_text != self._last_sec_text:
+        # 3. Seconds Display
+        if now[6] != self._last_second:
+            self._last_second = now[6]
+            # Use pre-allocated string
+            if now[6] < 60:
+                sec_text = self._padded_numbers[now[6]]
+            else:
+                sec_text = "00" # Safety fallback
+            
             self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
             await textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
-            self._last_sec_text = sec_text
             self.display.update((sec_x, section_height, sec_width, sec_height))
 
-        # Redraw MS only when they change
-        if ms_text != self._last_ms_text:
+        # 4. Milliseconds (Tenths) Display
+        tenth = (now[7] // 100) % 10 # Ensure 0-9 range
+        if tenth != self._last_tenth:
+            self._last_tenth = tenth
+            # Use pre-allocated string
+            ms_text = self._tenth_numbers[tenth]
+
             self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
             await textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
-            self._last_ms_text = ms_text
             self.display.update((ms_x, section_height, ms_width, ms_height))
