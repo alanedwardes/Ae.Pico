@@ -98,9 +98,6 @@ class SolarSystemDisplay:
         return True
 
     async def activate(self):
-        self.draw()
-            
-    def draw(self):
         # Clear background
         self.display.rect(0, self.top_margin, self.display_width, self.display_height - self.top_margin, self.bg_color, True)
         
@@ -119,6 +116,7 @@ class SolarSystemDisplay:
         
         # Draw Asteroids
         self._draw_asteroids(days_since_j2000)
+        await asyncio.sleep(0)
         
         for p in self.planets:
             # Square root scaling for better visibility of inner solar system
@@ -141,6 +139,7 @@ class SolarSystemDisplay:
             
             # Draw Planet
             self._draw_planet(p['name'], px, py, p['size'], p['color'])
+            await asyncio.sleep(0)
 
         self.display.update((0, self.top_margin, self.display_width, self.display_height - self.top_margin))
 
