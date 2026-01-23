@@ -1,4 +1,5 @@
 from collections import namedtuple
+import asyncio
 
 URI = namedtuple('URI', ('hostname', 'port', 'path', 'secure', 'protocol'))
 
@@ -183,6 +184,7 @@ async def stream_reader_to_buffer(reader, framebuffer):
             if chunk_bytes is None or chunk_bytes == 0:
                 break
             bytes_read += chunk_bytes
+            await asyncio.sleep(0)
     else:
         # CPython - keep reading until no more data
         while bytes_read < len(framebuffer):
@@ -192,6 +194,7 @@ async def stream_reader_to_buffer(reader, framebuffer):
             chunk_len = len(chunk)
             framebuffer[bytes_read:bytes_read + chunk_len] = chunk
             bytes_read += chunk_len
+            await asyncio.sleep(0)
     return bytes_read
 
 
