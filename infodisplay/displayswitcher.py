@@ -37,32 +37,75 @@ class DisplaySwitcher:
     async def start(self):
         bus = self.provider.get('eventbus.EventBus')
         focus_queue = None
-        cancel_focus_stream = None
+        self.cancel_focus_stream = None
         if bus is not None:
-            focus_queue, cancel_focus_stream = bus.stream('focus.request')
+            focus_queue, self.cancel_focus_stream = bus.stream('focus.request')
+
+        self.current_index = -1
+        self.manual_trigger = asyncio.Event()
+        self.pause_time = 0
 
         while True:
-            any_activated = False
-            for service_name in self.services:
-                service = self.provider[service_name]
+            # Advance index
+            if not self.services:
+                 await asyncio.sleep(1)
+                 continue
+
+            if self.pause_time > 0:
+                print(f"DisplaySwitcher: Paused for {self.pause_time}s")
+                try:
+                    await asyncio.wait_for(self.manual_trigger.wait(), self.pause_time)
+                except asyncio.TimeoutError:
+                    pass # Timer expired, remove pause
                 
-                # Check if the service wants to be activated
-                if hasattr(service, 'should_activate') and not service.should_activate():
-                    continue
+                self.pause_time = 0
+                self.manual_trigger.clear()
+                # If manually triggered during pause, we might want to skip or just resume normal flow
+                # For now, let's just resume normal flow which means moving to next
 
-                any_activated = True
-                # Cancel any previous active task and start new one
-                await self._cancel_active_task()
-                self.active_task = asyncio.create_task(service.activate())
+            self.current_index = (self.current_index + 1) % len(self.services)
+            service_name = self.services[self.current_index]
+            service = self.provider[service_name]
+            
+            # Check if the service wants to be activated
+            if hasattr(service, 'should_activate') and not service.should_activate():
+                continue
 
+            # Cancel any previous active task and start new one
+            await self._cancel_active_task()
+            self.active_task = asyncio.create_task(service.activate())
+
+            try:
                 if focus_queue is None:
-                    await asyncio.sleep(self.time_ms / 1000)
+                    # Normal wait or manual interrupt
+                    timeout = self.time_ms / 1000
+                    await asyncio.wait_for(self.manual_trigger.wait(), timeout)
+                    self.manual_trigger.clear()
                 else:
-                    # Use wait_for to race focus request vs timeout
-                    try:
-                        timeout_seconds = self.time_ms / 1000
-                        ev = await asyncio.wait_for(focus_queue.get(), timeout_seconds)
-
+                    # Wait for focus request, timeout (next slide), or manual trigger
+                    # This requires composite waiting. simplest is to poll or use first_completed
+                    # but wait_for is for a single future.
+                    # Let's use a task for the timeout/manual trigger
+                    
+                    async def wait_condition():
+                        timeout = self.time_ms / 1000
+                        try:
+                            await asyncio.wait_for(self.manual_trigger.wait(), timeout)
+                        except asyncio.TimeoutError:
+                            pass
+                        self.manual_trigger.clear()
+                    
+                    wait_task = asyncio.create_task(wait_condition())
+                    focus_task = asyncio.create_task(focus_queue.get())
+                    
+                    done, pending = await asyncio.wait([wait_task, focus_task], return_when=asyncio.FIRST_COMPLETED)
+                    
+                    if focus_task in done:
+                        # Focus requested
+                        ev = focus_task.result()
+                        # Clean up wait task
+                        wait_task.cancel()
+                        
                         target = self._get_service_from_focus_event(ev)
                         print(f"DisplaySwitcher: Focus requested, switching to {target} (cancelling {self.active_task})")
                         await self._cancel_active_task()
@@ -78,6 +121,7 @@ class DisplaySwitcher:
                                 while True:
                                     try:
                                         hold_seconds = hold_ms / 1000
+                                        # We also need to allow manual trigger to break out of focus? maybe not for now.
                                         ev2 = await asyncio.wait_for(focus_queue.get(), hold_seconds)
                                         await self._cancel_active_task()
                                         # Chain to next focus request
@@ -99,14 +143,39 @@ class DisplaySwitcher:
                             finally:
                                 await self._cancel_active_task()
                         continue
-                    except asyncio.TimeoutError:
-                        # Normal timeout, continue rotation
-                        pass
+                    else:
+                        # Timeout or Manual Trigger occurred
+                        focus_task.cancel()
+                        # wait_task is already done
+            except asyncio.TimeoutError:
+                # Should be caught inside wait_condition usually
+                pass
 
-            if not any_activated:
-                await asyncio.sleep(1)
+    def next(self):
+        """Skip to the next display immediately."""
+        self.manual_trigger.set()
 
-        if cancel_focus_stream is not None:
-            cancel_focus_stream()
+    def prev(self):
+        """Go back to the previous display immediately."""
+        # Current index will be incremented at start of loop, so we want:
+        # (current - 2) + 1 = current - 1
+        # If we are currently showing index 5.
+        # Loop start: increment to 6.
+        # We want to show 4.
+        # So set to 3.
+        # 3 + 1 = 4.
+        # So set to current - 2.
+        self.current_index = (self.current_index - 2) % len(self.services)
+        self.manual_trigger.set()
+
+    def pause(self, seconds):
+        """Pause on the current display for a specific time."""
+        # Set pause time. We need to trigger loop to recycle, but we need to stay on current index.
+        # Loop increments. So set to current - 1.
+        self.current_index = (self.current_index - 1) % len(self.services)
+        self.pause_time = seconds
+        self.manual_trigger.set()
+
+
     
 
