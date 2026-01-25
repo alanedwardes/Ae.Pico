@@ -1,4 +1,5 @@
 import asyncio
+import asyncutils
 
 class DisplaySwitcher:
     def __init__(self, provider, services, time_ms):
@@ -95,16 +96,20 @@ class DisplaySwitcher:
                             pass
                         self.manual_trigger.clear()
                     
-                    wait_task = asyncio.create_task(wait_condition())
-                    focus_task = asyncio.create_task(focus_queue.get())
-                    
-                    done, pending = await asyncio.wait([wait_task, focus_task], return_when=asyncio.FIRST_COMPLETED)
-                    
-                    if focus_task in done:
+                    async def wait_condition():
+                        timeout = self.time_ms / 1000
+                        try:
+                            await asyncio.wait_for(self.manual_trigger.wait(), timeout)
+                        except asyncio.TimeoutError:
+                            pass
+                        self.manual_trigger.clear()
+
+                    waiter = asyncutils.WaitFirst(wait_condition(), focus_queue.get())
+                    winner, result = await waiter.wait()
+
+                    if winner == 1:
                         # Focus requested
-                        ev = focus_task.result()
-                        # Clean up wait task
-                        wait_task.cancel()
+                        ev = result
                         
                         target = self._get_service_from_focus_event(ev)
                         print(f"DisplaySwitcher: Focus requested, switching to {target} (cancelling {self.active_task})")
@@ -143,10 +148,6 @@ class DisplaySwitcher:
                             finally:
                                 await self._cancel_active_task()
                         continue
-                    else:
-                        # Timeout or Manual Trigger occurred
-                        focus_task.cancel()
-                        # wait_task is already done
             except asyncio.TimeoutError:
                 # Should be caught inside wait_condition usually
                 pass
