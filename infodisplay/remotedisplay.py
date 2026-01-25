@@ -6,7 +6,7 @@ import socket
 from httpstream import HttpRequest, stream_reader_to_buffer
 
 class RemoteDisplay:
-    def __init__(self, display, url, refresh_period=1, start_offset=0):
+    def __init__(self, display, url, refresh_period=0.1, start_offset=0):
         self.display = display
         self.url = url
         self.refresh_period = refresh_period
@@ -23,7 +23,7 @@ class RemoteDisplay:
         return RemoteDisplay(
             provider['display'],
             config['url'],
-            config.get('refresh_period', 1),
+            config.get('refresh_period', 0.1),
             config.get('start_offset', 0)
         )
        
@@ -33,6 +33,7 @@ class RemoteDisplay:
     async def activate(self):
         while True:
             await self.update()
+            await asyncio.sleep(self.refresh_period)
 
     async def update(self):
         await asyncio.wait_for(self.__update(), timeout=5)
@@ -51,6 +52,3 @@ class RemoteDisplay:
             y_offset = (self.start_offset // 2) // self.display_width
             height = self.display_height - y_offset
             self.display.update((0, y_offset, self.display_width, height))
-
-            # Clean up after HTTP request
-            gc.collect()
