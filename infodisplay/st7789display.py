@@ -1,6 +1,7 @@
 import asyncio
 from machine import SPI, Pin
 from st7789 import ST7789, LANDSCAPE
+from st7789_threaded import ST7789Threaded
 from drawing import Drawing
 
 # Default display dimensions
@@ -19,6 +20,7 @@ class ST7789Display:
         display_width = config.get('width', DEFAULT_WIDTH)
         display_height = config.get('height', DEFAULT_HEIGHT)
         scale = config.get('scale', 1)
+        threaded = config.get('threaded', False)
 
         # Framebuffer dimensions are display dimensions divided by scale
         fb_width = display_width // scale
@@ -29,7 +31,9 @@ class ST7789Display:
         cs = Pin(17, Pin.OUT, value=1)
         backlight = Pin(20, Pin.OUT, value=1)
 
-        st = ST7789(
+        driver_class = ST7789Threaded if threaded else ST7789
+
+        st = driver_class(
             spi,
             cs=cs,
             dc=dc,
