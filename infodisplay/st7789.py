@@ -27,25 +27,25 @@ ADAFRUIT_1_9 = (35, 0, PORTRAIT)  #  320x170 TFT https://www.adafruit.com/produc
 # inv: True if color mode is inverted, False normal (default)
 
 @micropython.viper
-def _swapline(dest: ptr8, source: ptr8, length: int):
+def _swapline(dest: ptr8, dest_offset: int, source: ptr8, src_offset: int, length: int):
     n: int = 0
     while length:
-        b0 = source[n]
-        b1 = source[n + 1]
-        dest[n] = b1
-        dest[n + 1] = b0
+        b0 = source[src_offset + n]
+        b1 = source[src_offset + n + 1]
+        dest[dest_offset + n] = b1
+        dest[dest_offset + n + 1] = b0
         n += 2
         length -= 2
 
 @micropython.viper
-def _upscale_line(dest: ptr8, source: ptr8, src_pixels: int, scale: int):
+def _upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_pixels: int, scale: int):
     """Upscale a line by duplicating each pixel 'scale' times horizontally, with byte swap."""
     s: int = 0  # source byte index
     d: int = 0  # dest byte index
     while src_pixels:
         # Read source pixel (2 bytes), swap for SPI
-        b0 = source[s]
-        b1 = source[s + 1]
+        b0 = source[src_offset + s]
+        b1 = source[src_offset + s + 1]
         # Write duplicated pixels (swapped byte order)
         for _ in range(scale):
             dest[d] = b1
@@ -87,7 +87,9 @@ class ST7789:
         orientation = display[2]  # where x, y is the RAM offset
         self._spi_init = init_spi  # Possible user callback
         gc.collect()
-        self._linebuf = bytearray(self.width * 2)
+        # Allocate a larger buffer for batching (e.g. 4KB = ~2048 pixels = ~8 rows of 240px)
+        self._buf_size = 4096
+        self._linebuf = bytearray(self._buf_size)
         self._init(disp_mode, orientation, display[3:])
         self._backlight_pwm = None
 
@@ -308,25 +310,72 @@ class ST7789:
         # Prepare buffers
         src = memoryview(framebuffer)
         row_bytes = width * 2  # Full framebuffer row width
-
+        
+        # Calculate how many rows we can batch in the internal buffer
         if scale == 1:
-            # No upscaling - original behavior
-            region_bytes = rw * 2
-            lb = memoryview(self._linebuf[:region_bytes]) if region_bytes < len(self._linebuf) else memoryview(self._linebuf)
-            for row in range(rh):
-                fb_offset = (y + row) * row_bytes + x * 2
-                _swapline(lb, src[fb_offset:], region_bytes)
-                self._spi.write(lb)
+            bytes_per_row = rw * 2
+            rows_per_batch = self._buf_size // bytes_per_row
+            if rows_per_batch > rh:
+                rows_per_batch = rh
+            if rows_per_batch < 1:
+                rows_per_batch = 1 # Should not happen if buffer is reasonably sized
+                
+            batch_bytes = rows_per_batch * bytes_per_row
+            lb = memoryview(self._linebuf[:batch_bytes])
+            
+            rows_remaining = rh
+            current_row = 0
+            
+            while rows_remaining > 0:
+                rows_to_process = rows_per_batch
+                if rows_to_process > rows_remaining:
+                    rows_to_process = rows_remaining
+                
+                # Fill the batch buffer
+                if rw == width:
+                     # Optimization: Contiguous memory, convert all rows in one go
+                     total_bytes = rows_to_process * bytes_per_row
+                     fb_offset = (y + current_row) * row_bytes + x * 2
+                     _swapline(lb, 0, src, fb_offset, total_bytes)
+                else:
+                    # Non-contiguous (partial width), process row by row
+                    for r in range(rows_to_process):
+                        fb_offset = (y + current_row + r) * row_bytes + x * 2
+                        dest_offset = r * bytes_per_row
+                        _swapline(lb, dest_offset, src, fb_offset, bytes_per_row)
+                
+                # Send the batch
+                # If we are at the end and the batch is smaller than full buffer, slice it
+                if rows_to_process * bytes_per_row != len(lb):
+                     self._spi.write(lb[:rows_to_process * bytes_per_row])
+                else:
+                     self._spi.write(lb)
+                
+                rows_remaining -= rows_to_process
+                current_row += rows_to_process
+
         else:
-            # Upscaling: duplicate each pixel scale times horizontally and vertically
-            output_line_bytes = rw * scale * 2
-            lb = memoryview(self._linebuf[:output_line_bytes])
+            # Upscaling
+            # Upscaling expands 1 pixel to 'scale' pixels (horizontal)
+            # And repeats lines 'scale' times (vertical)
+            
+            # Output bytes per logical row (after horizontal upscaling)
+            output_row_bytes = rw * scale * 2
+            
+            # Upscaling strategy: process 1 logical row at a time 
+            # (which expands to `scale` physical rows).
+            # The buffer size increase handles wider displays better.
+            
+            lb = memoryview(self._linebuf[:output_row_bytes])
+            
             for row in range(rh):
                 fb_offset = (y + row) * row_bytes + x * 2
-                _upscale_line(lb, src[fb_offset:], rw, scale)
-                # Write the line 'scale' times for vertical upscaling
+                _upscale_line(lb, src, fb_offset, rw, scale)
+                
+                # Write the line 'scale' times
                 for _ in range(scale):
                     self._spi.write(lb)
+
         self._cs(1)
 
     def set_backlight(self, brightness):
