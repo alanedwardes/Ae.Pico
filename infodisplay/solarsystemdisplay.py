@@ -211,8 +211,19 @@ class SolarSystemDisplay:
         self.display.aa_circle(self.center_x, self.center_y, 6, self.sun_color)
         
         # Get constant for time
+        # Detect epoch (MicroPython Pico: 2000, Unix/CPython: 1970)
+        # J2000 epoch: Jan 1, 2000, 12:00 TT (~11:58:55.816 UTC)
         t_seconds = utime.time()
-        days_since_j2000 = t_seconds / 86400.0
+        epoch_year = utime.gmtime(0)[0]
+        if epoch_year == 2000:
+            # MicroPython epoch is Jan 1, 2000 00:00 UTC, J2000 is ~12h later
+            j2000_offset = 43200
+        elif epoch_year == 1970:
+            # Unix epoch, J2000 is 946728000 seconds later
+            j2000_offset = 946728000
+        else:
+            j2000_offset = 0  # Fallback, may be inaccurate
+        days_since_j2000 = (t_seconds - j2000_offset) / 86400.0
         
         # Process Planets
         for p in self.planets:
