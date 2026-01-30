@@ -52,9 +52,9 @@ class SolarSystemDisplay:
         # Here we approximate with L0 for visualization.
         self.comets = [
             # Halley's Comet
-            {'name': 'Halley', 'a': 17.83, 'e': 0.967, 'i': 162.3, 'node': 58.42, 'arg_p': 111.33, 'L0': 38.0, 'period': 27510, 'color': 0xFFFF, 'size': 2},
+            {'name': 'Halley', 'a': 17.83, 'e': 0.967, 'i': 162.3, 'node': 58.42, 'arg_p': 111.33, 'L0': 236.15, 'period': 27510, 'color': 0xFFFF, 'size': 2},
              # Encke
-            {'name': 'Encke', 'a': 2.21, 'e': 0.848, 'i': 11.78, 'node': 334.56, 'arg_p': 186.54, 'L0': 160.0, 'period': 1204, 'color': 0xBDF7, 'size': 1}
+            {'name': 'Encke', 'a': 2.21, 'e': 0.848, 'i': 11.78, 'node': 334.56, 'arg_p': 186.54, 'L0': 86.0, 'period': 1204, 'color': 0xBDF7, 'size': 1}
         ]
         
         # Layout / View Configuration
