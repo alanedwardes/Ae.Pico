@@ -8,10 +8,14 @@ from drawing import Drawing
 class PygameDisplay:
     def __init__(self, display_width, display_height, scale=1, debug_regions=False, fullscreen=False, hide_mouse=False, test_mode=False):
         pygame.init()
-        flags = pygame.HWSURFACE | pygame.DOUBLEBUF
+        driver_name = pygame.display.get_driver()
+        print(f"Pygame initialized. Driver: {driver_name}")
+
+        flags = 0
         if fullscreen:
             flags |= pygame.FULLSCREEN
-        self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=32)
+        
+        self.screen = pygame.display.set_mode((display_width, display_height), flags)
         if hide_mouse:
             pygame.mouse.set_visible(False)
         self._display_width = display_width
