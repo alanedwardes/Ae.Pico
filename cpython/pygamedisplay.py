@@ -6,9 +6,14 @@ from array import array
 from drawing import Drawing
 
 class PygameDisplay:
-    def __init__(self, display_width, display_height, scale=1, debug_regions=False):
+    def __init__(self, display_width, display_height, scale=1, debug_regions=False, fullscreen=False, hide_mouse=False):
         pygame.init()
-        self.screen = pygame.display.set_mode((display_width, display_height), pygame.HWSURFACE | pygame.DOUBLEBUF, depth=32)
+        flags = pygame.HWSURFACE | pygame.DOUBLEBUF
+        if fullscreen:
+            flags |= pygame.FULLSCREEN
+        self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=32)
+        if hide_mouse:
+            pygame.mouse.set_visible(False)
         self._display_width = display_width
         self._display_height = display_height
         self._scale = scale
@@ -36,12 +41,14 @@ class PygameDisplay:
         display_width = config['width']
         display_height = config['height']
         scale = config.get('scale', 1)
+        fullscreen = config.get('fullscreen', False)
+        hide_mouse = config.get('hide_mouse', False)
 
         # Framebuffer dimensions are display dimensions divided by scale
         fb_width = display_width // scale
         fb_height = display_height // scale
 
-        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False)
+        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, fullscreen=fullscreen, hide_mouse=hide_mouse)
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
 
