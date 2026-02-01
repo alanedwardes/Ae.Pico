@@ -64,6 +64,7 @@ class PygameDisplay:
             info = pygame.display.Info()
             print(f"PygameDisplay: TEST MODE ENABLED - Driver: {pygame.display.get_driver()}")
             print(f"PygameDisplay: Resolution: {info.current_w}x{info.current_h}")
+            print(f"PygameDisplay: Available Modes: {pygame.display.list_modes()}")
             
             s = self.screen
             print(f"Surface Details: size={s.get_size()}, depth={s.get_bitsize()}, flags=0x{s.get_flags():x}")
