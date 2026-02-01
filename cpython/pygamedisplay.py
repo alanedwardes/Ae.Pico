@@ -10,8 +10,10 @@ class PygameDisplay:
         pygame.init()
         driver_name = pygame.display.get_driver()
         print(f"Pygame initialized. Driver: {driver_name}")
-
+        
+        print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
         self.screen = pygame.display.set_mode((display_width, display_height), flags)
+        print(f"Display: Actual {self.screen.get_width()}x{self.screen.get_height()}")
         if hide_mouse:
             pygame.mouse.set_visible(False)
         self._display_width = display_width
