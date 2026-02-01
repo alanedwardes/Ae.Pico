@@ -11,8 +11,13 @@ class PygameDisplay:
         driver_name = pygame.display.get_driver()
         print(f"Pygame initialized. Driver: {driver_name}")
         
-        print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
-        self.screen = pygame.display.set_mode((display_width, display_height), flags)
+        if test_mode:
+            print(f"Display: Requesting {display_width}x{display_height} with flags {flags} (Forcing depth=16)")
+            # Request 16-bit color (RGB565) to avoid Alpha channel ambiguity (XRGB vs ARGB)
+            self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=16)
+        else:
+            print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
+            self.screen = pygame.display.set_mode((display_width, display_height), flags)
         print(f"Display: Actual {self.screen.get_width()}x{self.screen.get_height()}")
         if hide_mouse:
             pygame.mouse.set_visible(False)
