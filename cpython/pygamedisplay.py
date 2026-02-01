@@ -12,9 +12,9 @@ class PygameDisplay:
         print(f"Pygame initialized. Driver: {driver_name}")
         
         if test_mode:
-            print(f"Display: Requesting {display_width}x{display_height} with flags {flags} (Forcing depth=16)")
-            # Request 16-bit color (RGB565) to avoid Alpha channel ambiguity (XRGB vs ARGB)
-            self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=16)
+            print(f"Display: Requesting {display_width}x{display_height} with flags {flags} (Forcing depth=24)")
+            # Request 24-bit color (RGB888) to force SDL conversion (should fill Alpha with 255)
+            self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=24)
         else:
             print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
             self.screen = pygame.display.set_mode((display_width, display_height), flags)
