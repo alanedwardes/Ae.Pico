@@ -1,0 +1,25 @@
+# Docker file for Raspberry Pi 4 with Raspberry Pi Touch Display 2
+FROM debian:trixie-slim
+
+# Install system python and pygame
+# usage of system package avoids compilation and ensures generic compatibility
+RUN apt-get update && apt-get install -y \
+    python3-pygame \
+    python3-pip \
+    libgl1-mesa-dri \
+    libgles2 \
+    libgbm1 \
+    libdrm2 \
+    libegl1 \
+    libinput-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use the KMSDRM driver for direct GPU access
+ENV SDL_VIDEODRIVER=kmsdrm
+ENV SDL_AUDIODRIVER=dummy
+
+ADD Ae.Pico /app
+
+WORKDIR /app/cpython
+RUN python3 -m pip install -r requirements.txt --break-system-packages
+CMD ["python3", "-u", "main.py"]
