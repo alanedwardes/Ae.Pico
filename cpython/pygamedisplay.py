@@ -6,7 +6,7 @@ from array import array
 from drawing import Drawing
 
 class PygameDisplay:
-    def __init__(self, display_width, display_height, scale=1, debug_regions=False, fullscreen=False, hide_mouse=False):
+    def __init__(self, display_width, display_height, scale=1, debug_regions=False, fullscreen=False, hide_mouse=False, test_mode=False):
         pygame.init()
         flags = pygame.HWSURFACE | pygame.DOUBLEBUF
         if fullscreen:
@@ -18,6 +18,7 @@ class PygameDisplay:
         self._display_height = display_height
         self._scale = scale
         self._debug_regions = debug_regions
+        self._test_mode = test_mode
         # Persistent RGBA buffer and surface at display resolution (avoid per-frame allocations)
         self._rgba = bytearray(display_width * display_height * 4)
         self._rgba_view32 = memoryview(self._rgba).cast('I')
@@ -43,12 +44,13 @@ class PygameDisplay:
         scale = config.get('scale', 1)
         fullscreen = config.get('fullscreen', False)
         hide_mouse = config.get('hide_mouse', False)
+        test_mode = config.get('test_mode', False)
 
         # Framebuffer dimensions are display dimensions divided by scale
         fb_width = display_width // scale
         fb_height = display_height // scale
 
-        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, fullscreen=fullscreen, hide_mouse=hide_mouse)
+        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, fullscreen=fullscreen, hide_mouse=hide_mouse, test_mode=test_mode)
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
 
@@ -56,6 +58,23 @@ class PygameDisplay:
         return driver
               
     async def start(self):
+        if self._test_mode:
+            print("PygameDisplay: TEST MODE ENABLED - Cycling colors")
+            colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+            idx = 0
+            while True:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        sys.exit()
+                
+                c = colors[idx]
+                self.screen.fill(c)
+                pygame.display.flip()
+                print(f"PygameDisplay: Test Color {c}")
+                
+                idx = (idx + 1) % len(colors)
+                await asyncio.sleep(1)
+
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
