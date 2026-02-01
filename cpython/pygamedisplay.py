@@ -76,7 +76,8 @@ class PygameDisplay:
             print(f"Surface Masks: {s.get_masks()}")
             
             print("PygameDisplay: Cycling colors")
-            colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+            # Force Alpha=255 just in case it is ARGB interpreted as Transparent
+            colors = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 255, 255)]
             idx = 0
             while True:
                 for event in pygame.event.get():
