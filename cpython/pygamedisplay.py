@@ -59,7 +59,8 @@ class PygameDisplay:
               
     async def start(self):
         if self._test_mode:
-            print("PygameDisplay: TEST MODE ENABLED - Cycling colors")
+            print(f"PygameDisplay: TEST MODE ENABLED - Driver: {pygame.display.get_driver()}")
+            print("PygameDisplay: Cycling colors")
             colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
             idx = 0
             while True:
