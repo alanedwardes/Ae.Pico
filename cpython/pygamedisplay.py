@@ -6,15 +6,11 @@ from array import array
 from drawing import Drawing
 
 class PygameDisplay:
-    def __init__(self, display_width, display_height, scale=1, debug_regions=False, fullscreen=False, hide_mouse=False, test_mode=False):
+    def __init__(self, display_width, display_height, scale=1, debug_regions=False, flags=0, hide_mouse=False, test_mode=False):
         pygame.init()
         driver_name = pygame.display.get_driver()
         print(f"Pygame initialized. Driver: {driver_name}")
 
-        flags = 0
-        if fullscreen:
-            flags |= pygame.FULLSCREEN
-        
         self.screen = pygame.display.set_mode((display_width, display_height), flags)
         if hide_mouse:
             pygame.mouse.set_visible(False)
@@ -46,7 +42,7 @@ class PygameDisplay:
         display_width = config['width']
         display_height = config['height']
         scale = config.get('scale', 1)
-        fullscreen = config.get('fullscreen', False)
+        flags = config.get('flags', 0)
         hide_mouse = config.get('hide_mouse', False)
         test_mode = config.get('test_mode', False)
 
@@ -54,7 +50,7 @@ class PygameDisplay:
         fb_width = display_width // scale
         fb_height = display_height // scale
 
-        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, fullscreen=fullscreen, hide_mouse=hide_mouse, test_mode=test_mode)
+        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, flags=flags, hide_mouse=hide_mouse, test_mode=test_mode)
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
 
