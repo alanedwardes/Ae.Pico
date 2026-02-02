@@ -109,4 +109,4 @@ class RTC:
             print("machine.RTC.datetime called with args: ", args)
         
         now = datetime.datetime.utcnow()
-        return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, 0)
+        return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, int(now.microsecond / 1000))
