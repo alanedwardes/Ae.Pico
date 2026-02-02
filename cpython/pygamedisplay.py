@@ -2,7 +2,7 @@ import pygame
 import asyncio
 import sys
 import random
-from array import array
+import numpy as np
 from drawing import Drawing
 
 class PygameDisplay:
@@ -24,21 +24,26 @@ class PygameDisplay:
         self._scale = scale
         self._debug_regions = debug_regions
 
-        # Persistent RGBA buffer and surface at display resolution (avoid per-frame allocations)
-        self._rgba = bytearray(display_width * display_height * 4)
-        self._rgba_view32 = memoryview(self._rgba).cast('I')
+        # Persistent RGBA buffer as a numpy array (uint32)
+        # We use a 2D array for easy slicing/indexing
+        self._rgba = np.zeros((display_height, display_width), dtype=np.uint32)
+        
+        # Create pygame surface from the numpy array buffer
         self._surf = pygame.image.frombuffer(self._rgba, (display_width, display_height), 'RGBA')
-        # Precompute 16-bit RGB565 -> 32-bit RGBA8888 lookup table
-        lut = array('I', [0]) * 65536
-        for val in range(65536):
-            r5 = (val >> 11) & 0x1F
-            g6 = (val >> 5) & 0x3F
-            b5 = val & 0x1F
-            r = (r5 << 3) | (r5 >> 2)
-            g = (g6 << 2) | (g6 >> 4)
-            b = (b5 << 3) | (b5 >> 2)
-            lut[val] = (255 << 24) | (b << 16) | (g << 8) | r  # little-endian RGBA bytes
-        self._lut565_rgba = lut
+
+        # Precompute 16-bit RGB565 -> 32-bit RGBA8888 lookup table using numpy
+        vals = np.arange(65536, dtype=np.uint32)
+        r5 = (vals >> 11) & 0x1F
+        g6 = (vals >> 5) & 0x3F
+        b5 = vals & 0x1F
+        
+        r = (r5 << 3) | (r5 >> 2)
+        g = (g6 << 2) | (g6 >> 4)
+        b = (b5 << 3) | (b5 >> 2)
+        
+        # little-endian RGBA bytes: A B G R -> (255 << 24) | (b << 16) | (g << 8) | r
+        self._lut565_rgba = (255 << 24) | (b << 16) | (g << 8) | r
+        self._lut565_rgba = self._lut565_rgba.astype(np.uint32)
 
     def create(provider):
         config = provider['config']['display']
@@ -83,65 +88,79 @@ class PygameDisplay:
             return
         if x + rw > width or y + rh > height:
             return
-        # Check scaled dimensions match display size
+        
         scale = self._scale
+        # Check scaled dimensions match display size
         if width * scale != self._display_width or height * scale != self._display_height:
             return
 
-        # Convert region pixels from RGB565 to RGBA with upscaling
-        src16 = memoryview(framebuffer).cast('H')  # native-endian uint16
-        dest32 = self._rgba_view32
-        lut = self._lut565_rgba
+        # View framebuffer as 2D numpy array of uint16
+        # Note: We assume framebuffer is a bytearray/memoryview that is contiguous
+        src_fb = np.frombuffer(framebuffer, dtype=np.uint16).reshape((height, width))
+        
+        # Extract Region of Interest
+        # Slicing creates a view in numpy, so this is efficient
+        src_roi = src_fb[y:y+rh, x:x+rw]
+        
+        # Convert to RGBA using LUT
+        # This allocates a new array for the region
+        rgba_roi = self._lut565_rgba[src_roi]
+        
+        # Upscale if necessary
+        if scale > 1:
+            # repeat elements: similar to kron or repeat
+            # axis 0 is rows, axis 1 is cols
+            rgba_upscaled = rgba_roi.repeat(scale, axis=0).repeat(scale, axis=1)
+        else:
+            rgba_upscaled = rgba_roi
 
-        for row in range(rh):
-            fb_row = y + row
-            for col in range(rw):
-                fb_col = x + col
-                src_idx = fb_row * width + fb_col
-                rgba = lut[src16[src_idx]]
-                # Write upscaled pixel block
-                for dy in range(scale):
-                    for dx in range(scale):
-                        dest_x = (x + col) * scale + dx
-                        dest_y = (y + row) * scale + dy
-                        dest_idx = dest_y * self._display_width + dest_x
-                        dest32[dest_idx] = rgba
+        # Write to the persistent display buffer
+        # Since self._rgba is a 2D array, we can assign to the slice directly
+        dest_x = x * scale
+        dest_y = y * scale
+        dest_h, dest_w = rgba_upscaled.shape
+        
+        self._rgba[dest_y:dest_y+dest_h, dest_x:dest_x+dest_w] = rgba_upscaled
 
         # Draw debug rectangle into display buffer (at display resolution)
         if self._debug_regions:
-            # Generate random color and convert to RGBA via LUT
+            # Generate random color and convert to RGBA
             r = random.randint(0, 255)
             g = random.randint(0, 255)
             b = random.randint(0, 255)
-            debug_color_565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-            debug_rgba = lut[debug_color_565]
-
+            # Make opaque RGBA
+            debug_rgba = (255 << 24) | (b << 16) | (g << 8) | r
+            
             # Scaled region bounds
             sx, sy = x * scale, y * scale
             srw, srh = rw * scale, rh * scale
 
-            # Top and bottom edges
-            for col in range(sx, min(sx + srw, self._display_width)):
-                for border_row in range(2):
-                    # Top edge
-                    if sy + border_row < self._display_height:
-                        idx = (sy + border_row) * self._display_width + col
-                        dest32[idx] = debug_rgba
-                    # Bottom edge
-                    if sy + srh - 1 - border_row >= 0 and sy + srh - 1 - border_row < self._display_height:
-                        idx = (sy + srh - 1 - border_row) * self._display_width + col
-                        dest32[idx] = debug_rgba
-            # Left and right edges
-            for row in range(sy, min(sy + srh, self._display_height)):
-                for border_col in range(2):
-                    # Left edge
-                    if sx + border_col < self._display_width:
-                        idx = row * self._display_width + (sx + border_col)
-                        dest32[idx] = debug_rgba
-                    # Right edge
-                    if sx + srw - 1 - border_col >= 0 and sx + srw - 1 - border_col < self._display_width:
-                        idx = row * self._display_width + (sx + srw - 1 - border_col)
-                        dest32[idx] = debug_rgba
+            # Draw borders using numpy slicing
+            
+            # Top edge
+            if sy < self._display_height:
+                row_slice = self._rgba[sy:min(sy+2, self._display_height), sx:min(sx+srw, self._display_width)]
+                row_slice[:] = debug_rgba
+
+            # Bottom edge
+            bottom_y = sy + srh - 1
+            if bottom_y >= 0 and bottom_y < self._display_height:
+                 # Ensure we don't go out of bounds with the thickness
+                 start_y = max(bottom_y - 1, 0)
+                 row_slice = self._rgba[start_y:bottom_y+1, sx:min(sx+srw, self._display_width)]
+                 row_slice[:] = debug_rgba
+
+            # Left edge
+            if sx < self._display_width:
+                 col_slice = self._rgba[sy:min(sy+srh, self._display_height), sx:min(sx+2, self._display_width)]
+                 col_slice[:] = debug_rgba
+
+            # Right edge
+            right_x = sx + srw - 1
+            if right_x >= 0 and right_x < self._display_width:
+                 start_x = max(right_x - 1, 0)
+                 col_slice = self._rgba[sy:min(sy+srh, self._display_height), start_x:right_x+1]
+                 col_slice[:] = debug_rgba
 
         if self._window_width != self._display_width or self._window_height != self._display_height:
              scaled = pygame.transform.scale(self._surf, (self._window_width, self._window_height))
