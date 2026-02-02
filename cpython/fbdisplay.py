@@ -11,13 +11,13 @@ from drawing import Drawing
 
 
 class FbDisplay:
-    def __init__(self, display_width, display_height, fb_width, fb_height, rotation=0, test_mode=False, fb_device='/dev/fb0'):
+    def __init__(self, display_width, display_height, fb_width, fb_height, rotation=0, fb_device='/dev/fb0'):
         self._display_width = display_width  # Physical framebuffer width
         self._display_height = display_height  # Physical framebuffer height
         self._fb_width = fb_width  # Drawing surface width
         self._fb_height = fb_height  # Drawing surface height
         self._rotation = rotation  # 0, 90, 180, 270
-        self._test_mode = test_mode
+
         
         # Calculate logical (rotated) display dimensions
         if rotation in (90, 270):
@@ -65,13 +65,13 @@ class FbDisplay:
         fb_height = config.get('fb_height', 240)
         
         rotation = config.get('rotate', 0)  # degrees: 0/90/180/270
-        test_mode = config.get('test_mode', False)
+
         fb_device = config.get('fb_device', '/dev/fb0')
 
         driver = FbDisplay(
             display_width, display_height,
             fb_width, fb_height,
-            rotation=rotation, test_mode=test_mode,
+            rotation=rotation,
             fb_device=fb_device
         )
         drawing = Drawing(fb_width, fb_height)
@@ -85,22 +85,6 @@ class FbDisplay:
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
     async def start(self):
-        if self._test_mode:
-            print(f"FbDisplay: TEST MODE")
-            colors = [
-                (self._rgb_to_565(255, 0, 0), "Red"),
-                (self._rgb_to_565(0, 255, 0), "Green"),
-                (self._rgb_to_565(0, 0, 255), "Blue"),
-                (self._rgb_to_565(255, 255, 255), "White"),
-            ]
-            idx = 0
-            while True:
-                color565, name = colors[idx]
-                self._fb_array.fill(color565)
-                print(f"FbDisplay: {name}")
-                idx = (idx + 1) % len(colors)
-                await asyncio.sleep(1)
-
         await asyncio.Event().wait()
 
     def set_backlight(self, brightness):

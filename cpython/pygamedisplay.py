@@ -6,18 +6,13 @@ from array import array
 from drawing import Drawing
 
 class PygameDisplay:
-    def __init__(self, display_width, display_height, scale=1, debug_regions=False, flags=0, hide_mouse=False, test_mode=False):
+    def __init__(self, display_width, display_height, scale=1, debug_regions=False, flags=0, hide_mouse=False):
         pygame.init()
         driver_name = pygame.display.get_driver()
         print(f"Pygame initialized. Driver: {driver_name}")
         
-        if test_mode:
-            print(f"Display: Requesting {display_width}x{display_height} with flags {flags} (Forcing depth=24)")
-            # Request 24-bit color (RGB888) to force SDL conversion (should fill Alpha with 255)
-            self.screen = pygame.display.set_mode((display_width, display_height), flags, depth=24)
-        else:
-            print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
-            self.screen = pygame.display.set_mode((display_width, display_height), flags)
+        print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
+        self.screen = pygame.display.set_mode((display_width, display_height), flags)
         print(f"Display: Actual {self.screen.get_width()}x{self.screen.get_height()}")
         if hide_mouse:
             pygame.mouse.set_visible(False)
@@ -25,7 +20,7 @@ class PygameDisplay:
         self._display_height = display_height
         self._scale = scale
         self._debug_regions = debug_regions
-        self._test_mode = test_mode
+
         # Persistent RGBA buffer and surface at display resolution (avoid per-frame allocations)
         self._rgba = bytearray(display_width * display_height * 4)
         self._rgba_view32 = memoryview(self._rgba).cast('I')
@@ -51,13 +46,13 @@ class PygameDisplay:
         scale = config.get('scale', 1)
         flags = config.get('flags', 0)
         hide_mouse = config.get('hide_mouse', False)
-        test_mode = config.get('test_mode', False)
+
 
         # Framebuffer dimensions are display dimensions divided by scale
         fb_width = display_width // scale
         fb_height = display_height // scale
 
-        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, flags=flags, hide_mouse=hide_mouse, test_mode=test_mode)
+        driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, flags=flags, hide_mouse=hide_mouse)
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
 
@@ -65,33 +60,6 @@ class PygameDisplay:
         return driver
               
     async def start(self):
-        if self._test_mode:
-            info = pygame.display.Info()
-            print(f"PygameDisplay: TEST MODE ENABLED - Driver: {pygame.display.get_driver()}")
-            print(f"PygameDisplay: Resolution: {info.current_w}x{info.current_h}")
-            print(f"PygameDisplay: Available Modes: {pygame.display.list_modes()}")
-            
-            s = self.screen
-            print(f"Surface Details: size={s.get_size()}, depth={s.get_bitsize()}, flags=0x{s.get_flags():x}")
-            print(f"Surface Masks: {s.get_masks()}")
-            
-            print("PygameDisplay: Cycling colors")
-            # Force Alpha=255 just in case it is ARGB interpreted as Transparent
-            colors = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 255, 255)]
-            idx = 0
-            while True:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        sys.exit()
-                
-                c = colors[idx]
-                self.screen.fill(c)
-                pygame.display.flip()
-                print(f"PygameDisplay: Test Color {c}")
-                
-                idx = (idx + 1) % len(colors)
-                await asyncio.sleep(1)
-
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
