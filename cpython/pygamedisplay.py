@@ -12,12 +12,15 @@ class PygameDisplay:
         print(f"Pygame initialized. Driver: {driver_name}")
         
         print(f"Display: Requesting {display_width}x{display_height} with flags {flags}")
-        self.screen = pygame.display.set_mode((display_width, display_height), flags)
+        self._flags = flags | pygame.RESIZABLE
+        self.screen = pygame.display.set_mode((display_width, display_height), self._flags)
         print(f"Display: Actual {self.screen.get_width()}x{self.screen.get_height()}")
         if hide_mouse:
             pygame.mouse.set_visible(False)
         self._display_width = display_width
         self._display_height = display_height
+        self._window_width = display_width
+        self._window_height = display_height
         self._scale = scale
         self._debug_regions = debug_regions
 
@@ -64,6 +67,10 @@ class PygameDisplay:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     sys.exit()
+                elif event.type == pygame.VIDEORESIZE:
+                    self._window_width = event.w
+                    self._window_height = event.h
+                    self.screen = pygame.display.set_mode((self._window_width, self._window_height), self._flags)
             await asyncio.sleep(0.1)
 
     def set_backlight(self, brightness):
@@ -136,5 +143,9 @@ class PygameDisplay:
                         idx = row * self._display_width + (sx + srw - 1 - border_col)
                         dest32[idx] = debug_rgba
 
-        self.screen.blit(self._surf, (0, 0))
+        if self._window_width != self._display_width or self._window_height != self._display_height:
+             scaled = pygame.transform.scale(self._surf, (self._window_width, self._window_height))
+             self.screen.blit(scaled, (0, 0))
+        else:
+             self.screen.blit(self._surf, (0, 0))
         pygame.display.flip()
