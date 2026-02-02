@@ -1,12 +1,17 @@
+import os
 import pygame
 import asyncio
 import sys
 import random
 import numpy as np
+import signal
 from drawing import Drawing
 
 class PygameDisplay:
     def __init__(self, display_width, display_height, scale=1, debug_regions=False, flags=0, hide_mouse=False):
+        # Force exit on Ctrl+C
+        signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+        
         pygame.init()
         driver_name = pygame.display.get_driver()
         print(f"Pygame initialized. Driver: {driver_name}")
@@ -68,15 +73,23 @@ class PygameDisplay:
         return driver
               
     async def start(self):
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    sys.exit()
-                elif event.type == pygame.VIDEORESIZE:
-                    self._window_width = event.w
-                    self._window_height = event.h
-                    self.screen = pygame.display.set_mode((self._window_width, self._window_height), self._flags)
-            await asyncio.sleep(0.1)
+        try:
+            while True:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        print("Pygame QUIT received, exiting...")
+                        pygame.quit()
+                        os._exit(0)
+                    elif event.type == pygame.VIDEORESIZE:
+                        self._window_width = event.w
+                        self._window_height = event.h
+                        self.screen = pygame.display.set_mode((self._window_width, self._window_height), self._flags)
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            print("PygameDisplay shutting down...")
+            pygame.quit()
 
     def set_backlight(self, brightness):
         pass  # No backlight on pygame
