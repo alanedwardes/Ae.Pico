@@ -494,7 +494,7 @@ class PWMController:
             writer.write(OK_STATUS)
         
         writer.write(HEADER_TERMINATOR)
-        writer.write('frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / DUTY_MAX * 100))
+        writer.write(b'frequency=%iHz,duty=%i%%' % (pwm.freq(), pwm.duty_u16() / DUTY_MAX * 100))
 
 
 class UploadController:    
