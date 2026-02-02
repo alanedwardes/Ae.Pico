@@ -11,12 +11,22 @@ from drawing import Drawing
 
 
 class FbDisplay:
-    def __init__(self, display_width, display_height, fb_width, fb_height, rotation=0, fb_device='/dev/fb0'):
+    def __init__(self, display_width, display_height, fb_width, fb_height, rotation=0, fb_device='/dev/fb0', backlight_path=None):
         self._display_width = display_width  # Physical framebuffer width
         self._display_height = display_height  # Physical framebuffer height
         self._fb_width = fb_width  # Drawing surface width
         self._fb_height = fb_height  # Drawing surface height
         self._rotation = rotation  # 0, 90, 180, 270
+        self._backlight_path = backlight_path
+        self._max_brightness = 100 # Default fallback
+
+        if self._backlight_path:
+            try:
+                with open(os.path.join(self._backlight_path, 'max_brightness'), 'r') as f:
+                    self._max_brightness = int(f.read().strip())
+                print(f"FbDisplay: Backlight control enabled. Max: {self._max_brightness}")
+            except Exception as e:
+                print(f"FbDisplay: Failed to read max_brightness: {e}")
 
         
         # Calculate logical (rotated) display dimensions
@@ -67,12 +77,14 @@ class FbDisplay:
         rotation = config.get('rotate', 0)  # degrees: 0/90/180/270
 
         fb_device = config.get('fb_device', '/dev/fb0')
+        backlight_path = config.get('backlight_path')
 
         driver = FbDisplay(
             display_width, display_height,
             fb_width, fb_height,
             rotation=rotation,
-            fb_device=fb_device
+            fb_device=fb_device,
+            backlight_path=backlight_path
         )
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
@@ -87,8 +99,37 @@ class FbDisplay:
     async def start(self):
         await asyncio.Event().wait()
 
+    def get_brightness(self):
+        if not self._backlight_path:
+            return 0
+        try:
+            with open(os.path.join(self._backlight_path, 'brightness'), 'r') as f:
+                val = int(f.read().strip())
+                # Return normalized float 0.0-1.0
+                return val / self._max_brightness
+        except Exception as e:
+            print(f"FbDisplay: Failed to read brightness: {e}")
+            return 0
+
     def set_backlight(self, brightness):
-        pass
+        if not self._backlight_path:
+            return
+
+        if isinstance(brightness, float):
+            # 0.0 - 1.0 -> map to 0 - max_brightness
+            val = int(brightness * self._max_brightness)
+        else:
+            # Assume int raw value
+            val = int(brightness)
+        
+        # Clamp
+        val = max(0, min(val, self._max_brightness))
+        
+        try:
+            with open(os.path.join(self._backlight_path, 'brightness'), 'w') as f:
+                f.write(str(val))
+        except Exception as e:
+            print(f"FbDisplay: Failed to set brightness: {e}")
 
     def render(self, framebuffer, width, height, region):
         """Render RGB565 framebuffer region to display with scaling and rotation."""
