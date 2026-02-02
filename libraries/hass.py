@@ -41,7 +41,7 @@ class Hass:
         async with ScopedConnection(self._connect) as (reader, writer):
             self.write_protocol(writer, b'GET', b'/')
             self.write_auth_header(writer)
-            writer.write('\r\n')
+            writer.write(b'\r\n')
             await writer.drain()
             await self.ensure_success_status_code(reader)
             content_length = await self.get_content_length(reader)
