@@ -1,14 +1,13 @@
 """
-Direct Linux framebuffer display driver.
+Direct Linux framebuffer display driver (RGB565).
 No pygame dependency - uses only Python standard library.
 Works on Raspberry Pi and other Linux systems with /dev/fb0.
 """
 import asyncio
-import sys
 import os
 import mmap
-from array import array
 from drawing import Drawing
+
 
 class FbDisplay:
     def __init__(self, display_width, display_height, scale=1, debug_regions=False, test_mode=False, fb_device='/dev/fb0'):
@@ -20,29 +19,17 @@ class FbDisplay:
         
         # Open and memory-map the framebuffer
         self._fb_fd = os.open(fb_device, os.O_RDWR)
-        fb_size = display_width * display_height * 4  # ARGB8888
+        fb_size = display_width * display_height * 2  # RGB565 = 2 bytes per pixel
         self._fb_mmap = mmap.mmap(self._fb_fd, fb_size, mmap.MAP_SHARED, mmap.PROT_WRITE | mmap.PROT_READ)
-        print(f"FbDisplay: Opened {fb_device}: {display_width}x{display_height} ({fb_size} bytes)")
+        print(f"FbDisplay: Opened {fb_device}: {display_width}x{display_height} RGB565 ({fb_size} bytes)")
         
-        # Working buffer (ARGB8888 format to match typical fb)
+        # Working buffer (RGB565)
         self._buffer = bytearray(fb_size)
-        self._buffer_view32 = memoryview(self._buffer).cast('I')
-        
-        # Precompute RGB565 -> ARGB8888 lookup table
-        lut = array('I', [0]) * 65536
-        for val in range(65536):
-            r5 = (val >> 11) & 0x1F
-            g6 = (val >> 5) & 0x3F
-            b5 = val & 0x1F
-            r = (r5 << 3) | (r5 >> 2)
-            g = (g6 << 2) | (g6 >> 4)
-            b = (b5 << 3) | (b5 >> 2)
-            # Pi framebuffer uses BGRA8888 - Blue in lowest byte
-            lut[val] = (0xFF << 24) | (b << 16) | (g << 8) | r
-        self._lut565 = lut
+        self._buffer_view16 = memoryview(self._buffer).cast('H')
         
         # Clear to black
-        self._buffer_view32[:] = array('I', [0xFF000000]) * (display_width * display_height)
+        for i in range(display_width * display_height):
+            self._buffer_view16[i] = 0
         self._flush()
 
     def create(provider):
@@ -73,32 +60,41 @@ class FbDisplay:
         self._fb_mmap.seek(0)
         self._fb_mmap.write(self._buffer)
 
-    def _fill(self, color):
-        """Fill entire buffer with a color (BGRA format)."""
-        r, g, b = color
-        bgra = (0xFF << 24) | (b << 16) | (g << 8) | r
-        self._buffer_view32[:] = array('I', [bgra]) * (self._display_width * self._display_height)
+    def _fill_rgb565(self, color565):
+        """Fill entire buffer with an RGB565 color."""
+        for i in range(self._display_width * self._display_height):
+            self._buffer_view16[i] = color565
+
+    def _rgb_to_565(self, r, g, b):
+        """Convert 8-bit RGB to 16-bit RGB565."""
+        return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
     async def start(self):
         if self._test_mode:
             print(f"FbDisplay: TEST MODE - Resolution: {self._display_width}x{self._display_height}")
-            colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+            # RGB565 colors
+            colors = [
+                (self._rgb_to_565(255, 0, 0), "Red"),
+                (self._rgb_to_565(0, 255, 0), "Green"),
+                (self._rgb_to_565(0, 0, 255), "Blue"),
+                (self._rgb_to_565(255, 255, 255), "White"),
+            ]
             idx = 0
             while True:
-                c = colors[idx]
-                self._fill(c)
+                color565, name = colors[idx]
+                self._fill_rgb565(color565)
                 self._flush()
-                print(f"FbDisplay: Color {c}")
+                print(f"FbDisplay: {name} (0x{color565:04x})")
                 idx = (idx + 1) % len(colors)
                 await asyncio.sleep(1)
 
-        # Normal mode: just stay alive
         await asyncio.Event().wait()
 
     def set_backlight(self, brightness):
         pass
 
     def render(self, framebuffer, width, height, region):
+        """Render RGB565 framebuffer region to display with scaling."""
         x, y, rw, rh = region
         if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
@@ -108,22 +104,22 @@ class FbDisplay:
         if width * scale != self._display_width or height * scale != self._display_height:
             return
 
+        # Source is already RGB565 - just copy with upscaling
         src16 = memoryview(framebuffer).cast('H')
-        dest32 = self._buffer_view32
-        lut = self._lut565
+        dest16 = self._buffer_view16
 
         for row in range(rh):
             fb_row = y + row
             for col in range(rw):
                 fb_col = x + col
                 src_idx = fb_row * width + fb_col
-                argb = lut[src16[src_idx]]
+                pixel = src16[src_idx]
                 for dy in range(scale):
                     for dx in range(scale):
                         dest_x = (x + col) * scale + dx
                         dest_y = (y + row) * scale + dy
                         dest_idx = dest_y * self._display_width + dest_x
-                        dest32[dest_idx] = argb
+                        dest16[dest_idx] = pixel
 
         self._flush()
 
