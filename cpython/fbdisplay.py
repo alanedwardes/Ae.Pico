@@ -10,10 +10,13 @@ from drawing import Drawing
 
 
 class FbDisplay:
-    def __init__(self, display_width, display_height, scale=1, debug_regions=False, test_mode=False, fb_device='/dev/fb0'):
-        self._display_width = display_width
-        self._display_height = display_height
+    def __init__(self, display_width, display_height, fb_width, fb_height, scale=1, rotation=0, debug_regions=False, test_mode=False, fb_device='/dev/fb0'):
+        self._display_width = display_width  # Physical framebuffer width
+        self._display_height = display_height  # Physical framebuffer height
+        self._fb_width = fb_width  # Logical width (after rotation)
+        self._fb_height = fb_height  # Logical height (after rotation)
         self._scale = scale
+        self._rotation = rotation  # 0, 90, 180, 270
         self._debug_regions = debug_regions
         self._test_mode = test_mode
         
@@ -21,7 +24,7 @@ class FbDisplay:
         self._fb_fd = os.open(fb_device, os.O_RDWR)
         fb_size = display_width * display_height * 2  # RGB565 = 2 bytes per pixel
         self._fb_mmap = mmap.mmap(self._fb_fd, fb_size, mmap.MAP_SHARED, mmap.PROT_WRITE | mmap.PROT_READ)
-        print(f"FbDisplay: Opened {fb_device}: {display_width}x{display_height} RGB565 ({fb_size} bytes)")
+        print(f"FbDisplay: Opened {fb_device}: {display_width}x{display_height} RGB565, rotation={rotation}°")
         
         # Working buffer (RGB565)
         self._buffer = bytearray(fb_size)
@@ -35,19 +38,32 @@ class FbDisplay:
     def create(provider):
         config = provider['config']['display']
 
+        # Physical display dimensions (what the framebuffer reports)
         display_width = config['width']
         display_height = config['height']
         scale = config.get('scale', 1)
+        rotation = config.get('rotate', 0)  # degrees: 0/90/180/270
         test_mode = config.get('test_mode', False)
         fb_device = config.get('fb_device', '/dev/fb0')
 
-        fb_width = display_width // scale
-        fb_height = display_height // scale
+        # Logical dimensions depend on rotation
+        if rotation in (90, 270):
+            logical_width = display_height
+            logical_height = display_width
+        else:
+            logical_width = display_width
+            logical_height = display_height
+
+        # Framebuffer dimensions are logical dimensions divided by scale
+        fb_width = logical_width // scale
+        fb_height = logical_height // scale
 
         driver = FbDisplay(
             display_width, display_height,
-            scale=scale, debug_regions=False,
-            test_mode=test_mode, fb_device=fb_device
+            fb_width, fb_height,
+            scale=scale, rotation=rotation,
+            debug_regions=False, test_mode=test_mode,
+            fb_device=fb_device
         )
         drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
@@ -60,6 +76,20 @@ class FbDisplay:
         self._fb_mmap.seek(0)
         self._fb_mmap.write(self._buffer)
 
+    def _transform_coords(self, x, y, src_width, src_height):
+        """Transform logical coordinates to physical framebuffer coordinates."""
+        if self._rotation == 0:
+            return x, y
+        elif self._rotation == 90:
+            # Rotate 90° clockwise: (x,y) -> (height-1-y, x)
+            return src_height - 1 - y, x
+        elif self._rotation == 180:
+            return src_width - 1 - x, src_height - 1 - y
+        elif self._rotation == 270:
+            # Rotate 270° clockwise: (x,y) -> (y, width-1-x)
+            return y, src_width - 1 - x
+        return x, y
+
     def _fill_rgb565(self, color565):
         """Fill entire buffer with an RGB565 color."""
         for i in range(self._display_width * self._display_height):
@@ -71,8 +101,7 @@ class FbDisplay:
 
     async def start(self):
         if self._test_mode:
-            print(f"FbDisplay: TEST MODE - Resolution: {self._display_width}x{self._display_height}")
-            # RGB565 colors
+            print(f"FbDisplay: TEST MODE - Physical: {self._display_width}x{self._display_height}, Logical: {self._fb_width}x{self._fb_height}")
             colors = [
                 (self._rgb_to_565(255, 0, 0), "Red"),
                 (self._rgb_to_565(0, 255, 0), "Green"),
@@ -84,7 +113,7 @@ class FbDisplay:
                 color565, name = colors[idx]
                 self._fill_rgb565(color565)
                 self._flush()
-                print(f"FbDisplay: {name} (0x{color565:04x})")
+                print(f"FbDisplay: {name}")
                 idx = (idx + 1) % len(colors)
                 await asyncio.sleep(1)
 
@@ -94,19 +123,22 @@ class FbDisplay:
         pass
 
     def render(self, framebuffer, width, height, region):
-        """Render RGB565 framebuffer region to display with scaling."""
+        """Render RGB565 framebuffer region to display with scaling and rotation."""
         x, y, rw, rh = region
         if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
         if x + rw > width or y + rh > height:
             return
         scale = self._scale
-        if width * scale != self._display_width or height * scale != self._display_height:
+        if width != self._fb_width or height != self._fb_height:
             return
 
-        # Source is already RGB565 - just copy with upscaling
         src16 = memoryview(framebuffer).cast('H')
         dest16 = self._buffer_view16
+        
+        # Scaled logical dimensions
+        scaled_width = width * scale
+        scaled_height = height * scale
 
         for row in range(rh):
             fb_row = y + row
@@ -114,11 +146,19 @@ class FbDisplay:
                 fb_col = x + col
                 src_idx = fb_row * width + fb_col
                 pixel = src16[src_idx]
+                
+                # Write upscaled and rotated pixel block
                 for dy in range(scale):
                     for dx in range(scale):
-                        dest_x = (x + col) * scale + dx
-                        dest_y = (y + row) * scale + dy
-                        dest_idx = dest_y * self._display_width + dest_x
+                        # Logical position (scaled)
+                        lx = fb_col * scale + dx
+                        ly = fb_row * scale + dy
+                        
+                        # Transform to physical position
+                        px, py = self._transform_coords(lx, ly, scaled_width, scaled_height)
+                        
+                        # Write to physical buffer
+                        dest_idx = py * self._display_width + px
                         dest16[dest_idx] = pixel
 
         self._flush()
