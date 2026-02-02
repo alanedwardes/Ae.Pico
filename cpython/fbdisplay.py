@@ -37,8 +37,8 @@ class FbDisplay:
             r = (r5 << 3) | (r5 >> 2)
             g = (g6 << 2) | (g6 >> 4)
             b = (b5 << 3) | (b5 >> 2)
-            # ARGB8888 in little-endian memory: BGRA byte order
-            lut[val] = (0xFF << 24) | (r << 16) | (g << 8) | b
+            # Pi framebuffer uses BGRA8888 - Blue in lowest byte
+            lut[val] = (0xFF << 24) | (b << 16) | (g << 8) | r
         self._lut565 = lut
         
         # Clear to black
@@ -74,10 +74,10 @@ class FbDisplay:
         self._fb_mmap.write(self._buffer)
 
     def _fill(self, color):
-        """Fill entire buffer with an ARGB color."""
+        """Fill entire buffer with a color (BGRA format)."""
         r, g, b = color
-        argb = (0xFF << 24) | (r << 16) | (g << 8) | b
-        self._buffer_view32[:] = array('I', [argb]) * (self._display_width * self._display_height)
+        bgra = (0xFF << 24) | (b << 16) | (g << 8) | r
+        self._buffer_view32[:] = array('I', [bgra]) * (self._display_width * self._display_height)
 
     async def start(self):
         if self._test_mode:
