@@ -44,8 +44,17 @@ class TimeDisplay:
         # Layout constants
         height = 70
         section_height = height // 2
-        time_width = 200
-        date_seconds_width = self.display_width - time_width - 64  # the temp display is 64px
+        
+        # Calculate proportional widths
+        # Original: 200px time, 64px temp (fixed), rest date
+        # Target: Similar proportions but flexible
+        
+        TEMP_WIDTH = 64 # Keep temp display fixed width for now as it contains an icon
+        
+        # Give time display ~60% of available width
+        time_width = int(self.display_width * 0.625)
+        
+        date_seconds_width = self.display_width - time_width - TEMP_WIDTH
 
         now = self.rtc.datetime()
         # datetime format: (year, month, day, weekday, hour, minute, second, subsecond)

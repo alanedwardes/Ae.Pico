@@ -141,13 +141,19 @@ class TrainDisplay:
         """Draw header row with column labels."""
         header_color = 0x8410  # Grey for header
         
-        # Define column widths (same as departure rows)
+        # Define column widths
         time_width = 50
-        destination_width = 160
         platform_width = 30
         train_class_width = 30
         expected_width = 50
         
+        # Calculate destination width dynamically
+        destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
+        
+        # Ensure minimum width
+        if destination_width < 50:
+             destination_width = 50
+
         # Draw header labels
         await textbox.draw_textbox(self.display, 'Time', 0, y_offset, time_width, 20, color=header_color, font='small')
         await textbox.draw_textbox(self.display, 'Destination', time_width, y_offset, destination_width, 20, color=header_color, font='small', align='left')
@@ -173,10 +179,16 @@ class TrainDisplay:
         
         # Define column widths and positions
         time_width = 50
-        destination_width = 160
         platform_width = 30
         train_class_width = 30
         expected_width = 50
+        
+        # Calculate destination width dynamically
+        destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
+
+        # Ensure minimum width
+        if destination_width < 50:
+             destination_width = 50
         
         # Draw each column using textbox
         await textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')

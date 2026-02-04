@@ -4,8 +4,8 @@ import asyncio
 import gc
 from array import array
 
-WIDTH = 320
-HEIGHT = 240
+
+
 
 def load_obj(filename):
     vertices = []
@@ -22,15 +22,16 @@ def load_obj(filename):
                 faces.append(face)
     return vertices, faces
 
-def project(x, y, z, angle):
+def project(x, y, z, width, height, angle):
     # Simple perspective projection
     fov = 256
     distance = fov / (z + 4)
-    x_proj = int(x * distance + WIDTH // 2)
-    y_proj = int(-y * distance + HEIGHT // 2)
+    x_proj = int(x * distance + width // 2)
+    y_proj = int(-y * distance + height // 2)
     return x_proj, y_proj
 
 def draw_mesh(display, angle, vertices, faces):
+    width, height = display.get_bounds()
     # Rotate vertices
     rotated = []
     for v in vertices:
@@ -43,7 +44,7 @@ def draw_mesh(display, angle, vertices, faces):
         rotated.append([x, y, z2])
 
     # Project vertices
-    projected = [project(v[0], v[1], v[2], angle) for v in rotated]
+    projected = [project(v[0], v[1], v[2], width, height, angle) for v in rotated]
 
     # Calculate average Z for each face for painter's algorithm
     face_depths = []
