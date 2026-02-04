@@ -19,3 +19,6 @@ class AsyncDiagnostics:
             delta = utime.ticks_diff(t1, t0)
             if delta > self.threshold_ms:
                 print(f"Async hitch detected: {delta}ms")
+            
+            # Sleep for half the threshold to allow other tasks to run
+            await asyncio.sleep(self.threshold_ms / 2000)
