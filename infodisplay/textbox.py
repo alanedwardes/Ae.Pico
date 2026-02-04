@@ -151,8 +151,13 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
             # Prefer nearest integer upscale
             scale_up_i = max(1, int(round(s)))
             scale_down_i = 1
+        
+        # Use font line height for vertical sizing to ensure consistent baselines
+        line_count = text.count('\n') + 1
+        text_height_pixels = (bmfont_obj.line_height * line_count * scale_up_i) // scale_down_i
+        
+        # Use visual width for horizontal centering
         text_width_pixels = (bounds_w * scale_up_i) // scale_down_i
-        text_height_pixels = (bounds_h * scale_up_i) // scale_down_i
     else:
         text_width_pixels = Font8.measure_text(text, scale)
     
@@ -176,7 +181,7 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
         dw, dh = display.get_bounds()
         # Use previously computed integer scale factors and scaled bounds
         origin_x = math.floor(text_x_position - (min_x * scale_up_i) // scale_down_i)
-        origin_y = math.floor(text_y_position - (min_y * scale_up_i) // scale_down_i)
+        origin_y = math.floor(text_y_position)
         
         current_y = origin_y
         # Get scratch buffer from the drawing instance
