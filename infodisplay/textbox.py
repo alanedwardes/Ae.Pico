@@ -177,6 +177,9 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
     else:  # center (default)
         text_y_position = y + (height - text_height_pixels) * 0.5
     
+    # Define clip region based on textbox
+    clip = (int(x), int(y), int(width), int(height))
+
     if is_bmfont:
         dw, dh = display.get_bounds()
         # Use previously computed integer scale factors and scaled bounds
@@ -188,9 +191,18 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
         linebuf = display.get_scratch_buffer(bmfont_obj.scale_w)
 
         lines = text.split('\n')
+        line_h_pixels = bmfont_obj.line_height
+        
         for i, line in enumerate(lines):
+            # Optimization: check if this line is visible
+            # Approximate check using current_y
+            if current_y + line_h_pixels < y or current_y > y + height:
+                if i > 0:
+                     current_y += line_h_pixels
+                continue
+
             if i > 0:
-                current_y += bmfont_obj.line_height
+                current_y += line_h_pixels
             
             draw_text(
                 display, dw, dh, bmfont_obj, bm_pages, line,
@@ -198,7 +210,7 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
                 origin_x,
                 current_y,
                 kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color,
-                linebuf=linebuf
+                linebuf=linebuf, clip=clip
             )
             await asyncio.sleep(0)
     else:
@@ -206,11 +218,20 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
         origin_y = math.floor(text_y_position)
         current_y = origin_y
         lines = text.split('\n')
+        
+        line_h_pixels = Font8.height * scale
+        
         for i, line in enumerate(lines):
+            # Optimization: check if this line is visible
+            if current_y + line_h_pixels < y or current_y > y + height:
+                 if i > 0:
+                    current_y += line_h_pixels
+                 continue
+
             if i > 0:
-                current_y += Font8.height * scale
+                current_y += line_h_pixels
             
-            Font8.draw_text(display, line, origin_x, math.floor(current_y), color, scale=scale)
+            Font8.draw_text(display, line, origin_x, math.floor(current_y), color, scale=scale, clip=clip)
             await asyncio.sleep(0)
     
     # DEBUG: Draw outline

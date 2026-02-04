@@ -136,7 +136,7 @@ class Font8:
     ]
 
     @classmethod
-    def draw_char(cls, surface, char, x, y, color, scale=1):
+    def draw_char(cls, surface, char, x, y, color, scale=1, clip=None):
         """Draw a single character at (x, y) on the given surface, with scaling."""
         # Map special characters to their font index
         special_map = {
@@ -149,21 +149,38 @@ class Font8:
             font_index = index - 32
         else:
             font_index = 0  # fallback to space
+            
         width = cls.widths[font_index]
         offset = font_index * cls.max_width
+        
+        # Determine clip bounds
+        cx, cy, cw, ch = 0, 0, 9999, 9999
+        if clip:
+            cx, cy, cw, ch = clip
+            
         for col in range(width):
             col_data = cls.data[offset + col]
             for row in range(cls.height):
                 if (col_data >> row) & 1:
-                    # Draw a scaled pixel (rectangle)
-                    surface.rect(
-                        math.floor(x + col * scale), math.floor(y + row * scale), math.ceil(scale), math.ceil(scale),
-                        color,
-                        True
-                    )
+                    # Original coordinates
+                    px = math.floor(x + col * scale)
+                    py = math.floor(y + row * scale)
+                    ps = math.ceil(scale)
+                    
+                    # Calculate clipped rectangle directly
+                    # The pixel logic is rect(px, py, ps, ps)
+                    # We intersect this with rect(cx, cy, cw, ch)
+                    
+                    ix1 = max(px, cx)
+                    iy1 = max(py, cy)
+                    ix2 = min(px + ps, cx + cw)
+                    iy2 = min(py + ps, cy + ch)
+                    
+                    if ix2 > ix1 and iy2 > iy1:
+                         surface.rect(ix1, iy1, ix2 - ix1, iy2 - iy1, color, True)
 
     @classmethod
-    def draw_text(cls, surface, text, x, y, color, spacing=1, scale=1):
+    def draw_text(cls, surface, text, x, y, color, spacing=1, scale=1, clip=None):
         """Draw a string of text at (x, y) on the given surface, with scaling and newline support."""
         cx = x
         cy = y
@@ -172,7 +189,7 @@ class Font8:
                 cx = x
                 cy += cls.height * scale
                 continue
-            cls.draw_char(surface, char, cx, cy, color, scale)
+            cls.draw_char(surface, char, cx, cy, color, scale, clip=clip)
             index = ord(char)
             if 32 <= index <= 126:
                 font_index = index - 32

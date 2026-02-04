@@ -61,19 +61,33 @@ def _resolve_palette(tint_color):
     return pal
 
 def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
-               sx, sy, sw, sh, dx, dy, tint_color=None, linebuf=None):
+               sx, sy, sw, sh, dx, dy, tint_color=None, linebuf=None, clip=None):
     if sw <= 0 or sh <= 0:
         return
-    if dx >= fb_width or dy >= fb_height:
+    
+    # Calculate clipping limits
+    min_x = 0
+    min_y = 0
+    max_x = fb_width
+    max_y = fb_height
+    
+    if clip is not None:
+        cx, cy, cw, ch = clip
+        min_x = max(min_x, cx)
+        min_y = max(min_y, cy)
+        max_x = min(max_x, cx + cw)
+        max_y = min(max_y, cy + ch)
+        
+    if dx >= max_x or dy >= max_y:
         return
-    if dx + sw <= 0 or dy + sh <= 0:
+    if dx + sw <= min_x or dy + sh <= min_y:
         return
 
-    start_row = max(0, -dy)
-    end_row = min(sh, fb_height - dy)
+    start_row = max(0, min_y - dy)
+    end_row = min(sh, max_y - dy)
 
-    left_clip = max(0, -dx)
-    right_clip = max(0, dx + sw - fb_width)
+    left_clip = max(0, min_x - dx)
+    right_clip = max(0, dx + sw - max_x)
     copy_width = sw - left_clip - right_clip
     if copy_width <= 0:
         return
@@ -192,7 +206,7 @@ class BMFont:
                     font.kerning[(first, second)] = amount
         return font
 
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None, clip=None):
     # GS8 source atlases: one byte per pixel per row
     row_bytes = font.scale_w * 1
     # Reuse a line buffer for all glyphs to limit per-glyph allocations
@@ -231,7 +245,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         blit_region(framebuffer, display_width, display_height,
                     pages[page], row_bytes,
                     src_x, src_y, width, height,
-                    dest_x, dest_y, color, linebuf)
+                    dest_x, dest_y, color, linebuf, clip=clip)
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
 

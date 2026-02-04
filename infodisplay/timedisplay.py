@@ -61,7 +61,7 @@ class TimeDisplay:
             
             # Clear time area then draw
             self.display.rect(0, 0, time_width, height, 0x0000, True)
-            await textbox.draw_textbox(self.display, time_text, 0, 10, time_width, height - 10, color=0xFFFF, font='headline', scale=1)
+            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFF, font='headline', scale=1)
             
             # Render only the time region
             self.display.update((0, 0, time_width, height))
