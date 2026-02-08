@@ -2,6 +2,7 @@ import ws
 import json
 import utime
 import asyncio
+import asyncutils
 
 class HassWs:
     def __init__(self, url, token):
@@ -24,7 +25,8 @@ class HassWs:
         while True:
             try:
                 self.socket = await ws.connect(self.url + '/api/websocket')
-                await asyncio.gather(self.__listen(), self.__keepalive())
+                waiter = asyncutils.WaitFirst(self.__listen(), self.__keepalive())
+                await waiter.wait()
             except asyncio.CancelledError:
                 await self.stop()
                 break # Exit the loop if the task is cancelled
