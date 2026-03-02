@@ -1,17 +1,76 @@
 import framebuf
 import math
 
-class Drawing(framebuf.FrameBuffer):
-    def __init__(self, width, height):
+class Drawing:
+    def __init__(self, width, height, color_mode='RGB565'):
         self.width = width
         self.height = height
-        self.mode = framebuf.RGB565
-        self._buf = bytearray(width * height * 2)
-        super().__init__(self._buf, width, height, self.mode)
-        self.fill(0)
+        self.color_mode = color_mode
         self._driver = None
+
+        if color_mode == 'RGB565':
+            self.mode = framebuf.RGB565
+            self.bytes_per_pixel = 2
+        else:
+            self.mode = framebuf.GS8
+            self.bytes_per_pixel = 1
+
+        self._buf = bytearray(width * height * self.bytes_per_pixel)
+        self.fb = framebuf.FrameBuffer(self._buf, width, height, self.mode)
+        self.fb.fill(0)
+        
         # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
         self._scratch_buffer = bytearray(1024)
+
+    def pack(self, r, g, b):
+        if self.color_mode == 'RGB565':
+            return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+        else:
+            return (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
+
+    # --- Framebuf Wrappers ---
+    def pixel(self, x, y, color):
+        self.fb.pixel(x, y, self.pack(*color))
+
+    def rect(self, x, y, w, h, color, fill=False):
+        c = self.pack(*color)
+        if fill:
+            self.fb.fill_rect(x, y, w, h, c)
+        else:
+            self.fb.rect(x, y, w, h, c)
+            
+    def fill_rect(self, x, y, w, h, color):
+        self.fb.fill_rect(x, y, w, h, self.pack(*color))
+
+    def fill(self, color):
+        self.fb.fill(self.pack(*color))
+
+    def text(self, s, x, y, color):
+        self.fb.text(s, x, y, self.pack(*color))
+        
+    def line(self, x1, y1, x2, y2, color):
+        self.fb.line(x1, y1, x2, y2, self.pack(*color))
+        
+    def hline(self, x, y, w, color):
+        self.fb.hline(x, y, w, self.pack(*color))
+
+    def vline(self, x, y, h, color):
+        self.fb.vline(x, y, h, self.pack(*color))
+
+    def ellipse(self, x, y, xr, yr, color, fill=False):
+        c = self.pack(*color)
+        self.fb.ellipse(x, y, xr, yr, c, fill)
+        
+    def poly(self, x, y, coords, color, fill=False):
+        c = self.pack(*color)
+        self.fb.poly(x, y, coords, c, fill)
+        
+    def scroll(self, xstep, ystep):
+        self.fb.scroll(xstep, ystep)
+
+    def blit(self, fbuf, x, y, key=-1, palette=None):
+        self.fb.blit(fbuf, x, y, key, palette)
+    # -------------------------
 
     def get_scratch_buffer(self, required_size=0):
         """Return a memoryview of the scratch buffer. 
@@ -21,9 +80,8 @@ class Drawing(framebuf.FrameBuffer):
             return bytearray(required_size)
         return memoryview(self._scratch_buffer)
 
-    @staticmethod
-    def rgb(r, g, b):
-        return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+    def __buffer__(self, flags=None):
+        return memoryview(self._buf)
 
     def set_driver(self, driver):
         self._driver = driver
@@ -46,16 +104,9 @@ class Drawing(framebuf.FrameBuffer):
         self._driver.render(self._buf, self.width, self.height, region)
 
     def _dim_color(self, color, factor):
-        # Factor 0.0 to 1.0
-        r = (color >> 11) & 0x1F
-        g = (color >> 5) & 0x3F
-        b = color & 0x1F
-        
-        r = int(r * factor)
-        g = int(g * factor)
-        b = int(b * factor)
-        
-        return (r << 11) | (g << 5) | b
+        # Factor 0.0 to 1.0 (dims the tuple)
+        r, g, b = color
+        return (int(r * factor), int(g * factor), int(b * factor))
 
     def aa_circle(self, cx, cy, radius, color):
         # Draw an anti-aliased circle

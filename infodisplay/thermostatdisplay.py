@@ -73,16 +73,16 @@ class ThermostatDisplay:
         maximum_temperature = float(thermostat_entity['a']['max_temp'])
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
         
-        self.display.rect(0, 70, self.display_width, self.display_height - 70, 0x0000, True)
+        self.display.rect(0, 70, self.display_width, self.display_height - 70, (0, 0, 0), True)
         
-        groove_color = 0x8A03 if hvac_action == 'heating' else 0x4208
-        notch_outline_color = 0xFB64 if hvac_action and hvac_action != 'off' else 0x0000
+        groove_color = (138, 64, 24) if hvac_action == 'heating' else (66, 65, 66)
+        notch_outline_color = (251, 109, 33) if hvac_action and hvac_action != 'off' else (0, 0, 0)
         position = (0, 70)
         size = (self.display_width, self.display_height - 70)
         gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_target, current_temperature, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
 
         # Draw primary (target) and secondary (current) temperatures
-        white_pen = 0xFFFF
+        white_pen = (255, 255, 255)
         primary_height = size[1] * 0.85
         await textbox.draw_textbox(self.display, f'{current_target:.1f}°', position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
         secondary_text_y = position[1] + size[1] * 0.65
@@ -90,7 +90,7 @@ class ThermostatDisplay:
         await textbox.draw_textbox(self.display, f'{current_temperature:.1f}°', position[0], secondary_text_y, size[0], secondary_text_height, color=white_pen, font='regular')
 
         # HVAC action label just above main temperature
-        await textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFF, font='small')
+        await textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=(255, 255, 255), font='small')
 
         # Render only the thermostat region (below the time/temperature displays)
         self.display.update((0, 70, self.display_width, self.display_height - 70))

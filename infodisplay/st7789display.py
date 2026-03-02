@@ -29,6 +29,8 @@ class ST7789Display:
         cs = Pin(17, Pin.OUT, value=1)
         backlight = Pin(20, Pin.OUT, value=1)
 
+        mode = config.get('mode', 'RGB565')
+
         st = ST7789(
             spi,
             cs=cs,
@@ -39,6 +41,7 @@ class ST7789Display:
             disp_mode=LANDSCAPE,
             display=(0, 0, 1, 0, True),
             scale=scale,
+            source_color_mode=mode,
         )
 
         # Optional rotation from config
@@ -46,7 +49,7 @@ class ST7789Display:
         st.set_rotation_degrees(int(rotation))
 
         # Drawing uses reduced framebuffer dimensions
-        drawing = Drawing(fb_width, fb_height)
+        drawing = Drawing(fb_width, fb_height, color_mode=mode)
         drawing.set_driver(st)
 
         provider['display'] = drawing

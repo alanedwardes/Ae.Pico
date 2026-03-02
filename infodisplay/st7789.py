@@ -27,31 +27,76 @@ ADAFRUIT_1_9 = (35, 0, PORTRAIT)  #  320x170 TFT https://www.adafruit.com/produc
 # inv: True if color mode is inverted, False normal (default)
 
 @micropython.viper
-def _swapline(dest: ptr8, source: ptr8, length: int):
-    n: int = 0
-    while length:
-        b0 = source[n]
-        b1 = source[n + 1]
-        dest[n] = b1
-        dest[n + 1] = b0
-        n += 2
-        length -= 2
+def _swapline(dest: ptr16, source: ptr16, src_offset: int, pixels: int):
+    # For RGB565 mode (2 bytes per pixel)
+    s: int = src_offset
+    d: int = 0
+    while pixels:
+        c = source[s]
+        dest[d] = (c << 8) | (c >> 8)  # Swap bytes: hi-lo to lo-hi
+        s += 1
+        d += 1
+        pixels -= 1
 
 @micropython.viper
-def _upscale_line(dest: ptr8, source: ptr8, src_pixels: int, scale: int):
-    """Upscale a line by duplicating each pixel 'scale' times horizontally, with byte swap."""
-    s: int = 0  # source byte index
-    d: int = 0  # dest byte index
+def _upscale_line(dest: ptr16, source: ptr16, src_offset: int, src_pixels: int, scale: int):
+    # For RGB565 mode upscale
+    s: int = src_offset
+    d: int = 0
     while src_pixels:
-        # Read source pixel (2 bytes), swap for SPI
-        b0 = source[s]
-        b1 = source[s + 1]
-        # Write duplicated pixels (swapped byte order)
+        c = source[s]
+        swapped = (c << 8) | (c >> 8)
         for _ in range(scale):
-            dest[d] = b1
-            dest[d + 1] = b0
+            dest[d] = swapped
+            d += 1
+        s += 1
+        src_pixels -= 1
+
+@micropython.viper
+def _rgb332_to_565_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int):
+    """Convert RGB332 (1 byte/pixel) to byte-swapped RGB565 (2 bytes/pixel)."""
+    s: int = src_offset
+    d: int = 0
+    while pixels:
+        c = source[s]
+        # Extract RGB332 components: RRR GGG BB
+        r3 = (c >> 5) & 0x07
+        g3 = (c >> 2) & 0x07
+        b2 = c & 0x03
+        # Expand to RGB565 bit depths by replicating MSBs into LSBs
+        r5 = (r3 << 2) | (r3 >> 1)           # 3-bit -> 5-bit
+        g6 = (g3 << 3) | g3                   # 3-bit -> 6-bit
+        b5 = (b2 << 3) | (b2 << 1) | (b2 >> 1)  # 2-bit -> 5-bit
+        # RGB565: RRRRRGGG GGGBBBBB -> hi=RRRRRGGG lo=GGGBBBBB
+        hi = (r5 << 3) | (g6 >> 3)
+        lo = ((g6 & 0x07) << 5) | b5
+        # Byte-swap for SPI (ST7789 expects big-endian)
+        dest[d] = lo
+        dest[d + 1] = hi
+        d += 2
+        s += 1
+        pixels -= 1
+
+@micropython.viper
+def _rgb332_to_565_upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_pixels: int, scale: int):
+    """Convert RGB332 to byte-swapped RGB565 with horizontal upscaling."""
+    s: int = src_offset
+    d: int = 0
+    while src_pixels:
+        c = source[s]
+        r3 = (c >> 5) & 0x07
+        g3 = (c >> 2) & 0x07
+        b2 = c & 0x03
+        r5 = (r3 << 2) | (r3 >> 1)
+        g6 = (g3 << 3) | g3
+        b5 = (b2 << 3) | (b2 << 1) | (b2 >> 1)
+        hi = (r5 << 3) | (g6 >> 3)
+        lo = ((g6 & 0x07) << 5) | b5
+        for _ in range(scale):
+            dest[d] = lo
+            dest[d + 1] = hi
             d += 2
-        s += 2
+        s += 1
         src_pixels -= 1
 
 class ST7789:
@@ -73,6 +118,7 @@ class ST7789:
         init_spi=False,
         display=GENERIC,
         scale=1,
+        source_color_mode='RGB565',
     ):
         if not 0 <= disp_mode <= 7:
             raise ValueError("Invalid display mode:", disp_mode)
@@ -86,6 +132,7 @@ class ST7789:
         self._offset = display[:2]  # display arg is (x, y, orientation)
         orientation = display[2]  # where x, y is the RAM offset
         self._spi_init = init_spi  # Possible user callback
+        self.source_color_mode = source_color_mode
         gc.collect()
         self._linebuf = bytearray(self.width * 2)
         self._init(disp_mode, orientation, display[3:])
@@ -305,28 +352,54 @@ class ST7789:
         self._spi.write(b"\x2c")
         self._dc(1)
 
-        # Prepare buffers
         src = memoryview(framebuffer)
-        row_bytes = width * 2  # Full framebuffer row width
-
-        if scale == 1:
-            # No upscaling - original behavior
-            region_bytes = rw * 2
-            lb = memoryview(self._linebuf[:region_bytes]) if region_bytes < len(self._linebuf) else memoryview(self._linebuf)
-            for row in range(rh):
-                fb_offset = (y + row) * row_bytes + x * 2
-                _swapline(lb, src[fb_offset:], region_bytes)
-                self._spi.write(lb)
-        else:
-            # Upscaling: duplicate each pixel scale times horizontally and vertically
-            output_line_bytes = rw * scale * 2
-            lb = memoryview(self._linebuf[:output_line_bytes])
-            for row in range(rh):
-                fb_offset = (y + row) * row_bytes + x * 2
-                _upscale_line(lb, src[fb_offset:], rw, scale)
-                # Write the line 'scale' times for vertical upscaling
-                for _ in range(scale):
+        
+        if self.source_color_mode == 'RGB565':
+            # Framebuffer is 2 bytes per pixel (RGB565)
+            row_bytes = width * 2
+            
+            if scale == 1:
+                # No upscaling, just byte swapping
+                output_bytes = rw * 2
+                lb = memoryview(self._linebuf[:output_bytes])
+                for row in range(rh):
+                    fb_byte_offset = (y + row) * row_bytes + x * 2
+                    fb_word_offset = fb_byte_offset // 2
+                    _swapline(lb, src, fb_word_offset, rw)
                     self._spi.write(lb)
+            else:
+                # Upscaling with byte swapping
+                output_line_bytes = rw * scale * 2
+                lb = memoryview(self._linebuf[:output_line_bytes])
+                for row in range(rh):
+                    fb_byte_offset = (y + row) * row_bytes + x * 2
+                    fb_word_offset = fb_byte_offset // 2
+                    _upscale_line(lb, src, fb_word_offset, rw, scale)
+                    # Write the line 'scale' times for vertical upscaling
+                    for _ in range(scale):
+                        self._spi.write(lb)
+                        
+        else: # RGB332
+            # Framebuffer is 1 byte per pixel (RGB332)
+            row_bytes = width
+
+            if scale == 1:
+                # No upscaling - convert RGB332 to RGB565 and byte swap
+                output_bytes = rw * 2
+                lb = memoryview(self._linebuf[:output_bytes]) if output_bytes < len(self._linebuf) else memoryview(self._linebuf)
+                for row in range(rh):
+                    fb_offset = (y + row) * row_bytes + x
+                    _rgb332_to_565_line(lb, src, fb_offset, rw)
+                    self._spi.write(lb)
+            else:
+                # Upscaling with RGB332 to RGB565 conversion
+                output_line_bytes = rw * scale * 2
+                lb = memoryview(self._linebuf[:output_line_bytes])
+                for row in range(rh):
+                    fb_offset = (y + row) * row_bytes + x
+                    _rgb332_to_565_upscale_line(lb, src, fb_offset, rw, scale)
+                    for _ in range(scale):
+                        self._spi.write(lb)
         self._cs(1)
 
     def set_backlight(self, brightness):

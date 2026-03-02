@@ -95,7 +95,7 @@ class HassMediaDisplay:
             # Yield to check if still active before reading into framebuffer
             await asyncio.sleep(0)
             
-            # Get direct access to the display framebuffer with offset
+            # Slice the framebuffer taking into account the header offset
             framebuffer = memoryview(self.display)[self.start_offset:]
             
             # Stream data directly into framebuffer using shared method
@@ -106,7 +106,8 @@ class HassMediaDisplay:
         gc.collect()
 
         # Tell display to update the screen (only the region we wrote to)
-        # start_offset is in bytes, RGB565 uses 2 bytes per pixel
-        y_offset = (self.start_offset // 2) // self.display_width
+        # start_offset is in bytes
+        bytes_per_pixel = self.display.bytes_per_pixel
+        y_offset = (self.start_offset // bytes_per_pixel) // self.display_width
         height = self.display_height - y_offset
         self.display.update((0, y_offset, self.display_width, height))

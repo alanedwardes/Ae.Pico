@@ -67,14 +67,14 @@ class TemperatureDisplay:
         minimum_temperature = round(float(self.temperature_data[1]))
         maximum_temperature = round(float(self.temperature_data[2]))
         
-        self.display.rect(self.display_width - 64, 0, 64, 70, 0x0000, True)
+        self.display.rect(self.display_width - 64, 0, 64, 70, (0, 0, 0), True)
         
         position = (self.display_width - 64, 0)
         size = (64, 64)
         gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_temperature)
         
         # Draw current temperature in the gauge
-        white_pen = 0xFFFF
+        white_pen = (255, 255, 255)
         primary_scale = size[1] * 0.06
         primary_height = size[1]
         current_temp_str = f"{abs(current_temperature) if current_temperature == 0 else current_temperature:.0f}°"

@@ -1,7 +1,7 @@
 import framebuf
 
 def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
-                sx, sy, sw, sh, dx, dy, buffer=None):
+                sx, sy, sw, sh, dx, dy, buffer=None, src_format=None):
     if sw <= 0 or sh <= 0:
         return
     if dx >= fb_width or dy >= fb_height:
@@ -27,11 +27,14 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     else:
         linebuf = bytearray(needed_bytes)
         
-    src_blit = (linebuf, copy_width, 1, framebuf.RGB565)
+    if src_format is None:
+        src_format = framebuf.RGB565 if bytes_per_pixel == 2 else 6 # 6 is framebuf.GS8 / RGB332
+        
     for row in range(start_row, end_row):
         fb_y = dy + row
         src_y = sy + row
         src_offset = header_bytes + src_y * src_row_bytes + src_x * bytes_per_pixel
         fh.seek(src_offset)
         fh.readinto(linebuf)
-        framebuffer.blit(src_blit, fb_x, fb_y)
+        src_fb = framebuf.FrameBuffer(linebuf, copy_width, 1, src_format)
+        framebuffer.blit(src_fb, fb_x, fb_y)

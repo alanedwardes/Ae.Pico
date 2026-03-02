@@ -85,26 +85,26 @@ def calculate_delay_minutes(std_str, atd_str):
 def get_color_for_train_status(std_str, atd_str, cancelled):
     """Get color for train status based on cancellation and delay."""
     if cancelled:
-        return 0xF346  # Red for cancelled
+        return (243, 68, 70)  # Red for cancelled
     
     if std_str == 'TBC' or atd_str == 'TBC':
-        return 0x8410  # Gray for TBC
+        return (132, 130, 132)  # Gray for TBC
     
     delay_minutes = calculate_delay_minutes(std_str, atd_str)
     
     if delay_minutes is None:
-        return 0x8410  # Grey for unknown/on time
+        return (132, 130, 132)  # Grey for unknown/on time
     
     if delay_minutes == 0:
-        return 0xFFFF  # White for on time
+        return (255, 255, 255)  # White for on time
     elif delay_minutes <= 5:
-        return 0xFEC0  # Yellow for minor delay (1-5 min)
+        return (254, 216, 0)  # Yellow for minor delay (1-5 min)
     elif delay_minutes <= 15:
-        return 0xFDA2  # Orange-yellow for moderate delay (6-15 min)
+        return (253, 180, 18)  # Orange-yellow for moderate delay (6-15 min)
     elif delay_minutes <= 30:
-        return 0xF346  # Orange-red for significant delay (16-30 min)
+        return (243, 68, 70)  # Orange-red for significant delay (16-30 min)
     else:
-        return 0xF800  # Red for major delay (>30 min)
+        return (248, 0, 0)  # Red for major delay (>30 min)
 
 class TrainDisplay:
     def __init__(self, display, url):
@@ -139,7 +139,7 @@ class TrainDisplay:
 
     async def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""
-        header_color = 0x8410  # Grey for header
+        header_color = (132, 130, 132)  # Grey for header
         
         # Define column widths
         time_width = 50
@@ -269,7 +269,7 @@ class TrainDisplay:
         row_height = 17
 
         # Clear header area
-        self.display.rect(0, y_start, self.display_width, row_height, 0x0000, True)
+        self.display.rect(0, y_start, self.display_width, row_height, (0, 0, 0), True)
 
         await self.__draw_header_row(y_start)
 
@@ -284,7 +284,7 @@ class TrainDisplay:
             row_start = y_start + row_height + row * row_height
 
             # Clear this row
-            self.display.rect(0, row_start, self.display_width, row_height, 0x0000, True)
+            self.display.rect(0, row_start, self.display_width, row_height, (0, 0, 0), True)
 
             await self.__draw_departure_row(row, row_start)
 

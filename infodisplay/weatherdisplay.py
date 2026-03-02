@@ -19,13 +19,11 @@ class WeatherDisplay:
 
         self.display_width, self.display_height = self.display.get_bounds()
         
-        # Calculate bytes per pixel once
-        total_pixels = self.display_width * self.display_height
-        self.bytes_per_pixel = len(memoryview(display)) // total_pixels
+        # Get bytes_per_pixel dynamically
+        self.bytes_per_pixel = self.display.bytes_per_pixel
         
-        # Pre-allocate line buffer for blitting
-        # Size needed is max width * bytes per pixel
-        self._line_buffer = bytearray(self.display_width * self.bytes_per_pixel)
+        # Pre-allocate line buffer for blitting using a max size if needed (e.g. max icon width is 100)
+        self._line_buffer = bytearray(100 * 2)
 
         # Pre-allocate HTTP request helper to reduce memory allocations
         self._http_request = HttpRequest(url)
@@ -80,8 +78,21 @@ class WeatherDisplay:
                 icon_x = x + (box_width - icon_width) // 2
                 icon_y = y + (box_height - icon_height) // 2
 
-                icon_row_bytes = icon_width * self.bytes_per_pixel
-                blit_region(framebuffer, self.display_width, self.display_height, self.bytes_per_pixel,
+                # Calculate file size to determine bpp
+                icon_file.seek(0, 2) # seek to end
+                file_size = icon_file.tell()
+                icon_file.seek(4) # seek back exactly following the 4-byte header
+
+                icon_bpp = (file_size - 4) // (icon_width * icon_height)
+                if icon_bpp <= 0: icon_bpp = 1
+                
+                icon_row_bytes = icon_width * icon_bpp
+                
+                # Make sure the line buffer is large enough
+                if len(self._line_buffer) < icon_width * icon_bpp:
+                     self._line_buffer = bytearray(icon_width * icon_bpp)
+
+                blit_region(framebuffer, self.display_width, self.display_height, icon_bpp,
                             icon_file, 4, icon_row_bytes,
                             0, 0, icon_width, icon_height,
                             icon_x, icon_y, buffer=self._line_buffer)
@@ -124,7 +135,7 @@ class WeatherDisplay:
             column_width = next_sx - sx
 
             # Clear this column
-            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x0000, True)
+            self.display.rect(sx, y_start, column_width, self.display_height - y_start, (0, 0, 0), True)
 
             # Get current day of week (0 = Monday, 6 = Sunday)
             # Use utime to get current time and calculate day of week
@@ -133,9 +144,9 @@ class WeatherDisplay:
             day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
 
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
-                day_pen = 0xCE7A
+                day_pen = (200, 206, 212)
             else:
-                day_pen = 0xFFFF
+                day_pen = (255, 255, 255)
 
             height = 2 * 8
             await textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')

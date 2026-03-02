@@ -69,8 +69,8 @@ class TimeDisplay:
             time_text = hour_str + ":" + min_str # String concatenation of interned strings is optimized in MicroPython
             
             # Clear time area then draw
-            self.display.rect(0, 0, time_width, height, 0x0000, True)
-            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFF, font='headline', scale=1)
+            self.display.rect(0, 0, time_width, height, (0, 0, 0), True)
+            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=(255, 255, 255), font='headline', scale=1)
             
             # Render only the time region
             self.display.update((0, 0, time_width, height))
@@ -82,8 +82,8 @@ class TimeDisplay:
             # Use direct access
             day_text = self.DAYS[now[3]-1]
             
-            self.display.rect(time_width, 0, date_seconds_width, section_height, 0x0000, True)
-            await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFF, font='regular', scale=1)
+            self.display.rect(time_width, 0, date_seconds_width, section_height, (0, 0, 0), True)
+            await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=(255, 255, 255), font='regular', scale=1)
             
             # Render only the day region
             self.display.update((time_width, 0, date_seconds_width, section_height))
@@ -106,8 +106,8 @@ class TimeDisplay:
             else:
                 sec_text = "00" # Safety fallback
             
-            self.display.rect(sec_x, section_height, sec_width, sec_height, 0x0000, True)
-            await textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFF, font='regular', scale=1)
+            self.display.rect(sec_x, section_height, sec_width, sec_height, (0, 0, 0), True)
+            await textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=(255, 255, 255), font='regular', scale=1)
             self.display.update((sec_x, section_height, sec_width, sec_height))
 
         # 4. Milliseconds (Tenths) Display
@@ -117,6 +117,6 @@ class TimeDisplay:
             # Use pre-allocated string
             ms_text = self._tenth_numbers[tenth]
 
-            self.display.rect(ms_x, section_height, ms_width, ms_height, 0x0000, True)
-            await textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFF, font='small', scale=1, align='left')
+            self.display.rect(ms_x, section_height, ms_width, ms_height, (0, 0, 0), True)
+            await textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=(255, 255, 255), font='small', scale=1, align='left')
             self.display.update((ms_x, section_height, ms_width, ms_height))

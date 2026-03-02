@@ -74,7 +74,7 @@ def draw_mesh(display, angle, vertices, faces):
         display.poly(0, 0, array('h', flat), face_pen, True)
 
     # Draw edges on top
-    edge_pen = 0xFFFF
+    edge_pen = (255, 255, 255)
     for face in faces:
         for i in range(len(face)):
             start = face[i]
@@ -109,7 +109,7 @@ class MeshDisplay:
         start_update_ms = utime.ticks_ms()
         mem_before = gc.mem_alloc()
         # Clear with black
-        self.display.fill(0x0000)
+        self.display.fill((0, 0, 0))
         draw_mesh(self.display, self.angle, self.vertices, self.faces)
 
         # Render full screen for mesh display

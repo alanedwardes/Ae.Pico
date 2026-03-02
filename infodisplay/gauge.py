@@ -34,7 +34,7 @@ def polygon(display, points, color):
         flat.append(int(point[1]))
     return display.poly(0, 0, array('h', flat), color, True)
 
-def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, secondary_temperature=None, show_min_max=True, groove_color=0x8410, notch_outline_color=0x0000, notch_fill_color=0xFFFF):
+def draw_gauge(display, position, size, minimum_temperature=None, maximum_temperature=None, current_temperature=0, secondary_temperature=None, show_min_max=True, groove_color=(132, 130, 132), notch_outline_color=(0, 0, 0), notch_fill_color=(255, 255, 255)):
     centre = [size[0] / 2 + position[0], size[1] / 2 + position[1]]
 
     guage_thickness = size[1] * 0.05
@@ -46,7 +46,7 @@ def draw_gauge(display, position, size, minimum_temperature=None, maximum_temper
     # Outer gauge
     circle(display, centre[0], centre[1], guage_radius + guage_thickness, groove_pen)
     
-    black_pen = 0x0000
+    black_pen = (0, 0, 0)
 
     # Inner gauge
     circle(display, centre[0], centre[1], guage_radius - guage_thickness, black_pen)
@@ -93,7 +93,7 @@ def draw_gauge(display, position, size, minimum_temperature=None, maximum_temper
             secondary_temperature
         )
         notch_point_secondary = point_on_circle(centre[0], centre[1], guage_radius, radians_secondary)
-        secondary_pen = 0xCE59
+        secondary_pen = (206, 203, 206)
         circle(display, notch_point_secondary[0], notch_point_secondary[1], guage_thickness * 0.75, secondary_pen)
 
     if has_range:

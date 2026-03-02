@@ -281,27 +281,35 @@ class FrameBuffer:
         except IndexError:
             return
 
+        # Transparency (Key)
+        mask = None
+        if key != -1:
+             mask = (src_region != key)
+
         # Resolve Palette if present
         if palette is not None:
              # Convert palette to numpy lookup table
              pal_np = None
+             pal_fmt = RGB565
              if isinstance(palette, FrameBuffer):
                  pal_np = palette._np_buf.flatten()
+                 pal_fmt = palette.mode
              else:
                  # Try to parse list/tuple palette
                  try:
                       pbuf = palette[0]
-                      # Palette is usually RGB565
-                      pal_np = np.frombuffer(pbuf, dtype=np.uint16)
+                      pal_fmt = int(palette[3]) if len(palette) >= 4 else RGB565
+                      dtype = np.uint16 if pal_fmt == RGB565 else np.uint8
+                      pal_np = np.frombuffer(pbuf, dtype=dtype)
                  except:
                       pass
              
              if pal_np is not None:
-                  # Vectorized lookup: src_region (indices) -> RGB565
+                  # Vectorized lookup: src_region (indices) -> Output Color
                   # src_region must be integer type suitable for indexing
                   try:
                       src_region = pal_np[src_region]
-                      src_fmt = RGB565 # Now it is RGB565
+                      src_fmt = pal_fmt
                   except IndexError:
                       return # Indices out of bounds of palette
 
@@ -318,11 +326,6 @@ class FrameBuffer:
              b = (g >> 3)
              src_region = r | g6 | b
              
-        # Transparency (Key)
-        mask = None
-        if key != -1:
-             mask = (src_region != key)
-        
         # Blit
         # If mask exists, use it
         dst_region_slice = (slice(y0, y1), slice(x0, x1))

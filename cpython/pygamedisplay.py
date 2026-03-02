@@ -50,6 +50,19 @@ class PygameDisplay:
         self._lut565_rgba = (255 << 24) | (b << 16) | (g << 8) | r
         self._lut565_rgba = self._lut565_rgba.astype(np.uint32)
 
+        # Precompute 8-bit RGB332 -> 32-bit RGBA8888 lookup table
+        vals332 = np.arange(256, dtype=np.uint32)
+        r3 = (vals332 >> 5) & 0x07
+        g3 = (vals332 >> 2) & 0x07
+        b2 = vals332 & 0x03
+        
+        r8 = (r3 * 255) // 7
+        g8 = (g3 * 255) // 7
+        b8 = (b2 * 255) // 3
+        
+        self._lut332_rgba = (255 << 24) | (b8 << 16) | (g8 << 8) | r8
+        self._lut332_rgba = self._lut332_rgba.astype(np.uint32)
+
     def create(provider):
         config = provider['config']['display']
 
@@ -59,6 +72,7 @@ class PygameDisplay:
         scale = config.get('scale', 1)
         flags = config.get('flags', 0)
         hide_mouse = config.get('hide_mouse', False)
+        mode = config.get('mode', 'RGB565')
 
 
         # Framebuffer dimensions are display dimensions divided by scale
@@ -66,7 +80,7 @@ class PygameDisplay:
         fb_height = display_height // scale
 
         driver = PygameDisplay(display_width, display_height, scale=scale, debug_regions=False, flags=flags, hide_mouse=hide_mouse)
-        drawing = Drawing(fb_width, fb_height)
+        drawing = Drawing(fb_width, fb_height, color_mode=mode)
         drawing.set_driver(driver)
 
         provider['display'] = drawing
@@ -107,17 +121,16 @@ class PygameDisplay:
         if width * scale != self._display_width or height * scale != self._display_height:
             return
 
-        # View framebuffer as 2D numpy array of uint16
-        # Note: We assume framebuffer is a bytearray/memoryview that is contiguous
-        src_fb = np.frombuffer(framebuffer, dtype=np.uint16).reshape((height, width))
-        
-        # Extract Region of Interest
-        # Slicing creates a view in numpy, so this is efficient
-        src_roi = src_fb[y:y+rh, x:x+rw]
-        
-        # Convert to RGBA using LUT
-        # This allocates a new array for the region
-        rgba_roi = self._lut565_rgba[src_roi]
+        bpp = len(framebuffer) // (width * height)
+
+        if bpp == 1:
+            src_fb = np.frombuffer(framebuffer, dtype=np.uint8).reshape((height, width))
+            src_roi = src_fb[y:y+rh, x:x+rw]
+            rgba_roi = self._lut332_rgba[src_roi]
+        else:
+            src_fb = np.frombuffer(framebuffer, dtype=np.uint16).reshape((height, width))
+            src_roi = src_fb[y:y+rh, x:x+rw]
+            rgba_roi = self._lut565_rgba[src_roi]
         
         # Upscale if necessary
         if scale > 1:

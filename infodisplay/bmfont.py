@@ -10,54 +10,59 @@ except ImportError:  # Allow importing under CPython tooling
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
 _GLYPH_FMT = '<HHHHhhhB'
 
-def _build_palette565_bytes(tint_color):
-    """Build a 256x1 RGB565 palette as bytes for GS8 source.
+def _build_palette_bytes(tint_color, bytes_per_pixel):
+    """Build a 256x1 palette as bytes for GS8 source, scaled to the destination bit depth.
 
-    If tint_color is None, palette maps grayscale to white (i.e., identity grayscale).
-    If tint_color is RGB565 or (r,g,b), palette maps intensity to the tinted color.
+    If tint_color is None, palette maps grayscale to white.
+    If tint_color is an (r, g, b) tuple, palette maps intensity to the tinted color.
     """
-    if tint_color is None:
-        r5 = 0x1F
-        g6 = 0x3F
-        b5 = 0x1F
+    if tint_color is None or not isinstance(tint_color, tuple) or len(tint_color) != 3:
+        r, g, b = 255, 255, 255
     else:
-        c = int(tint_color) & 0xFFFF
-        r5 = (c >> 11) & 0x1F
-        g6 = (c >> 5) & 0x3F
-        b5 = c & 0x1F
-    pal = bytearray(256 * 2)
-    o = 0
-    for i in range(256):
-        tr5 = (r5 * i) // 255
-        tg6 = (g6 * i) // 255
-        tb5 = (b5 * i) // 255
-        val = (tr5 << 11) | (tg6 << 5) | tb5
-        pal[o] = val & 0xFF
-        pal[o + 1] = (val >> 8) & 0xFF
-        o += 2
+        r, g, b = tint_color
+
+    if bytes_per_pixel == 2:
+        pal = bytearray(256 * 2)
+        o = 0
+        for i in range(256):
+            tr = (r * i) // 255
+            tg = (g * i) // 255
+            tb = (b * i) // 255
+            val = ((tr & 0xF8) << 8) | ((tg & 0xFC) << 3) | (tb >> 3)
+            pal[o] = val & 0xFF
+            pal[o + 1] = (val >> 8) & 0xFF
+            o += 2
+    else:
+        pal = bytearray(256)
+        for i in range(256):
+            tr = (r * i) // 255
+            tg = (g * i) // 255
+            tb = (b * i) // 255
+            val = (tr & 0xE0) | ((tg & 0xE0) >> 3) | ((tb & 0xC0) >> 6)
+            pal[i] = val
     return pal
 
-# Cached palette: keep white plus a small tint cache to reduce churn
-_WHITE_PALETTE = _build_palette565_bytes(None)
-_PALETTE_CACHE = {}  # tint_color (RGB565 int) -> palette bytes
-_PALETTE_CACHE_LIMIT = 8
+# Cached palette
+_PALETTE_CACHE = {}  # (tint_color (r,g,b), bytes_per_pixel) -> palette bytes
+_PALETTE_CACHE_LIMIT = 16
 
-def _resolve_palette(tint_color):
-    if tint_color is None:
-        return _WHITE_PALETTE
-    c = int(tint_color) & 0xFFFF
-    if c == 0xFFFF:
-        return _WHITE_PALETTE
-    pal = _PALETTE_CACHE.get(c)
+def _resolve_palette(tint_color, bytes_per_pixel):
+    if tint_color is None or not isinstance(tint_color, tuple) or len(tint_color) != 3:
+        cache_key = ((255, 255, 255), bytes_per_pixel)
+    else:
+        cache_key = (tint_color, bytes_per_pixel)
+
+    pal = _PALETTE_CACHE.get(cache_key)
     if pal is not None:
         return pal
-    pal = _build_palette565_bytes(c)
+        
+    pal = _build_palette_bytes(cache_key[0], cache_key[1])
     if len(_PALETTE_CACHE) >= _PALETTE_CACHE_LIMIT:
         try:
             _PALETTE_CACHE.pop(next(iter(_PALETTE_CACHE)))
         except StopIteration:
             pass
-    _PALETTE_CACHE[c] = pal
+    _PALETTE_CACHE[cache_key] = pal
     return pal
 
 def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
@@ -108,8 +113,9 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
     if rows_per_batch == 0:
         rows_per_batch = 1 # Should not happen given logic above but safety check
 
-    # Build/resolve RGB565 palette for GS8 source (white cached when tint is None/white)
-    palette = _resolve_palette(tint_color)
+    # Build/resolve palette for GS8 source based on target color depth
+    bytes_per_pixel = framebuffer.bytes_per_pixel
+    palette = _resolve_palette(tint_color, bytes_per_pixel)
 
     current_row = start_row
     while current_row < end_row:
@@ -137,7 +143,8 @@ def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
 
         # Blit the entire batch
         # Destination Y is offset by current_row
-        framebuffer.blit(source_framebuffer, fb_x, dy + current_row, 0, (palette, 256, 1, framebuf.RGB565))
+        palette_format = framebuf.RGB565 if bytes_per_pixel == 2 else framebuf.GS8
+        framebuffer.blit(source_framebuffer, fb_x, dy + current_row, 0, (palette, 256, 1, palette_format))
 
         current_row += batch_h
 

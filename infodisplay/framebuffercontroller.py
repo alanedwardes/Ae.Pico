@@ -26,17 +26,23 @@ class FramebufferController:
         return b'<p><img src="/framebuffer" alt="Framebuffer"/></p>'
 
     async def serve(self, method, path, headers, reader, writer):
-        # BMP snapshot (RGB565 with BI_BITFIELDS masks). One image per request.
         # Determine framebuffer geometry
         width, height = self.display.get_bounds()
+        bytes_per_pixel = self.display.bytes_per_pixel
 
-        row_bytes = width * 2
+        row_bytes = width * bytes_per_pixel
         pad = (4 - (row_bytes & 3)) & 3
         image_size = (row_bytes + pad) * height
         file_header_size = 14
         dib_header_size = 40
-        mask_size = 12  # R/G/B masks (no alpha)
-        off_bits = file_header_size + dib_header_size + mask_size
+        
+        if bytes_per_pixel == 1:
+            palette_size = 256 * 4
+            off_bits = file_header_size + dib_header_size + palette_size
+        else:
+            mask_size = 12  # R/G/B masks (no alpha)
+            off_bits = file_header_size + dib_header_size + mask_size
+            
         file_size = off_bits + image_size
 
         # Build headers (little-endian)
@@ -50,7 +56,7 @@ class FramebufferController:
         ob = off_bits
         bf[10:14] = bytes((ob & 0xFF, (ob >> 8) & 0xFF, (ob >> 16) & 0xFF, (ob >> 24) & 0xFF))
 
-        # BITMAPINFOHEADER (BI_BITFIELDS for RGB565)
+        # BITMAPINFOHEADER
         bi = bytearray(40)
         # biSize
         bi[0:4] = b'\x28\x00\x00\x00'  # 40
@@ -62,10 +68,20 @@ class FramebufferController:
         bi[8:12] = bytes((h & 0xFF, (h >> 8) & 0xFF, (h >> 16) & 0xFF, (h >> 24) & 0xFF))
         # biPlanes
         bi[12:14] = b'\x01\x00'
-        # biBitCount
-        bi[14:16] = b'\x10\x00'  # 16 bpp
-        # biCompression = BI_BITFIELDS (3)
-        bi[16:20] = b'\x03\x00\x00\x00'
+        
+        if bytes_per_pixel == 1:
+            # biBitCount
+            bi[14:16] = b'\x08\x00'  # 8 bpp
+            # biCompression = BI_RGB (0)
+            bi[16:20] = b'\x00\x00\x00\x00'
+            # biClrUsed
+            bi[32:36] = b'\x00\x01\x00\x00' # 256 colors
+        else:
+            # biBitCount
+            bi[14:16] = b'\x10\x00'  # 16 bpp
+            # biCompression = BI_BITFIELDS (3)
+            bi[16:20] = b'\x03\x00\x00\x00'
+            
         # biSizeImage
         isize = image_size
         bi[20:24] = bytes((isize & 0xFF, (isize >> 8) & 0xFF, (isize >> 16) & 0xFF, (isize >> 24) & 0xFF))
@@ -73,12 +89,6 @@ class FramebufferController:
         bi[24:28] = b'\x13\x0B\x00\x00'
         bi[28:32] = b'\x13\x0B\x00\x00'
         # biClrUsed / biClrImportant = 0
-
-        # Color masks: R=0xF800, G=0x07E0, B=0x001F
-        masks = bytearray(12)
-        for i, mask in enumerate((0xF800, 0x07E0, 0x001F)):
-            base = i * 4
-            masks[base:base + 4] = bytes((mask & 0xFF, (mask >> 8) & 0xFF, 0x00, 0x00))
 
         # HTTP response headers
         writer.write(b'HTTP/1.0 200 OK\r\n')
@@ -91,7 +101,35 @@ class FramebufferController:
         # Write BMP headers
         writer.write(bf)
         writer.write(bi)
-        writer.write(masks)
+        
+        if bytes_per_pixel == 1:
+            # Build 256-color palette for RGB332
+            palette = bytearray(1024)
+            for i in range(256):
+                r = (i >> 5) & 0x07
+                g = (i >> 2) & 0x07
+                b = i & 0x03
+                
+                # Expand to 8-bit
+                r8 = (r * 255) // 7
+                g8 = (g * 255) // 7
+                b8 = (b * 255) // 3
+                
+                # BMP palette is B, G, R, 0
+                idx = i * 4
+                palette[idx] = b8
+                palette[idx+1] = g8
+                palette[idx+2] = r8
+                palette[idx+3] = 0
+            writer.write(palette)
+        else:
+            # Color masks: R=0xF800, G=0x07E0, B=0x001F
+            masks = bytearray(12)
+            for i, mask in enumerate((0xF800, 0x07E0, 0x001F)):
+                base_idx = i * 4
+                masks[base_idx:base_idx + 4] = bytes((mask & 0xFF, (mask >> 8) & 0xFF, 0x00, 0x00))
+            writer.write(masks)
+            
         await writer.drain()
 
         # Stream pixel rows top-down with row padding
@@ -110,3 +148,4 @@ class FramebufferController:
         await writer.drain()
         writer.close()
         await writer.wait_closed()
+

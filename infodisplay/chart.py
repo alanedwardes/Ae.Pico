@@ -105,15 +105,11 @@ async def draw_segmented_area(display, x, y, width, height, raw_values, normaliz
         if data_index > max_index:
             data_index = max_index
         color = color_fn(data_index, raw_values[data_index])
-        # Dim RGB565 color by divisor
+        
+        # Dim RGB color tuple by divisor
         d = max(1, alpha_divisor)
-        r5 = (color >> 11) & 0x1F
-        g6 = (color >> 5) & 0x3F
-        b5 = color & 0x1F
-        r5 //= d
-        g6 //= d
-        b5 //= d
-        transparent_color = (r5 << 11) | (g6 << 5) | b5
+        r, g, b = color
+        transparent_color = (r // d, g // d, b // d)
 
         rect_width = 1 if last_x_int is None else max(1, x_int - last_x_int)
         top_y = int(py)
