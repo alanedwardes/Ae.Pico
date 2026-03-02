@@ -70,9 +70,9 @@ def _rgb332_to_565_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int):
         # RGB565: RRRRRGGG GGGBBBBB -> hi=RRRRRGGG lo=GGGBBBBB
         hi = (r5 << 3) | (g6 >> 3)
         lo = ((g6 & 0x07) << 5) | b5
-        # Byte-swap for SPI (ST7789 expects big-endian)
-        dest[d] = lo
-        dest[d + 1] = hi
+        # Big-endian for SPI (ST7789 expects big-endian: high byte first)
+        dest[d] = hi
+        dest[d + 1] = lo
         d += 2
         s += 1
         pixels -= 1
@@ -93,8 +93,8 @@ def _rgb332_to_565_upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_p
         hi = (r5 << 3) | (g6 >> 3)
         lo = ((g6 & 0x07) << 5) | b5
         for _ in range(scale):
-            dest[d] = lo
-            dest[d + 1] = hi
+            dest[d] = hi
+            dest[d + 1] = lo
             d += 2
         s += 1
         src_pixels -= 1
