@@ -123,12 +123,8 @@ class FramebufferController:
                 palette[idx+3] = 0
             writer.write(palette)
         else:
-            # Color masks: R=0xF800, G=0x07E0, B=0x001F
-            masks = bytearray(12)
-            for i, mask in enumerate((0xF800, 0x07E0, 0x001F)):
-                base_idx = i * 4
-                masks[base_idx:base_idx + 4] = bytes((mask & 0xFF, (mask >> 8) & 0xFF, 0x00, 0x00))
-            writer.write(masks)
+            # Color masks: R=0xF800, G=0x07E0, B=0x001F (little-endian DWORDs)
+            writer.write(b'\x00\xf8\x00\x00\xe0\x07\x00\x00\x1f\x00\x00\x00')
             
         await writer.drain()
 
