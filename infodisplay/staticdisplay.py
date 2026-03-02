@@ -17,16 +17,22 @@ class StaticDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['static']
+        display = provider['display']
+        
         # Support both simple URL string and config dict
         if isinstance(config, str):
             url = config
             start_offset = 0
         else:
             url = config['url']
-            start_offset = config.get('start_offset', 0)
+            
+            if 'start_y' in config:
+                start_offset = config['start_y'] * display.width * display.bytes_per_pixel
+            else:
+                start_offset = config.get('start_offset', 0)
             
         return StaticDisplay(
-            provider['display'],
+            display,
             url,
             start_offset
         )

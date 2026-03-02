@@ -21,13 +21,20 @@ class HassMediaDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['media']
+        display = provider['display']
+        
+        if 'start_y' in config:
+            start_offset = config['start_y'] * display.width * display.bytes_per_pixel
+        else:
+            start_offset = config.get('start_offset', 0)
+            
         return HassMediaDisplay(
-            provider['display'],
+            display,
             provider['hassws.HassWs'],
             provider['eventbus.EventBus'],
             config['entity_id'],
             config['background_converter'],
-            config.get('start_offset', 0)
+            start_offset
         )
     
     def entity_updated(self, entity_id, entity):
@@ -95,7 +102,7 @@ class HassMediaDisplay:
             # Yield to check if still active before reading into framebuffer
             await asyncio.sleep(0)
             
-            # Slice the framebuffer taking into account the header offset
+            # Get direct access to the display framebuffer with offset
             framebuffer = memoryview(self.display)[self.start_offset:]
             
             # Stream data directly into framebuffer using shared method

@@ -20,11 +20,18 @@ class RemoteDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         config = provider['config']['remote']
+        display = provider['display']
+        
+        if 'start_y' in config:
+            start_offset = config['start_y'] * display.width * display.bytes_per_pixel
+        else:
+            start_offset = config.get('start_offset', 0)
+            
         return RemoteDisplay(
-            provider['display'],
+            display,
             config['url'],
             config.get('refresh_period', 0.1),
-            config.get('start_offset', 0)
+            start_offset
         )
        
     async def start(self):
