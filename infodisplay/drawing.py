@@ -15,8 +15,8 @@ class Drawing:
             self.mode = framebuf.GS8
             self.bytes_per_pixel = 1
 
-        self._buf = bytearray(width * height * self.bytes_per_pixel)
-        self.fb = framebuf.FrameBuffer(self._buf, width, height, self.mode)
+        self._framebuffer = bytearray(width * height * self.bytes_per_pixel)
+        self.fb = framebuf.FrameBuffer(self._framebuffer, width, height, self.mode)
         self.fb.fill(0)
         
         # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
@@ -80,8 +80,9 @@ class Drawing:
             return bytearray(required_size)
         return memoryview(self._scratch_buffer)
 
-    def __buffer__(self, flags=None):
-        return memoryview(self._buf)
+    @property
+    def framebuffer(self):
+        return memoryview(self._framebuffer)
 
     def set_driver(self, driver):
         self._driver = driver
@@ -101,7 +102,7 @@ class Drawing:
         if region is None:
             region = (0, 0, self.width, self.height)
         
-        self._driver.render(self._buf, self.width, self.height, region)
+        self._driver.render(self._framebuffer, self.width, self.height, region)
 
     def _dim_color(self, color, factor):
         # Factor 0.0 to 1.0 (dims the tuple)

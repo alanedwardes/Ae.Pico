@@ -49,7 +49,7 @@ class RemoteDisplay:
         # Use unified HTTP request helper
         async with self._http_request.get_scoped() as (reader, writer):
             # Slice the framebuffer taking into account the header offset
-            framebuffer = memoryview(self.display)[self.start_offset:]
+            framebuffer = self.display.framebuffer[self.start_offset:]
 
             # Stream data directly into framebuffer using shared method
             await stream_reader_to_buffer(reader, framebuffer)

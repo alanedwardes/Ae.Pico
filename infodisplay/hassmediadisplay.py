@@ -94,8 +94,6 @@ class HassMediaDisplay:
 
         # Use HttpRequest for dynamic URL (creates temporary instance)
         from httpstream import HttpRequest
-        # Use HttpRequest for dynamic URL (creates temporary instance)
-        from httpstream import HttpRequest
         http_request = HttpRequest(converter_url)
         
         async with http_request.get_scoped() as (reader, writer):
@@ -103,7 +101,7 @@ class HassMediaDisplay:
             await asyncio.sleep(0)
             
             # Get direct access to the display framebuffer with offset
-            framebuffer = memoryview(self.display)[self.start_offset:]
+            framebuffer = self.display.framebuffer[self.start_offset:]
             
             # Stream data directly into framebuffer using shared method
             await stream_reader_to_buffer(reader, framebuffer)

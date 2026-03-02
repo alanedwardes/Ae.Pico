@@ -129,7 +129,7 @@ class FramebufferController:
         await writer.drain()
 
         # Stream pixel rows top-down with row padding
-        mv = memoryview(self.display)
+        mv = self.display.framebuffer
         pad_bytes = b'\x00' * pad if pad else b''
         base = 0
         for _ in range(height):
