@@ -58,7 +58,7 @@ class NewsDisplay:
 
         y_offset = 70
 
-        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, (0, 0, 0), True)
+        self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x000000, True)
 
         try:
             story = stories[self.story_index]
@@ -67,7 +67,7 @@ class NewsDisplay:
 
         label_height = 16
 
-        await textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=(255, 255, 255), font='regular', wrap=True)
+        await textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFFFF, font='regular', wrap=True)
 
         # Render only the news display region (below the time/temperature displays)
         self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))

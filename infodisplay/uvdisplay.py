@@ -84,7 +84,7 @@ class UvDisplay:
         
         y_start = 70
                
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, (0, 0, 0), True)
+        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
 
         # Display specific hours: 00, 06, 12, 18
         target_hours = [0, 6, 12, 18]
@@ -106,7 +106,7 @@ class UvDisplay:
             position = hour // 2
             sx = position * label_width
             
-            await textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=(255, 255, 255), font='small')
+            await textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=0xFFFFFF, font='small')
 
         chart_y = y_start + 20  # Move chart up to start after UV values
         chart_height = self.display_height - y_start - 40  # Make chart fill more space
@@ -119,7 +119,7 @@ class UvDisplay:
                 # Calculate the top of the chart area (UV 12 line)
                 chart_top = chart_y + chart_height - (12 / 12.0) * chart_height  # UV 12 line
                 # Extend to bottom of screen
-                self.display.rect(sx, int(chart_top), 1, self.display_height - int(chart_top), (66, 65, 66), True)
+                self.display.rect(sx, int(chart_top), 1, self.display_height - int(chart_top), 0x424142, True)
 
         # Draw horizontal grid lines for all UV levels 0-12
         for uv_value in range(13):  # 0-12 inclusive
@@ -127,7 +127,7 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
             
             # Draw horizontal grid line
-            self.display.rect(0, int(y_pos), self.display_width, 1, (66, 65, 66), True)
+            self.display.rect(0, int(y_pos), self.display_width, 1, 0x424142, True)
         
         # Draw labels for specific UV levels
         uv_levels = [
@@ -143,7 +143,7 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / 12) * chart_height
             
             # Draw label on the left
-            await textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=(255, 255, 255), font='small', align='left')
+            await textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFFFF, font='small', align='left')
 
         # Calculate spacing for 12 values (every other data point)
         label_width = self.display_width // 12
@@ -152,7 +152,7 @@ class UvDisplay:
             uv = self.uv_data[i]
             label_index = i // 2  # Index for positioning
             x_pos = label_index * label_width
-            await textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=(255, 255, 255), font='small')
+            await textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFFFF, font='small')
 
         # Normalize UV values for chart (max UV is 12)
         max_uv_value = 12  # Fixed maximum
@@ -184,7 +184,7 @@ class UvDisplay:
                 time_x = (current_time_decimal / len(self.uv_data)) * self.display_width
                 
                 # Draw 2px light gray vertical line
-                self.display.rect(int(time_x - 1), y_start, 2, self.display_height - y_start, (132, 130, 132), True)
+                self.display.rect(int(time_x - 1), y_start, 2, self.display_height - y_start, 0x848284, True)
                 
                 # Find the UV value at current hour (still use hour for data lookup)
                 current_uv = self.uv_data[current_hour]
@@ -194,8 +194,8 @@ class UvDisplay:
                 uv_y = chart_y + chart_height - (normalized_uv * chart_height)
                 
                 # Draw 2px black circle with 1px white circle inside
-                self.display.ellipse(int(time_x), int(uv_y), 5, 5, (0, 0, 0), True)
-                self.display.ellipse(int(time_x), int(uv_y), 2, 2, (255, 255, 255), True)
+                self.display.ellipse(int(time_x), int(uv_y), 5, 5, 0x000000, True)
+                self.display.ellipse(int(time_x), int(uv_y), 2, 2, 0xFFFFFF, True)
 
         # Render only the UV display region (below the time/temperature displays)
         self.display.update((0, y_start, self.display_width, self.display_height - y_start))

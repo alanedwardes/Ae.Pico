@@ -16,11 +16,11 @@ REFLECT = 1
 USD = 2
 PORTRAIT = 4
 # Display types
-GENERIC = (0, 0, 0)  # Default. Suits Waveshare Pico res touch.
-TDISPLAY = (52, 40, 1)
-PI_PICO_LCD_2 = (0, 0, 1)  # Waveshare Pico LCD 2 determined by Mike Wilson.
-DFR0995 = (34, 0, 0)  # DFR0995 Contributed by @EdgarKluge
-WAVESHARE_13 = (0, 0, 16)  # Waveshare 1.3" 240x240 LCD contributed by Aaron Mittelmeier
+GENERIC = 0x000000  # Default. Suits Waveshare Pico res touch.
+TDISPLAY = 0x342801
+PI_PICO_LCD_2 = 0x000001  # Waveshare Pico LCD 2 determined by Mike Wilson.
+DFR0995 = 0x220000  # DFR0995 Contributed by @EdgarKluge
+WAVESHARE_13 = 0x000010  # Waveshare 1.3" 240x240 LCD contributed by Aaron Mittelmeier
 ADAFRUIT_1_9 = (35, 0, PORTRAIT)  #  320x170 TFT https://www.adafruit.com/product/5394
 # Note a 5-tuple may be passed if colors are wrong. Extra values are boolean
 # bgr: True if color is BGR, False is RGB (default)

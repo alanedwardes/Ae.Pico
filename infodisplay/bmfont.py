@@ -16,10 +16,12 @@ def _build_palette_bytes(tint_color, bytes_per_pixel):
     If tint_color is None, palette maps grayscale to white.
     If tint_color is an (r, g, b) tuple, palette maps intensity to the tinted color.
     """
-    if tint_color is None or not isinstance(tint_color, tuple) or len(tint_color) != 3:
+    if tint_color is None or not isinstance(tint_color, int):
         r, g, b = 255, 255, 255
     else:
-        r, g, b = tint_color
+        r = (tint_color >> 16) & 0xFF
+        g = (tint_color >> 8) & 0xFF
+        b = tint_color & 0xFF
 
     if bytes_per_pixel == 2:
         pal = bytearray(256 * 2)
@@ -47,8 +49,8 @@ _PALETTE_CACHE = {}  # (tint_color (r,g,b), bytes_per_pixel) -> palette bytes
 _PALETTE_CACHE_LIMIT = 16
 
 def _resolve_palette(tint_color, bytes_per_pixel):
-    if tint_color is None or not isinstance(tint_color, tuple) or len(tint_color) != 3:
-        cache_key = ((255, 255, 255), bytes_per_pixel)
+    if tint_color is None or not isinstance(tint_color, int):
+        cache_key = (0xFFFFFF, bytes_per_pixel)
     else:
         cache_key = (tint_color, bytes_per_pixel)
 

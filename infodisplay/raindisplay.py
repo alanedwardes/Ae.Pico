@@ -179,7 +179,7 @@ class RainDisplay:
         column_width_int = max(1, data_width // denom)
 
         # Draw key column first
-        self.display.rect(0, y_start, key_width, self.display_height - y_start, (33, 32, 33), True)
+        self.display.rect(0, y_start, key_width, self.display_height - y_start, 0x212021, True)
 
         # Define row positions with proper spacing
         hour_row_y = y_start
@@ -189,15 +189,15 @@ class RainDisplay:
         chart_height = wind_row_y - chart_y - 5
 
         # Draw key labels
-        white_pen = (255, 255, 255)
+        white_pen = 0xFFFFFF
         await textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='small')
         await textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='small')
         await textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='small')
         await textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='small')
 
         # Draw separator lines
-        self.display.rect(key_width, precip_row_y - 10, data_width, 2, (66, 65, 66), True)
-        self.display.rect(key_width, chart_y - 10, data_width, 2, (66, 65, 66), True)
+        self.display.rect(key_width, precip_row_y - 10, data_width, 2, 0x424142, True)
+        self.display.rect(key_width, chart_y - 10, data_width, 2, 0x424142, True)
 
         # Draw data for each hour
         # Data format: [hour, rain_prob, rate_mmh, wind_speed, ...]
@@ -215,15 +215,15 @@ class RainDisplay:
             column_width = next_sx - sx
 
             # Clear this column
-            self.display.rect(sx, y_start, column_width, self.display_height - y_start, (0, 0, 0), True)
+            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x000000, True)
 
             # Draw vertical separator
             if i > 0:
-                self.display.rect(sx, y_start, 2, self.display_height - y_start, (66, 65, 66), True)
+                self.display.rect(sx, y_start, 2, self.display_height - y_start, 0x424142, True)
 
             # Redraw horizontal separator lines for this column
-            self.display.rect(sx, precip_row_y - 10, column_width, 2, (66, 65, 66), True)
-            self.display.rect(sx, chart_y - 10, column_width, 2, (66, 65, 66), True)
+            self.display.rect(sx, precip_row_y - 10, column_width, 2, 0x424142, True)
+            self.display.rect(sx, chart_y - 10, column_width, 2, 0x424142, True)
 
             # Hour numbers
             await textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='small')
@@ -232,7 +232,7 @@ class RainDisplay:
             if rate_int > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_int)
             else:
-                precip_color = (99, 101, 99)
+                precip_color = 0x636563
             await textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='small')
 
             # Beaufort scale

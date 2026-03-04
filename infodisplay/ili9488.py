@@ -9,7 +9,7 @@ REFLECT = 1
 USD = 2
 PORTRAIT = 4
 # Display types
-GENERIC = (0, 0, 0)
+GENERIC = 0x000000
 
 @micropython.viper
 def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int):

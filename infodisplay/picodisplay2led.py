@@ -10,7 +10,7 @@ class RGBLED:
         self._pwm_r.freq(frequency)
         self._pwm_g.freq(frequency)
         self._pwm_b.freq(frequency)
-        self.set_rgb(0, 0, 0)
+        self.set_rgb0x000000
 
     def set_rgb(self, r, g, b):
         r = max(0, min(255, int(r)))

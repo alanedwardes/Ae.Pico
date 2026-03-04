@@ -15,9 +15,9 @@ class SolarSystemDisplay:
         self.top_margin = 70
         self.center_y = int(self.top_margin + (self.display_height - self.top_margin) / 2)
         
-        self.sun_color = (255, 255, 0)  # Yellow
-        self.orbit_color = (66, 65, 66) # Dark Grey
-        self.bg_color = (0, 0, 0)    # Black
+        self.sun_color = 0xFFFF00  # Yellow
+        self.orbit_color = 0x424142 # Dark Grey
+        self.bg_color = 0x000000    # Black
         
         # Solar system data (J2000.0 Elements)
         # a: semi-major axis (AU), e: eccentricity
@@ -26,25 +26,25 @@ class SolarSystemDisplay:
         # size: Display size (px), color: color 565
         self.planets = [
             # Mercury
-            {'name': 'Mercury', 'a': 0.387, 'e': 0.2056, 'i': 7.00, 'node': 48.33, 'arg_p': 29.12, 'L0': 252.25, 'period': 87.97, 'color': (132, 130, 132), 'size': 2},
+            {'name': 'Mercury', 'a': 0.387, 'e': 0.2056, 'i': 7.00, 'node': 48.33, 'arg_p': 29.12, 'L0': 252.25, 'period': 87.97, 'color': 0x848284, 'size': 2},
             # Venus
-            {'name': 'Venus', 'a': 0.723, 'e': 0.0068, 'i': 3.39, 'node': 76.68, 'arg_p': 54.88, 'L0': 181.98, 'period': 224.7, 'color': (255, 255, 0), 'size': 4},
+            {'name': 'Venus', 'a': 0.723, 'e': 0.0068, 'i': 3.39, 'node': 76.68, 'arg_p': 54.88, 'L0': 181.98, 'period': 224.7, 'color': 0xFFFF00, 'size': 4},
             # Earth
-            {'name': 'Earth', 'a': 1.000, 'e': 0.0167, 'i': 0.00, 'node': 0.00, 'arg_p': 102.9, 'L0': 100.46, 'period': 365.25, 'color': (0, 130, 255), 'size': 4},
+            {'name': 'Earth', 'a': 1.000, 'e': 0.0167, 'i': 0.00, 'node': 0.00, 'arg_p': 102.9, 'L0': 100.46, 'period': 365.25, 'color': 0x0082FF, 'size': 4},
             # Mars
-            {'name': 'Mars', 'a': 1.524, 'e': 0.0934, 'i': 1.85, 'node': 49.58, 'arg_p': 286.50, 'L0': 355.45, 'period': 686.97, 'color': (248, 0, 0), 'size': 3},
+            {'name': 'Mars', 'a': 1.524, 'e': 0.0934, 'i': 1.85, 'node': 49.58, 'arg_p': 286.50, 'L0': 355.45, 'period': 686.97, 'color': 0xF80000, 'size': 3},
             # Jupiter
-            {'name': 'Jupiter', 'a': 5.204, 'e': 0.0489, 'i': 1.30, 'node': 100.56, 'arg_p': 273.87, 'L0': 34.40, 'period': 4332.59, 'color': (253, 165, 0), 'size': 7},
+            {'name': 'Jupiter', 'a': 5.204, 'e': 0.0489, 'i': 1.30, 'node': 100.56, 'arg_p': 273.87, 'L0': 34.40, 'period': 4332.59, 'color': 0xFDA500, 'size': 7},
             # Saturn
-            {'name': 'Saturn', 'a': 9.582, 'e': 0.0565, 'i': 2.49, 'node': 113.72, 'arg_p': 339.39, 'L0': 49.94, 'period': 10759.2, 'color': (219, 216, 0), 'size': 6},
+            {'name': 'Saturn', 'a': 9.582, 'e': 0.0565, 'i': 2.49, 'node': 113.72, 'arg_p': 339.39, 'L0': 49.94, 'period': 10759.2, 'color': 0xDBD800, 'size': 6},
             # Uranus
-            {'name': 'Uranus', 'a': 19.20, 'e': 0.0472, 'i': 0.77, 'node': 74.00, 'arg_p': 96.66, 'L0': 313.23, 'period': 30685.4, 'color': (0, 255, 255), 'size': 5},
+            {'name': 'Uranus', 'a': 19.20, 'e': 0.0472, 'i': 0.77, 'node': 74.00, 'arg_p': 96.66, 'L0': 313.23, 'period': 30685.4, 'color': 0x00FFFF, 'size': 5},
             # Neptune
-            {'name': 'Neptune', 'a': 30.05, 'e': 0.0086, 'i': 1.77, 'node': 131.78, 'arg_p': 272.85, 'L0': 304.88, 'period': 60189.0, 'color': (0, 0, 255), 'size': 5},
+            {'name': 'Neptune', 'a': 30.05, 'e': 0.0086, 'i': 1.77, 'node': 131.78, 'arg_p': 272.85, 'L0': 304.88, 'period': 60189.0, 'color': 0x0000FF, 'size': 5},
             # Pluto (Dwarf)
-            {'name': 'Pluto', 'a': 39.48, 'e': 0.2488, 'i': 17.16, 'node': 110.30, 'arg_p': 113.76, 'L0': 238.93, 'period': 90560, 'color': (198, 194, 198), 'size': 2},
+            {'name': 'Pluto', 'a': 39.48, 'e': 0.2488, 'i': 17.16, 'node': 110.30, 'arg_p': 113.76, 'L0': 238.93, 'period': 90560, 'color': 0xC6C2C6, 'size': 2},
              # Ceres (Dwarf)
-            {'name': 'Ceres', 'a': 2.767, 'e': 0.0758, 'i': 10.59, 'node': 80.33, 'arg_p': 73.51, 'L0': 77.0, 'period': 1682, 'color': (132, 130, 132), 'size': 2} 
+            {'name': 'Ceres', 'a': 2.767, 'e': 0.0758, 'i': 10.59, 'node': 80.33, 'arg_p': 73.51, 'L0': 77.0, 'period': 1682, 'color': 0x848284, 'size': 2} 
         ]
         
         # Comets
@@ -52,9 +52,9 @@ class SolarSystemDisplay:
         # Here we approximate with L0 for visualization.
         self.comets = [
             # Halley's Comet
-            {'name': 'Halley', 'a': 17.83, 'e': 0.967, 'i': 162.3, 'node': 58.42, 'arg_p': 111.33, 'L0': 236.15, 'period': 27510, 'color': (255, 255, 255), 'size': 2},
+            {'name': 'Halley', 'a': 17.83, 'e': 0.967, 'i': 162.3, 'node': 58.42, 'arg_p': 111.33, 'L0': 236.15, 'period': 27510, 'color': 0xFFFFFF, 'size': 2},
              # Encke
-            {'name': 'Encke', 'a': 2.21, 'e': 0.848, 'i': 11.78, 'node': 334.56, 'arg_p': 186.54, 'L0': 86.0, 'period': 1204, 'color': (189, 191, 189), 'size': 1}
+            {'name': 'Encke', 'a': 2.21, 'e': 0.848, 'i': 11.78, 'node': 334.56, 'arg_p': 186.54, 'L0': 86.0, 'period': 1204, 'color': 0xBDBFBD, 'size': 1}
         ]
         
         # Layout / View Configuration
@@ -305,28 +305,28 @@ class SolarSystemDisplay:
         
         # Add details
         if name == 'Mercury':
-            self.display.pixel(cx, cy, (132, 130, 132))
+            self.display.pixel(cx, cy, 0x848284)
         elif name == 'Venus':
-            self.display.pixel(cx - 1, cy - 1, (255, 255, 255))
+            self.display.pixel(cx - 1, cy - 1, 0xFFFFFF)
         elif name == 'Earth':
-            land_color = (0, 252, 0)
+            land_color = 0x00FC00
             self.display.pixel(cx - 1, cy - 1, land_color)
             self.display.pixel(cx + 2, cy + 1, land_color)
             self.display.pixel(cx, cy + 1, land_color)
-            self.display.pixel(cx, cy - 2, (255, 255, 255)) 
-            self._draw_moon(cx, cy, radius + 5, 0, (132, 130, 132))
+            self.display.pixel(cx, cy - 2, 0xFFFFFF) 
+            self._draw_moon(cx, cy, radius + 5, 0, 0x848284)
         elif name == 'Mars':
-             self.display.pixel(cx, cy, (128, 0, 0))
-             self.display.pixel(cx, cy - 1, (255, 255, 255))
+             self.display.pixel(cx, cy, 0x800000)
+             self.display.pixel(cx, cy - 1, 0xFFFFFF)
         elif name == 'Jupiter':
-            band_color = (198, 194, 198)
+            band_color = 0xC6C2C6
             w = int(radius * 0.9)
             self.display.hline(cx - w, cy - 3, w * 2, band_color)
             self.display.hline(cx - w, cy - 2, w * 2, band_color)
             self.display.hline(cx - w, cy + 1, w * 2, band_color)
             self.display.hline(cx - w, cy + 2, w * 2, band_color)
             
-            spot_color = (193, 40, 41)
+            spot_color = 0xC12829
             spot_cx = cx + 2
             spot_cy = cy + 3
             self.display.pixel(spot_cx - 1, spot_cy, spot_color)
@@ -335,25 +335,25 @@ class SolarSystemDisplay:
             self.display.pixel(spot_cx, spot_cy - 1, spot_color)
             self.display.pixel(spot_cx, spot_cy + 1, spot_color)
             
-            self._draw_moon(cx, cy, radius + 4, 1.0, (255, 255, 255))
-            self._draw_moon(cx, cy, radius + 7, 2.5, (255, 255, 255))
-            self._draw_moon(cx, cy, radius + 10, 4.0, (255, 255, 255))
-            self._draw_moon(cx, cy, radius + 13, 5.5, (255, 255, 255))
+            self._draw_moon(cx, cy, radius + 4, 1.0, 0xFFFFFF)
+            self._draw_moon(cx, cy, radius + 7, 2.5, 0xFFFFFF)
+            self._draw_moon(cx, cy, radius + 10, 4.0, 0xFFFFFF)
+            self._draw_moon(cx, cy, radius + 13, 5.5, 0xFFFFFF)
         elif name == 'Saturn':
             # Rings
             ring_rad_x = int(radius * 1.8)
             ring_rad_y = int(ring_rad_x * self.sin_pitch)
-            self.display.ellipse(cx, cy, ring_rad_x, ring_rad_y, (132, 130, 132), False)
-            self.display.pixel(cx, cy - radius - 1, (0, 0, 0))
-            self._draw_moon(cx, cy, radius + 12, 0.5, (219, 216, 0))
+            self.display.ellipse(cx, cy, ring_rad_x, ring_rad_y, 0x848284, False)
+            self.display.pixel(cx, cy - radius - 1, 0x000000)
+            self._draw_moon(cx, cy, radius + 12, 0.5, 0xDBD800)
         elif name == 'Uranus':
-            self.display.vline(cx, cy - 2, 4, (0, 191, 255))
+            self.display.vline(cx, cy - 2, 4, 0x00BFFF)
             # Rings (vertical-ish)
             ring_w = 2
             ring_h = int(radius * 1.8)
-            self.display.ellipse(cx, cy, ring_w, ring_h, (0, 191, 255), False)
+            self.display.ellipse(cx, cy, ring_w, ring_h, 0x00BFFF, False)
         elif name == 'Neptune':
-            self.display.pixel(cx + 1, cy - 1, (0, 0, 132))
+            self.display.pixel(cx + 1, cy - 1, 0x000084)
 
     async def _draw_comet(self, c, days_since_j2000):
         # Calculate position Same as planets
@@ -383,13 +383,13 @@ class SolarSystemDisplay:
              ox, oy, oz = self._to_heliocentric_coords(r, v, c['node'], c['i'], c['arg_p'])
              opx, opy = self._project_to_screen(ox, oy, oz)
              if self.top_margin <= opy < self.display_height:
-                 self.display.pixel(opx, opy, (33, 32, 33))
+                 self.display.pixel(opx, opy, 0x212021)
 
         # Draw Nucleus
         self.display.aa_circle(cx, cy, c['size'], c['color'])
         
         # Draw Tail (Away from Sun)
-        # Vector from Sun(0,0,0) to Comet(x,y,z) is (x,y,z)
+        # Vector from Sun0x000000 to Comet(x,y,z) is (x,y,z)
         # Tail is in direction (x,y,z).
         # We need to project the tail vector.
         # Actually in 3D, tail points radially out.
@@ -417,7 +417,7 @@ class SolarSystemDisplay:
                 for i in range(steps):
                     fade = max(0, 255 - i * (255/steps)*1.5) # Fade out
                     fade = int(fade)
-                    col = (fade, fade, fade)
+                    col = (fade << 16) | (fade << 8) | fade
                     
                     px = int(cx + dx * i)
                     py = int(cy + dy * i)

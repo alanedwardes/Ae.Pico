@@ -135,7 +135,7 @@ class WeatherDisplay:
             column_width = next_sx - sx
 
             # Clear this column
-            self.display.rect(sx, y_start, column_width, self.display_height - y_start, (0, 0, 0), True)
+            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x000000, True)
 
             # Get current day of week (0 = Monday, 6 = Sunday)
             # Use utime to get current time and calculate day of week
@@ -144,9 +144,9 @@ class WeatherDisplay:
             day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
 
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
-                day_pen = (200, 206, 212)
+                day_pen = 0xC8CED4
             else:
-                day_pen = (255, 255, 255)
+                day_pen = 0xFFFFFF
 
             height = 2 * 8
             await textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')

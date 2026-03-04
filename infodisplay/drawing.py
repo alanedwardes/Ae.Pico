@@ -22,7 +22,10 @@ class Drawing:
         # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
         self._scratch_buffer = bytearray(1024)
 
-    def pack(self, r, g, b):
+    def pack(self, color24):
+        r = (color24 >> 16) & 0xFF
+        g = (color24 >> 8) & 0xFF
+        b = color24 & 0xFF
         if self.color_mode == 'RGB565':
             return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
         else:
@@ -30,39 +33,39 @@ class Drawing:
 
     # --- Framebuf Wrappers ---
     def pixel(self, x, y, color):
-        self.fb.pixel(x, y, self.pack(*color))
+        self.fb.pixel(x, y, self.pack(color))
 
     def rect(self, x, y, w, h, color, fill=False):
-        c = self.pack(*color)
+        c = self.pack(color)
         if fill:
             self.fb.fill_rect(x, y, w, h, c)
         else:
             self.fb.rect(x, y, w, h, c)
             
     def fill_rect(self, x, y, w, h, color):
-        self.fb.fill_rect(x, y, w, h, self.pack(*color))
+        self.fb.fill_rect(x, y, w, h, self.pack(color))
 
     def fill(self, color):
-        self.fb.fill(self.pack(*color))
+        self.fb.fill(self.pack(color))
 
     def text(self, s, x, y, color):
-        self.fb.text(s, x, y, self.pack(*color))
+        self.fb.text(s, x, y, self.pack(color))
         
     def line(self, x1, y1, x2, y2, color):
-        self.fb.line(x1, y1, x2, y2, self.pack(*color))
+        self.fb.line(x1, y1, x2, y2, self.pack(color))
         
     def hline(self, x, y, w, color):
-        self.fb.hline(x, y, w, self.pack(*color))
+        self.fb.hline(x, y, w, self.pack(color))
 
     def vline(self, x, y, h, color):
-        self.fb.vline(x, y, h, self.pack(*color))
+        self.fb.vline(x, y, h, self.pack(color))
 
     def ellipse(self, x, y, xr, yr, color, fill=False):
-        c = self.pack(*color)
+        c = self.pack(color)
         self.fb.ellipse(x, y, xr, yr, c, fill)
         
     def poly(self, x, y, coords, color, fill=False):
-        c = self.pack(*color)
+        c = self.pack(color)
         self.fb.poly(x, y, coords, c, fill)
         
     def scroll(self, xstep, ystep):
@@ -105,9 +108,11 @@ class Drawing:
         self._driver.render(self._framebuffer, self.width, self.height, region)
 
     def _dim_color(self, color, factor):
-        # Factor 0.0 to 1.0 (dims the tuple)
-        r, g, b = color
-        return (int(r * factor), int(g * factor), int(b * factor))
+        # Factor 0.0 to 1.0 (dims the 24-bit hex color)
+        r = int(((color >> 16) & 0xFF) * factor)
+        g = int(((color >> 8) & 0xFF) * factor)
+        b = int((color & 0xFF) * factor)
+        return (r << 16) | (g << 8) | b
 
     def aa_circle(self, cx, cy, radius, color):
         # Draw an anti-aliased circle
