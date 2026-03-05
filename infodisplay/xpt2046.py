@@ -52,6 +52,8 @@ class XPT2046:
         """
         self.spi = spi
         self.cs = cs
+        if irq is None:
+            raise ValueError("XPT2046 requires an IRQ pin to function efficiently.")
         self.irq = irq
 
         self.width = width
@@ -67,8 +69,7 @@ class XPT2046:
         self.x_y_swap = x_y_swap
 
         self.cs.init(self.cs.OUT, value=1)
-        if self.irq is not None:
-            self.irq.init(self.irq.IN)
+        self.irq.init(self.irq.IN)
 
         self.rx_buf = bytearray(3)  # Receive buffer
         self.tx_buf = bytearray(3)  # Transmit buffer
@@ -99,7 +100,7 @@ class XPT2046:
         Returns:
             tuple(int, int): X, Y or None if out of bounds
         """
-        if self.irq is not None and self.irq() != 0:
+        if self.irq() != 0:
             return None
 
         x = self.send_command(self.GET_X)
@@ -115,52 +116,40 @@ class XPT2046:
 
     async def get_raw(self):
         """
-        Take multiple samples to get accurate touch reading by removing outliers
-        using standard deviation. Yields to async event loop.
+        Take a few quick samples and use a median filter to remove noise.
+        This provides much better responsiveness than standard deviation arrays 
+        while avoiding multi-millisecond blocking sleeps.
         Returns:
             tuple(int, int): Smoothed raw X, Y
         """
-        if self.irq is not None and self.irq() != 0:
+        if self.irq() != 0:
             return None
 
-        import asyncio
+        # Take 5 readings as quickly as possible
+        samples = []
+        for _ in range(5):
+            s = self.raw_touch()
+            if s is not None:
+                samples.append(s)
+            
+            # If the touch was released mid-read, or IRQ went high, abort early
+            if self.irq() != 0:
+                break
 
-        timeout_ms = 200  # 200ms timeout
-        confidence = 5
-        buff = [[0, 0] for x in range(confidence)]
-        buf_length = confidence
-        buffptr = 0
-        nsamples = 0
-
-        start_time = time.ticks_ms()
-
-        while time.ticks_diff(time.ticks_ms(), start_time) < timeout_ms:
-            if nsamples == buf_length:
-                meanx = sum([c[0] for c in buff]) // buf_length
-                meany = sum([c[1] for c in buff]) // buf_length
-                
-                dev = sum(
-                    [(c[0] - meanx) ** 2 + (c[1] - meany) ** 2 for c in buff]
-                ) / buf_length
-                
-                if dev <= 50:
-                    return meanx, meany
-
-            sample = self.raw_touch()
-            if sample is None:
-                return None
-            else:
-                buff[buffptr] = sample
-                buffptr = (buffptr + 1) % buf_length
-                nsamples = min(nsamples + 1, buf_length)
-
-            await asyncio.sleep_ms(5)
-
-        return None
+        if len(samples) < 3:
+            return None
+            
+        # Median filter: Sort by X and Y independently to drop spikes
+        xs = sorted([s[0] for s in samples])
+        ys = sorted([s[1] for s in samples])
+        
+        mid = len(samples) // 2
+        return xs[mid], ys[mid]
 
     async def get_touch(self):
         """Returns the scaled and optionally swapped/inverted X and Y values."""
         raw = await self.get_raw()
+        self.last_raw = raw
         if raw is None:
             return None
 
