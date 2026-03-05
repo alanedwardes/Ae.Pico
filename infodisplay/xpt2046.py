@@ -52,8 +52,6 @@ class XPT2046:
         """
         self.spi = spi
         self.cs = cs
-        if irq is None:
-            raise ValueError("XPT2046 requires an IRQ pin to function efficiently.")
         self.irq = irq
 
         self.width = width
@@ -69,7 +67,10 @@ class XPT2046:
         self.x_y_swap = x_y_swap
 
         self.cs.init(self.cs.OUT, value=1)
-        self.irq.init(self.irq.IN)
+        if self.irq is not None:
+            # Use PULL_UP to workaround RP2350-E9 hardware erratum (latching pull-downs).
+            # XPT2046 pulls the IRQ pin LOW when pressed.
+            self.irq.init(self.irq.IN, pull=self.irq.PULL_UP)
 
         self.rx_buf = bytearray(3)  # Receive buffer
         self.tx_buf = bytearray(3)  # Transmit buffer
@@ -100,8 +101,10 @@ class XPT2046:
         Returns:
             tuple(int, int): X, Y or None if out of bounds
         """
-        if self.irq() != 0:
-            return None
+        # Fast check if IRQ exists and says not touched
+        if self.irq is not None:
+            if self.irq() != 0:
+                return None
 
         x = self.send_command(self.GET_X)
         y = self.send_command(self.GET_Y)
@@ -122,8 +125,10 @@ class XPT2046:
         Returns:
             tuple(int, int): Smoothed raw X, Y
         """
-        if self.irq() != 0:
-            return None
+        # Fast check if IRQ exists and says not touched
+        if self.irq is not None:
+            if self.irq() != 0:
+                return None
 
         # Take 5 readings as quickly as possible
         samples = []
@@ -133,7 +138,7 @@ class XPT2046:
                 samples.append(s)
             
             # If the touch was released mid-read, or IRQ went high, abort early
-            if self.irq() != 0:
+            if self.irq is not None and self.irq() != 0:
                 break
 
         if len(samples) < 3:

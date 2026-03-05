@@ -26,9 +26,13 @@ class XPT2046Touch:
         irq_pin = config.get('irq', 17)
         irq = Pin(irq_pin, Pin.IN) if irq_pin is not None else None
         
-        display_config = provider['config'].get('display', {})
-        width = display_config.get('width', 320)
-        height = display_config.get('height', 480)
+        display = provider.get('display')
+        if display:
+            width, height = display.get_bounds()
+        else:
+            display_config = provider['config'].get('display', {})
+            width = display_config.get('width', 320)
+            height = display_config.get('height', 480)
         
         driver = XPT2046(
             spi=spi,
@@ -54,17 +58,9 @@ class XPT2046Touch:
     async def start(self):
         last_touch = None
         
-        # We strictly require IRQ
-        irq_event = asyncio.Event()
-        # The XPT2046 pulls IRQ low when touched
-        self.driver.irq.irq(handler=lambda p: irq_event.set(), trigger=Pin.IRQ_FALLING | Pin.IRQ_RISING)
-            
+        # If we have an IRQ pin we can hook it, but for reliability on RP2350
+        # we will primarily rely on pure background polling.
         while True:
-            # Sleep until touched
-            if last_touch is None and self.driver.irq() != 0:
-                irq_event.clear()
-                await irq_event.wait()
-                
             # Poll the raw hardware driver
             touch_point = await self.driver.get_touch()
             
@@ -72,10 +68,14 @@ class XPT2046Touch:
                 if touch_point != last_touch:
                     self.touch_abstraction.dispatch(touch_point)
                 last_touch = touch_point
-                # Poll faster while dragging for low latency
-                await asyncio.sleep_ms(10)
+                # Poll very fast while dragging
+                await asyncio.sleep_ms(15)
             else:
                 if last_touch is not None:
                     # Touch released
                     self.touch_abstraction.dispatch(None)
                 last_touch = None
+                
+                # When not touched, we can sleep slightly longer to save CPU,
+                # but fast enough to ensure responsiveness (50ms = 20hz)
+                await asyncio.sleep_ms(50)
