@@ -208,7 +208,7 @@ class SolarSystemDisplay:
         self.display.rect(0, self.top_margin, self.display_width, self.display_height - self.top_margin, self.bg_color, True)
 
         # Draw Sun
-        self.display.aa_circle(self.center_x, self.center_y, 6, self.sun_color)
+        self.display.ellipse(self.center_x, self.center_y, 6, 6, self.sun_color, fill=True)
         
         # Get constant for time
         # Detect epoch (MicroPython Pico: 2000, Unix/CPython: 1970)
@@ -301,7 +301,7 @@ class SolarSystemDisplay:
 
     def _draw_planet(self, name, cx, cy, radius, color):
         # Draw base planet
-        self.display.aa_circle(cx, cy, radius, color)
+        self.display.ellipse(cx, cy, radius, radius, color, fill=True)
         
         # Add details
         if name == 'Mercury':
@@ -386,7 +386,7 @@ class SolarSystemDisplay:
                  self.display.pixel(opx, opy, 0x212021)
 
         # Draw Nucleus
-        self.display.aa_circle(cx, cy, c['size'], c['color'])
+        self.display.ellipse(cx, cy, c['size'], c['size'], c['color'], fill=True)
         
         # Draw Tail (Away from Sun)
         # Vector from Sun0x000000 to Comet(x,y,z) is (x,y,z)
