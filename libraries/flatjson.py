@@ -8,7 +8,7 @@ def _unescape_string(s):
     if '\\' not in s:
         return s
     
-    res = []
+    res = bytearray()
     i = 0
     length = len(s)
     while i < length:
@@ -17,28 +17,29 @@ def _unescape_string(s):
             i += 1
             if i >= length: break
             esc = s[i]
-            if esc == '"': res.append('"')
-            elif esc == '\\': res.append('\\')
-            elif esc == '/': res.append('/')
-            elif esc == 'b': res.append('\b')
-            elif esc == 'f': res.append('\f')
-            elif esc == 'n': res.append('\n')
-            elif esc == 'r': res.append('\r')
-            elif esc == 't': res.append('\t')
+            if esc == '"': res.append(0x22)
+            elif esc == '\\': res.append(0x5c)
+            elif esc == '/': res.append(0x2f)
+            elif esc == 'b': res.append(0x08)
+            elif esc == 'f': res.append(0x0c)
+            elif esc == 'n': res.append(0x0a)
+            elif esc == 'r': res.append(0x0d)
+            elif esc == 't': res.append(0x09)
             elif esc == 'u':
                 if i + 4 < length:
                     hex_str = s[i+1:i+5]
                     try:
-                        res.append(chr(int(hex_str, 16)))
+                        res.extend(chr(int(hex_str, 16)).encode('utf-8'))
                     except ValueError:
                         pass
                     i += 4
             else:
-                res.append('\\' + esc)
+                res.append(0x5c)
+                res.extend(esc.encode('utf-8'))
         else:
-            res.append(c)
+            res.extend(c.encode('utf-8'))
         i += 1
-    return "".join(res)
+    return res.decode('utf-8')
 
 def _parse_number_str(val_str, pos_hint=0):
     if not val_str or val_str in ('-', '+'):
@@ -76,7 +77,7 @@ class _AsyncJsonParser:
         else:
             self.iterable = stream_source
             
-        self.ignore_keys = set(ignore_keys) if ignore_keys else set()
+        self.ignore_keys = set(ignore_keys) if ignore_keys else ()
         self.buffer = bytearray()
         self.pos = 0
         self.keep_pos = None
@@ -353,7 +354,7 @@ class _AsyncJsonParser:
                     break
                 self.pos += 1
                 
-            val_str = self.buffer[self.keep_pos:self.pos].decode('ascii')
+            val_str = bytes(memoryview(self.buffer)[self.keep_pos:self.pos]).decode('ascii')
             return _parse_number_str(val_str, pos_hint=self.keep_pos)
         finally:
             self.keep_pos = None
