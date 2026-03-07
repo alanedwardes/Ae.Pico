@@ -70,9 +70,11 @@ class _AsyncJsonParser:
     """
     def __init__(self, stream_source, ignore_keys=None):
         if hasattr(stream_source, "read"):
-            self.iterable = _ReaderIterable(stream_source).__aiter__()
-        else:
+            self.iterable = _ReaderIterable(stream_source)
+        elif hasattr(stream_source, "__aiter__"):
             self.iterable = stream_source.__aiter__()
+        else:
+            self.iterable = stream_source
             
         self.ignore_keys = set(ignore_keys) if ignore_keys else set()
         self.buffer = bytearray()
