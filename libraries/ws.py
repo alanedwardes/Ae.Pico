@@ -160,7 +160,10 @@ class Websocket:
             yield None
         elif opcode == OP_PING:
             # Read remaining data for ping
-            data = b''.join([chunk async for chunk in generator])
+            chunks = []
+            async for chunk in generator:
+                chunks.append(chunk)
+            data = b''.join(chunks)
             await self.write_frame(OP_PONG, data)
             yield None
         elif opcode == OP_CONT:
