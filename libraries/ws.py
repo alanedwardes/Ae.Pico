@@ -32,6 +32,102 @@ class ConnectionClosed(Exception):
     def __init__(self):
         super().__init__("Connection closed")
 
+class _FrameDataReader:
+    """Class-based async iterator for reading WebSocket frame data chunks."""
+    def __init__(self, reader, length, mask_bits, close_callback, chunk_size=128):
+        self.reader = reader
+        self.length = length
+        self.mask_bits = mask_bits
+        self.close_callback = close_callback
+        self.chunk_size = chunk_size
+        self.bytes_read = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.bytes_read >= self.length:
+            raise StopAsyncIteration
+
+        to_read = min(self.chunk_size, self.length - self.bytes_read)
+        try:
+            data = await self.reader.readexactly(to_read)
+        except MemoryError:
+            print("Frame of length %s too big. Closing" % self.length)
+            await self.close_callback(code=CLOSE_TOO_BIG)
+            self.bytes_read = self.length
+            raise StopAsyncIteration
+
+        if self.mask_bits:
+            data_mv = memoryview(data)
+            for i in range(len(data_mv)):
+                data_mv[i] ^= self.mask_bits[(self.bytes_read + i) % 4]
+            data = bytes(data_mv)
+
+        self.bytes_read += to_read
+        return data
+
+class _RecvStream:
+    """Class-based async iterator for receiving decoded WebSocket messages."""
+    def __init__(self, ws):
+        self.ws = ws
+        self._data_reader = None
+        self._opcode = None
+        self._initialized = False
+        self._finished = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._finished:
+            raise StopAsyncIteration
+
+        if not self._initialized:
+            self._initialized = True
+            fin, opcode, length, mask_bits = await self.ws._read_frame_header()
+
+            if not fin:
+                raise NotImplementedError("Not fin")
+
+            self._opcode = opcode
+
+            if opcode in (OP_TEXT, OP_BYTES):
+                self._data_reader = _FrameDataReader(
+                    self.ws.reader, length, mask_bits, self.ws.close
+                )
+            elif opcode == OP_CLOSE:
+                self.ws.writer.close()
+                raise ConnectionClosed()
+            elif opcode == OP_PONG:
+                self._finished = True
+                return None
+            elif opcode == OP_PING:
+                data_reader = _FrameDataReader(
+                    self.ws.reader, length, mask_bits, self.ws.close
+                )
+                chunks = []
+                async for chunk in data_reader:
+                    chunks.append(chunk)
+                data = b''.join(chunks)
+                await self.ws.write_frame(OP_PONG, data)
+                self._finished = True
+                return None
+            elif opcode == OP_CONT:
+                raise NotImplementedError(opcode)
+            else:
+                raise ValueError(opcode)
+
+        # Stream data chunks for TEXT/BYTES
+        try:
+            data = await self._data_reader.__anext__()
+            if self._opcode == OP_TEXT:
+                return data.decode('utf-8')
+            return data
+        except StopAsyncIteration:
+            self._finished = True
+            raise
+
 class Websocket:
     is_client = False
 
@@ -48,7 +144,8 @@ class Websocket:
     def settimeout(self, timeout):
         self.sock.settimeout(timeout)
 
-    async def read_frame_stream(self, chunk_size=128):
+    async def _read_frame_header(self, chunk_size=128):
+        """Parse the WebSocket frame header. Returns (fin, opcode, length, mask_bits)."""
         two_bytes = await self.reader.readexactly(2)
 
         byte1, byte2 = struct.unpack('!BB', two_bytes)
@@ -66,42 +163,18 @@ class Websocket:
         elif length == 127:  # Magic number, length header is 8 bytes
             length, = struct.unpack('!Q', await self.reader.readexactly(8))
 
+        mask_bits = None
         if mask:  # Mask is 4 bytes
             mask_bits = await self.reader.readexactly(4)
 
-        yield fin, opcode
-
-        bytes_read = 0
-        while bytes_read < length:
-            to_read = min(chunk_size, length - bytes_read)
-            try:
-                data = await self.reader.readexactly(to_read)
-            except MemoryError:
-                # We can't receive this many bytes, close the socket
-                print("Frame of length %s too big. Closing" % length)
-                await self.close(code=CLOSE_TOO_BIG)
-                yield True, OP_CLOSE, None
-                return
-
-            if mask:
-                # Unmask in-place to avoid creating new bytes object
-                data_mv = memoryview(data)
-                for i in range(len(data_mv)):
-                    data_mv[i] ^= mask_bits[(bytes_read + i) % 4]
-                data = bytes(data_mv)
-
-            bytes_read += to_read
-            yield data
+        return fin, opcode, length, mask_bits
 
     async def read_frame(self, max_size=None):
-        generator = self.read_frame_stream()
-        if hasattr(generator, "asend"):
-            fin, opcode = await generator.asend(None)
-        else:
-            fin, opcode = await generator.__anext__()
-        
+        fin, opcode, length, mask_bits = await self._read_frame_header()
+
         chunks = []
-        async for chunk in generator:
+        data_reader = _FrameDataReader(self.reader, length, mask_bits, self.close)
+        async for chunk in data_reader:
             chunks.append(chunk)
 
         data = b''.join(chunks) if chunks else b''
@@ -143,39 +216,8 @@ class Websocket:
         self.writer.write(data)
         await self.writer.drain()
 
-    async def recv_stream(self):
-        generator = self.read_frame_stream()
-        if hasattr(generator, "asend"):
-            fin, opcode = await generator.asend(None)
-        else:
-            fin, opcode = await generator.__anext__()
-
-        if not fin:
-            raise NotImplementedError("Not fin")
-
-        if opcode == OP_TEXT:
-            async for data in generator:
-                yield data.decode('utf-8')
-        elif opcode == OP_BYTES:
-            async for data in generator:
-                yield data
-        elif opcode == OP_CLOSE:
-            self.writer.close()
-            raise ConnectionClosed()
-        elif opcode == OP_PONG:
-            yield None
-        elif opcode == OP_PING:
-            # Read remaining data for ping
-            chunks = []
-            async for chunk in generator:
-                chunks.append(chunk)
-            data = b''.join(chunks)
-            await self.write_frame(OP_PONG, data)
-            yield None
-        elif opcode == OP_CONT:
-            raise NotImplementedError(opcode)
-        else:
-            raise ValueError(opcode)
+    def recv_stream(self):
+        return _RecvStream(self)
 
     async def recv(self):
         chunks = []
