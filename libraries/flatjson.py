@@ -87,7 +87,7 @@ class _AsyncJsonParser:
             # Drop consumed bytes to save memory
             drop_pos = self.pos if self.keep_pos is None else self.keep_pos
             if drop_pos > 0:
-                del self.buffer[:drop_pos]
+                self.buffer = self.buffer[drop_pos:]
                 self.pos -= drop_pos
                 if self.keep_pos is not None:
                     self.keep_pos -= drop_pos
