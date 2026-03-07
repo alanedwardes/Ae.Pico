@@ -52,97 +52,73 @@ class ManifestDownloader:
     """Handles downloading and parsing manifest files, and downloading individual files."""
     
     async def get_manifest(self, manifest_url):
-        """Download and parse a manifest file, returning a list of (filename, expected_hash, download_url) tuples."""
-        # Parse the manifest URL to get the base folder
+        """Download and parse a manifest file.
+        Returns (base_url, file_list) where file_list is a list of (filename, expected_hash) tuples.
+        Streams the response line by line to avoid buffering the entire body."""
         manifest_uri = parse_url(manifest_url)
-        manifest_path = manifest_uri.path
         
-        # Extract the base folder (everything before the filename)
-        path_parts = manifest_path.split('/')
-        base_folder = '/'.join(path_parts[:-1])  # Remove the manifest.txt filename
+        # Build base URL once (everything before manifest.txt filename)
+        path_parts = manifest_uri.path.split('/')
+        base_folder = '/'.join(path_parts[:-1])
+        base_url = f"http{'s' if manifest_uri.port == 443 else ''}://{manifest_uri.hostname}:{manifest_uri.port}{base_folder}"
         
-        # Download the manifest file first
-        manifest_content = await self._download_content(manifest_url)
+        reader, writer = await asyncio.open_connection(
+            manifest_uri.hostname,
+            manifest_uri.port,
+            ssl=manifest_uri.port == 443
+        )
         
-        # Parse the manifest to get file list with hashes
-        file_list = []
-        for line in manifest_content.split('\n'):
-            line = line.strip()
-            if line and not line.startswith('#'):  # Skip empty lines and comments
+        try:
+            self._write_http_request(writer, manifest_uri)
+            await writer.drain()
+            await self._ensure_success_status_code(reader)
+            await self._skip_headers(reader)
+            
+            # Parse line by line from the stream — no full-body accumulation
+            file_list = []
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line or line.startswith(b'#'):
+                    continue
                 parts = line.split()
                 if len(parts) != 2:
-                    raise ValueError(f"Invalid manifest line format: {line}. Expected 'filename sha256hash'")
-                filename, expected_hash = parts
-                
-                # Construct the download URL
-                download_url = f"http{'s' if manifest_uri.port == 443 else ''}://{manifest_uri.hostname}:{manifest_uri.port}{base_folder}/{filename}"
-                
-                file_list.append((filename, expected_hash, download_url))
-        
-        return file_list
+                    continue
+                file_list.append((parts[0].decode('utf-8'), parts[1].decode('utf-8')))
+            
+            return base_url, file_list
+        finally:
+            writer.close()
+            await writer.wait_closed()
     
-    async def download_manifest_item(self, manifest_item, destination_folder):
-        """Download a single item from a manifest item tuple (filename, expected_hash, download_url).
-        Returns a tuple of (filename, status, message) where status is 'updated', 'skipped', or 'error'."""
-        filename, expected_hash, download_url = manifest_item
+    async def download_manifest_item(self, base_url, manifest_item, destination_folder):
+        """Download a single item from a manifest item tuple (filename, expected_hash).
+        base_url is the folder URL prefix. Returns (filename, status, message)."""
+        filename, expected_hash = manifest_item
         
         # Check if file already exists and has the same hash
         destination_path = path_join(destination_folder, filename)
         
         try:
-            # Check if file exists and verify its hash (MicroPython compatible)
             try:
                 os.stat(destination_path)
-                # File exists, check its hash
                 actual_hash = self._calculate_sha256(destination_path)
                 if actual_hash == expected_hash:
-                    # File exists and hash matches, no need to download
                     return filename, 'skipped', f'File {filename} is up to date (hash matches)'
             except OSError:
-                # File doesn't exist, proceed with download
                 pass
-        except (OSError, Exception) as e:
-            # If we can't read the file or calculate hash, proceed with download
+        except (OSError, Exception):
             pass
         
-        # Download the file (either it doesn't exist, hash doesn't match, or we couldn't verify)
+        # Reconstruct the download URL on demand
+        download_url = f"{base_url}/{filename}"
         try:
             downloaded_filename = await self.download_file(download_url, destination_folder, expected_hash)
             return downloaded_filename, 'updated', f'File {filename} downloaded and updated'
         except Exception as e:
             return filename, 'error', f'Failed to download {filename}: {str(e)}'
-    
-    async def _download_content(self, url):
-        """Download content from a URL and return it as a string."""
-        uri = parse_url(url)
-        
-        reader, writer = await asyncio.open_connection(
-            uri.hostname, 
-            uri.port, 
-            ssl=uri.port == 443
-        )
-        
-        try:
-            self._write_http_request(writer, uri)
-            await writer.drain()
-            
-            await self._ensure_success_status_code(reader)
-            await self._skip_headers(reader)
-            
-            # Read all content
-            content = b''
-            chunk_size = 512 if IS_MICROPYTHON else 8192
-            while True:
-                chunk = await reader.read(chunk_size)
-                if not chunk:
-                    break
-                content += chunk
-            
-            return content.decode('utf-8')
-            
-        finally:
-            writer.close()
-            await writer.wait_closed()
     
     async def download_files(self, urls, destination_folder):
         """Legacy method for downloading a list of URLs directly."""
@@ -377,7 +353,8 @@ class RemoteUpdate:
             await writer.drain()
             
             # Get manifest for this bundle
-            manifest = await self.downloader.get_manifest(bundle[0])
+            gc.collect()
+            _base_url, manifest = await self.downloader.get_manifest(bundle[0])
             
             total_files = len(manifest)
             matching_files = 0
@@ -385,11 +362,11 @@ class RemoteUpdate:
             mismatched_files = 0
             extra_files = 0
 
-            manifest_files = set([item[0] for item in manifest])
+            manifest_files = set(item[0] for item in manifest)
             
             for j, item in enumerate(manifest):
                 gc.collect()
-                filename, expected_hash, download_url = item
+                filename, expected_hash = item
                 
                 progress_msg = f'<div>Checking {filename} ({j+1}/{total_files})...</div>'
                 writer.write(progress_msg.encode('utf-8'))
@@ -485,7 +462,8 @@ class RemoteUpdate:
             await writer.drain()
             
             # Get manifest for this bundle
-            manifest = await self.downloader.get_manifest(bundle[0])
+            gc.collect()
+            base_url, manifest = await self.downloader.get_manifest(bundle[0])
             
             for j, item in enumerate(manifest):
                 gc.collect()
@@ -493,7 +471,7 @@ class RemoteUpdate:
                 writer.write(progress_msg.encode('utf-8'))
                 await writer.drain()
                 
-                filename, status, message = await self.downloader.download_manifest_item(item, bundle[1])
+                filename, status, message = await self.downloader.download_manifest_item(base_url, item, bundle[1])
                 
                 if status == 'updated':
                     status_msg = f'<div style="color: Highlight;">✓ {message}</div>'
@@ -513,7 +491,7 @@ class RemoteUpdate:
                     writer.write(b'<div>Cleaning up obsolete files...</div>')
                     await writer.drain()
 
-                    manifest_files = set([item[0] for item in manifest])
+                    manifest_files = set(item[0] for item in manifest)
                     manifest_dirs = set()
                     for rel_path in manifest_files:
                         parts = rel_path.split('/')
