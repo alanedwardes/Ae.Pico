@@ -59,10 +59,9 @@ class _FrameDataReader:
             raise StopAsyncIteration
 
         if self.mask_bits:
-            data_mv = memoryview(data)
-            for i in range(len(data_mv)):
-                data_mv[i] ^= self.mask_bits[(self.bytes_read + i) % 4]
-            data = bytes(data_mv)
+            data = bytearray(data)
+            for i in range(len(data)):
+                data[i] ^= self.mask_bits[(self.bytes_read + i) % 4]
 
         self.bytes_read += to_read
         return data

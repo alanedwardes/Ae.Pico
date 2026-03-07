@@ -299,8 +299,8 @@ class _AsyncJsonParser:
         self.keep_pos = self.pos
         
         try:
-            # Buffer string pieces to avoid tracking large string slices
-            pieces = []
+            # Lazy pieces list - only allocated for strings > 1024 bytes
+            pieces = None
             escaped = False
             
             while True:
@@ -314,18 +314,27 @@ class _AsyncJsonParser:
                 elif c == ord('\\'):
                     escaped = True
                 elif c == ord('"'):
-                    pieces.append(self.buffer[self.keep_pos:self.pos].decode('utf-8'))
+                    segment = self.buffer[self.keep_pos:self.pos].decode('utf-8')
+                    if pieces:
+                        pieces.append(segment)
+                        val = "".join(pieces)
+                    else:
+                        val = segment
                     break
                     
                 self.pos += 1
                 
                 # Periodically flush pieces to keep memory small if string is huge
                 if self.pos - self.keep_pos > 1024:
+                    if pieces is None:
+                        pieces = []
                     pieces.append(self.buffer[self.keep_pos:self.pos].decode('utf-8'))
                     self.keep_pos = self.pos
+            else:
+                # Buffer exhausted without closing quote
+                segment = self.buffer[self.keep_pos:self.pos].decode('utf-8') if self.keep_pos < len(self.buffer) else ''
+                val = "".join(pieces) + segment if pieces else segment
                     
-            val = "".join(pieces)
-            
             self.pos += 1 # skip closing '"'
             return _unescape_string(val)
         finally:

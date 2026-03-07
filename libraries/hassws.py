@@ -13,6 +13,11 @@ class HassWs:
         self.entity_callbacks = {}
         self.subscribed_entities = set()
         self.entities_updated = set()
+        self._ignore_keys = {
+            "lc", "lu", "friendly_name", "device_class",
+            "unit_of_measurement", "state_class", "context",
+            "last_changed", "last_updated", "time_fired", "origin"
+        }
         self._reset()
 
     def is_active(self):
@@ -61,13 +66,7 @@ class HassWs:
     
     async def _process_message(self):
         stream = self.socket.recv_stream()
-
-        ignore_keys = {
-            "lc", "lu", "friendly_name", "device_class", 
-            "unit_of_measurement", "state_class", "context", 
-            "last_changed", "last_updated", "time_fired", "origin"
-        }
-        message = await flatjson.load(stream, ignore_keys=ignore_keys)
+        message = await flatjson.load(stream, ignore_keys=self._ignore_keys)
         if message is None:
             return
 
