@@ -7,7 +7,7 @@ import textbox
 import random
 
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 class UvDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -66,7 +66,7 @@ class UvDisplay:
             async with self._http_request.get_scoped() as (reader, writer):
                 # Stream parse JSON array without buffering entire response
                 self.uv_data = []
-                async for uv_value in parse_flat_json_array(reader):
+                async for uv_value in load_array(reader):
                     self.uv_data.append(uv_value)
 
             # Clean up after HTTP request

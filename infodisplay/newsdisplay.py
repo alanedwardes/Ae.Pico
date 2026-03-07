@@ -4,7 +4,7 @@ import gc
 import textbox
 import random
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 class NewsDisplay:
     def __init__(self, display, url):
@@ -41,7 +41,7 @@ class NewsDisplay:
             async with self._http_request.get_scoped() as (reader, writer):
                 # Stream parse JSON array without buffering entire response
                 self.stories = []
-                async for story in parse_flat_json_array(reader):
+                async for story in load_array(reader):
                     self.stories.append(story)
 
             # Clean up after HTTP request

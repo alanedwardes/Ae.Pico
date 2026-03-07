@@ -7,7 +7,7 @@ import gc
 import random
 
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 class TemperatureDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -34,7 +34,7 @@ class TemperatureDisplay:
             # Stream parse JSON array without buffering entire response
             # Format: [current, min, max]
             self.temperature_data = []
-            async for element in parse_flat_json_array(reader):
+            async for element in load_array(reader):
                 self.temperature_data.append(element)
 
             writer.close()

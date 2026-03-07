@@ -7,7 +7,7 @@ import re
 import textbox
 import random
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 def rain_color_fn(idx, value):
     # color mapping for rain percentage (expects raw 0-100)
@@ -105,7 +105,7 @@ class RainDisplay:
                 element_buffer = []
                 hour_offset = 0
 
-                async for element in parse_flat_json_array(reader):
+                async for element in load_array(reader):
                     element_buffer.append(element)
 
                     # Process in groups of 3 (rain_prob, rate_mmh, windSpeed10m)

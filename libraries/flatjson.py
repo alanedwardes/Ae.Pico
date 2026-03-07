@@ -1,259 +1,589 @@
 """
-Lean streaming JSON parser for flat arrays in MicroPython.
-Parses elements one at a time without buffering the entire array.
+Lean streaming JSON parser for flat arrays and general objects in MicroPython.
+Parses elements one at a time without buffering the entire payload.
 Designed for memory-constrained environments.
 """
 
-class FlatJsonParser:
+def _unescape_string(s):
+    if '\\' not in s:
+        return s
+    
+    res = []
+    i = 0
+    length = len(s)
+    while i < length:
+        c = s[i]
+        if c == '\\':
+            i += 1
+            if i >= length: break
+            esc = s[i]
+            if esc == '"': res.append('"')
+            elif esc == '\\': res.append('\\')
+            elif esc == '/': res.append('/')
+            elif esc == 'b': res.append('\b')
+            elif esc == 'f': res.append('\f')
+            elif esc == 'n': res.append('\n')
+            elif esc == 'r': res.append('\r')
+            elif esc == 't': res.append('\t')
+            elif esc == 'u':
+                if i + 4 < length:
+                    hex_str = s[i+1:i+5]
+                    try:
+                        res.append(chr(int(hex_str, 16)))
+                    except ValueError:
+                        pass
+                    i += 4
+            else:
+                res.append('\\' + esc)
+        else:
+            res.append(c)
+        i += 1
+    return "".join(res)
+
+def _parse_number_str(val_str, pos_hint=0):
+    if not val_str or val_str in ('-', '+'):
+        raise ValueError(f"Expected number but got empty string near position {pos_hint}")
+    if '.' in val_str or 'e' in val_str or 'E' in val_str:
+        return float(val_str)
+    return int(val_str)
+
+class _StringJsonParser:
     """
-    Streaming parser for flat JSON arrays containing primitives (numbers, strings, booleans, null).
-    Does not support nested objects or arrays - only top-level array elements.
-
-    Usage:
-        async for element in FlatJsonParser(reader):
-            process(element)
+    Memory-efficient JSON parser for complete string payloads.
+    Allows filtering out unwanted keys from objects to save memory.
     """
+    def __init__(self, s, ignore_keys=None):
+        self.s = s
+        self.pos = 0
+        self.length = len(s)
+        self.ignore_keys = set(ignore_keys) if ignore_keys else set()
+    
+    def skip_whitespace(self):
+        while self.pos < self.length and self.s[self.pos] in ' \t\n\r':
+            self.pos += 1
 
-    def __init__(self, reader):
-        """
-        Initialize parser with an async reader (e.g., StreamReader from asyncio.open_connection).
+    def fast_skip_string(self):
+        self.pos += 1
+        while self.pos < self.length:
+            next_quote = self.s.find('"', self.pos)
+            if next_quote == -1:
+                self.pos = self.length
+                return None
+            escapes = 0
+            i = next_quote - 1
+            while i >= self.pos and self.s[i] == '\\':
+                escapes += 1
+                i -= 1
+            if escapes % 2 == 0:
+                self.pos = next_quote + 1
+                return None
+            self.pos = next_quote + 1
 
-        Args:
-            reader: An async reader with a read(n) method that returns bytes
-        """
+    def fast_skip_value(self):
+        self.skip_whitespace()
+        if self.pos >= self.length: return
+        c = self.s[self.pos]
+        if c == '{':
+            depth = 1
+            self.pos += 1
+            while self.pos < self.length and depth > 0:
+                c2 = self.s[self.pos]
+                if c2 == '"': self.fast_skip_string()
+                elif c2 == '{':
+                    depth += 1
+                    self.pos += 1
+                elif c2 == '}':
+                    depth -= 1
+                    self.pos += 1
+                else:
+                    self.pos += 1
+        elif c == '[':
+            depth = 1
+            self.pos += 1
+            while self.pos < self.length and depth > 0:
+                c2 = self.s[self.pos]
+                if c2 == '"': self.fast_skip_string()
+                elif c2 == '[':
+                    depth += 1
+                    self.pos += 1
+                elif c2 == ']':
+                    depth -= 1
+                    self.pos += 1
+                else:
+                    self.pos += 1
+        elif c == '"':
+            self.fast_skip_string()
+        elif c in 't': self.pos += 4
+        elif c in 'f': self.pos += 5
+        elif c in 'n': self.pos += 4
+        else:
+            while self.pos < self.length and self.s[self.pos] in '-+0123456789.eE':
+                self.pos += 1
+
+    def parse_value(self):
+        self.skip_whitespace()
+        if self.pos >= self.length: return None
+        c = self.s[self.pos]
+        if c == '{': return self.parse_object()
+        elif c == '[': return self.parse_array()
+        elif c == '"': return self.parse_string()
+        elif c == 't': 
+            self.pos += 4
+            return True
+        elif c == 'f': 
+            self.pos += 5
+            return False
+        elif c == 'n': 
+            self.pos += 4
+            return None
+        else: return self.parse_number()
+
+    def parse_object(self):
+        self.pos += 1 # skip '{'
+        self.skip_whitespace()
+        if self.pos < self.length and self.s[self.pos] == '}':
+            self.pos += 1
+            return {}
+        
+        obj = {}
+        while self.pos < self.length:
+            self.skip_whitespace()
+            key = None
+            if self.s[self.pos] == '"':
+                key = self.parse_string()
+                
+            self.skip_whitespace()
+            if self.pos < self.length and self.s[self.pos] == ':':
+                self.pos += 1 # skip ':'
+            
+            if key in self.ignore_keys:
+                self.fast_skip_value()
+            else:
+                val = self.parse_value()
+                if key is not None:
+                    obj[key] = val
+                
+            self.skip_whitespace()
+            if self.pos < self.length and self.s[self.pos] == '}':
+                self.pos += 1
+                break
+            if self.pos < self.length and self.s[self.pos] == ',':
+                self.pos += 1 # skip ','
+        return obj
+
+    def parse_array(self):
+        self.pos += 1 # skip '['
+        self.skip_whitespace()
+        if self.pos < self.length and self.s[self.pos] == ']':
+            self.pos += 1
+            return []
+        
+        arr = []
+        while self.pos < self.length:
+            val = self.parse_value()
+            arr.append(val)
+            self.skip_whitespace()
+            if self.pos < self.length and self.s[self.pos] == ']':
+                self.pos += 1
+                break
+            if self.pos < self.length and self.s[self.pos] == ',':
+                self.pos += 1 # skip ','
+        return arr
+
+    def parse_string(self):
+        self.pos += 1 # skip '"'
+        start = self.pos
+        escaped = False
+        while self.pos < self.length:
+            c = self.s[self.pos]
+            if escaped:
+                escaped = False
+            elif c == '\\':
+                escaped = True
+            elif c == '"':
+                break
+            self.pos += 1
+        
+        val = self.s[start:self.pos]
+        self.pos += 1 # skip closing '"'
+        return _unescape_string(val)
+
+    def parse_number(self):
+        start = self.pos
+        while self.pos < self.length and self.s[self.pos] in '-+0123456789.eE':
+            self.pos += 1
+        val_str = self.s[start:self.pos]
+        return _parse_number_str(val_str, pos_hint=start)
+
+
+class _ReaderIterable:
+    """Wrapper to turn an object with a .read(n) method into an async iterator yielding chunks."""
+    def __init__(self, reader, chunk_size=64):
         self.reader = reader
+        self.chunk_size = chunk_size
+        
+    def __aiter__(self):
+        return self
+        
+    async def __anext__(self):
+        chunk = await self.reader.read(self.chunk_size)
+        if not chunk:
+            raise StopAsyncIteration
+        return chunk
+
+
+class _AsyncJsonParser:
+    """
+    Memory-efficient JSON parser that reads from an async iterable or stream.
+    Allows filtering out unwanted keys from objects to save memory.
+    """
+    def __init__(self, stream_source, ignore_keys=None):
+        if hasattr(stream_source, "read"):
+            self.iterable = _ReaderIterable(stream_source).__aiter__()
+        else:
+            self.iterable = stream_source.__aiter__()
+            
+        self.ignore_keys = set(ignore_keys) if ignore_keys else set()
         self.buffer = bytearray()
         self.pos = 0
+        self.keep_pos = None
+        self.finished = False
+
+    async def _fill_buffer(self, min_length=1):
+        while len(self.buffer) - self.pos < min_length and not self.finished:
+            # Drop consumed bytes to save memory
+            drop_pos = self.pos if self.keep_pos is None else self.keep_pos
+            if drop_pos > 0:
+                del self.buffer[:drop_pos]
+                self.pos -= drop_pos
+                if self.keep_pos is not None:
+                    self.keep_pos -= drop_pos
+            
+            try:
+                chunk = await self.iterable.__anext__()
+                if chunk is None:
+                    continue
+                if isinstance(chunk, str):
+                    chunk = chunk.encode('utf-8')
+                self.buffer.extend(chunk)
+            except StopAsyncIteration:
+                self.finished = True
+                break
+
+    async def skip_whitespace(self):
+        while True:
+            await self._fill_buffer(1)
+            if self.pos >= len(self.buffer):
+                break
+            if self.buffer[self.pos] not in b' \t\n\r':
+                break
+            self.pos += 1
+
+    async def fast_skip_string(self):
+        self.pos += 1
+        self.keep_pos = self.pos
+        try:
+            escaped = False
+            while True:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer):
+                    return
+                
+                c = self.buffer[self.pos]
+                if escaped:
+                    escaped = False
+                elif c == ord('\\'):
+                    escaped = True
+                elif c == ord('"'):
+                    self.pos += 1
+                    return
+                
+                self.pos += 1
+                
+                # Periodically flush to keep memory small if string is huge
+                if self.pos - self.keep_pos > 1024:
+                    self.keep_pos = self.pos
+        finally:
+            self.keep_pos = None
+
+    async def fast_skip_value(self):
+        await self.skip_whitespace()
+        if self.pos >= len(self.buffer): return
+        
+        c = self.buffer[self.pos]
+        if c == ord('{'):
+            depth = 1
+            self.pos += 1
+            while depth > 0:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer):
+                    break
+                c2 = self.buffer[self.pos]
+                if c2 == ord('"'): 
+                    await self.fast_skip_string()
+                elif c2 == ord('{'):
+                    depth += 1
+                    self.pos += 1
+                elif c2 == ord('}'):
+                    depth -= 1
+                    self.pos += 1
+                else:
+                    self.pos += 1
+        elif c == ord('['):
+            depth = 1
+            self.pos += 1
+            while depth > 0:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer):
+                    break
+                c2 = self.buffer[self.pos]
+                if c2 == ord('"'): 
+                    await self.fast_skip_string()
+                elif c2 == ord('['):
+                    depth += 1
+                    self.pos += 1
+                elif c2 == ord(']'):
+                    depth -= 1
+                    self.pos += 1
+                else:
+                    self.pos += 1
+        elif c == ord('"'):
+            await self.fast_skip_string()
+        elif c == ord('t'): 
+            await self._fill_buffer(4)
+            self.pos += 4
+        elif c == ord('f'): 
+            await self._fill_buffer(5)
+            self.pos += 5
+        elif c == ord('n'): 
+            await self._fill_buffer(4)
+            self.pos += 4
+        else:
+            while True:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer) or self.buffer[self.pos] not in b'-+0123456789.eE':
+                    break
+                self.pos += 1
+
+    async def parse_value(self):
+        await self.skip_whitespace()
+        if self.pos >= len(self.buffer): return None
+        
+        c = self.buffer[self.pos]
+        if c == ord('{'): return await self.parse_object()
+        elif c == ord('['): return await self.parse_array()
+        elif c == ord('"'): return await self.parse_string()
+        elif c == ord('t'): 
+            await self._fill_buffer(4)
+            self.pos += 4
+            return True
+        elif c == ord('f'): 
+            await self._fill_buffer(5)
+            self.pos += 5
+            return False
+        elif c == ord('n'): 
+            await self._fill_buffer(4)
+            self.pos += 4
+            return None
+        elif c in b']}:,':
+            raise ValueError(f"Unexpected character '{chr(c)}' at position {self.pos}")
+        elif c in b'-+0123456789': 
+            return await self.parse_number()
+        else:
+            raise ValueError(f"Unexpected character '{chr(c)}' at position {self.pos}")
+
+    async def parse_object(self):
+        self.pos += 1 # skip '{'
+        await self.skip_whitespace()
+        
+        obj = {}
+        if self.pos < len(self.buffer) and self.buffer[self.pos] == ord('}'):
+            self.pos += 1
+            return obj
+            
+        while True:
+            await self.skip_whitespace()
+            await self._fill_buffer(1)
+            if self.pos >= len(self.buffer) or self.buffer[self.pos] == ord('}'):
+                # Reached end gracefully
+                break
+                
+            key = None
+            if self.buffer[self.pos] == ord('"'):
+                key = await self.parse_string()
+                
+            await self.skip_whitespace()
+            await self._fill_buffer(1)
+            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(':'):
+                self.pos += 1 # skip ':'
+            
+            if key in self.ignore_keys:
+                await self.fast_skip_value()
+            else:
+                val = await self.parse_value()
+                if key is not None:
+                    obj[key] = val
+                
+            await self.skip_whitespace()
+            await self._fill_buffer(1)
+            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord('}'):
+                self.pos += 1
+                break
+            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(','):
+                self.pos += 1 # skip ','
+        return obj
+
+    async def parse_array(self):
+        self.pos += 1 # skip '['
+        await self.skip_whitespace()
+        
+        arr = []
+        if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(']'):
+            self.pos += 1
+            return arr
+            
+        while True:
+            await self.skip_whitespace()
+            await self._fill_buffer(1)
+            if self.pos >= len(self.buffer) or self.buffer[self.pos] == ord(']'):
+                break
+                
+            val = await self.parse_value()
+            arr.append(val)
+            
+            await self.skip_whitespace()
+            await self._fill_buffer(1)
+            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(']'):
+                self.pos += 1
+                break
+            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(','):
+                self.pos += 1 # skip ','
+        return arr
+
+    async def parse_string(self):
+        self.pos += 1 # skip '"'
+        self.keep_pos = self.pos
+        
+        try:
+            # Buffer string pieces to avoid tracking large string slices
+            pieces = []
+            escaped = False
+            
+            while True:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer):
+                    break
+                    
+                c = self.buffer[self.pos]
+                if escaped:
+                    escaped = False
+                elif c == ord('\\'):
+                    escaped = True
+                elif c == ord('"'):
+                    pieces.append(self.buffer[self.keep_pos:self.pos].decode('utf-8'))
+                    break
+                    
+                self.pos += 1
+                
+                # Periodically flush pieces to keep memory small if string is huge
+                if self.pos - self.keep_pos > 1024:
+                    pieces.append(self.buffer[self.keep_pos:self.pos].decode('utf-8'))
+                    self.keep_pos = self.pos
+                    
+            val = "".join(pieces)
+            
+            self.pos += 1 # skip closing '"'
+            return _unescape_string(val)
+        finally:
+            self.keep_pos = None
+
+    async def parse_number(self):
+        self.keep_pos = self.pos
+        try:
+            while True:
+                await self._fill_buffer(1)
+                if self.pos >= len(self.buffer):
+                    break
+                # Use ASCII check to avoid large substrings
+                c = self.buffer[self.pos]
+                if c not in b'-+0123456789.eE':
+                    break
+                self.pos += 1
+                
+            val_str = self.buffer[self.keep_pos:self.pos].decode('ascii')
+            return _parse_number_str(val_str, pos_hint=self.keep_pos)
+        finally:
+            self.keep_pos = None
+
+
+class _AsyncArrayIterator:
+    """Iterator to return array elements from an async stream"""
+    def __init__(self, parser):
+        self.parser = parser
         self.started = False
         self.finished = False
-        # Pre-allocate reusable buffers to reduce allocations
-        self._string_buf = bytearray(256)  # For parsing strings
-        self._number_buf = bytearray(32)   # For parsing numbers
-
-    async def _read_byte(self):
-        """Read a single byte, buffering if necessary."""
-        if self.pos >= len(self.buffer):
-            chunk = await self.reader.read(64)  # Read in small chunks
-            if not chunk:
-                return None
-            self.buffer = bytearray(chunk)
-            self.pos = 0
-
-        byte = self.buffer[self.pos]
-        self.pos += 1
-        return byte
-
-    async def _skip_whitespace(self):
-        """Skip whitespace characters."""
-        while True:
-            b = await self._read_byte()
-            if b is None:
-                return None
-            if b not in (0x20, 0x09, 0x0A, 0x0D):  # space, tab, newline, carriage return
-                return b
-
-    async def _parse_string(self):
-        """Parse a JSON string. Assumes opening quote already consumed."""
-        # Reuse pre-allocated buffer
-        result_len = 0
-        escaped = False
-
-        while True:
-            b = await self._read_byte()
-            if b is None:
-                raise ValueError("Unexpected end in string")
-
-            if escaped:
-                # Handle escape sequences
-                if b == ord('n'):
-                    char_byte = ord('\n')
-                elif b == ord('t'):
-                    char_byte = ord('\t')
-                elif b == ord('r'):
-                    char_byte = ord('\r')
-                elif b == ord('b'):
-                    char_byte = ord('\b')
-                elif b == ord('f'):
-                    char_byte = ord('\f')
-                elif b == ord('"'):
-                    char_byte = ord('"')
-                elif b == ord('\\'):
-                    char_byte = ord('\\')
-                elif b == ord('/'):
-                    char_byte = ord('/')
-                elif b == ord('u'):
-                    # Unicode escape - read 4 hex digits
-                    hex_chars = bytearray(4)
-                    for i in range(4):
-                        hb = await self._read_byte()
-                        if hb is None:
-                            raise ValueError("Unexpected end in unicode escape")
-                        hex_chars[i] = hb
-                    # Convert hex to int and then to UTF-8
-                    try:
-                        code_point = int(hex_chars.decode('ascii'), 16)
-                        # Simple UTF-8 encoding for common range
-                        if code_point < 0x80:
-                            if result_len >= len(self._string_buf):
-                                self._string_buf.extend(bytearray(256))
-                            self._string_buf[result_len] = code_point
-                            result_len += 1
-                        elif code_point < 0x800:
-                            if result_len + 2 >= len(self._string_buf):
-                                self._string_buf.extend(bytearray(256))
-                            self._string_buf[result_len] = 0xC0 | (code_point >> 6)
-                            self._string_buf[result_len + 1] = 0x80 | (code_point & 0x3F)
-                            result_len += 2
-                        else:
-                            if result_len + 3 >= len(self._string_buf):
-                                self._string_buf.extend(bytearray(256))
-                            self._string_buf[result_len] = 0xE0 | (code_point >> 12)
-                            self._string_buf[result_len + 1] = 0x80 | ((code_point >> 6) & 0x3F)
-                            self._string_buf[result_len + 2] = 0x80 | (code_point & 0x3F)
-                            result_len += 3
-                    except:
-                        raise ValueError("Invalid unicode escape")
-                    escaped = False
-                    continue
-                else:
-                    # Unknown escape, keep as-is
-                    char_byte = b
-
-                if result_len >= len(self._string_buf):
-                    self._string_buf.extend(bytearray(256))
-                self._string_buf[result_len] = char_byte
-                result_len += 1
-                escaped = False
-            elif b == ord('\\'):
-                escaped = True
-            elif b == ord('"'):
-                # End of string - decode only the used portion
-                # MicroPython: convert memoryview to bytes via bytearray
-                return bytes(self._string_buf[:result_len]).decode('utf-8')
-            else:
-                if result_len >= len(self._string_buf):
-                    self._string_buf.extend(bytearray(256))
-                self._string_buf[result_len] = b
-                result_len += 1
-
-    async def _parse_number(self, first_byte):
-        """Parse a JSON number. First byte already read."""
-        # Reuse pre-allocated number buffer
-        self._number_buf[0] = first_byte
-        num_len = 1
-
-        while True:
-            b = await self._read_byte()
-            if b is None:
-                break
-
-            # Number characters: 0-9, -, +, ., e, E
-            if b in (0x2D, 0x2B, 0x2E, 0x45, 0x65) or (0x30 <= b <= 0x39):
-                if num_len >= len(self._number_buf):
-                    self._number_buf.extend(bytearray(16))
-                self._number_buf[num_len] = b
-                num_len += 1
-            else:
-                # Put byte back by moving position back
-                self.pos -= 1
-                break
-
-        # Decode only the used portion
-        # MicroPython: convert memoryview to bytes via bytearray
-        num_str = bytes(self._number_buf[:num_len]).decode('ascii')
-
-        # Parse as int or float
-        if '.' in num_str or 'e' in num_str or 'E' in num_str:
-            return float(num_str)
-        else:
-            return int(num_str)
-
-    async def _parse_literal(self, first_byte, expected, value):
-        """Parse a literal (true, false, null). First byte already read."""
-        for i in range(1, len(expected)):
-            b = await self._read_byte()
-            if b is None or b != ord(expected[i]):
-                raise ValueError(f"Invalid literal, expected {expected}")
-        return value
-
-    async def _parse_element(self):
-        """Parse a single array element."""
-        b = await self._skip_whitespace()
-
-        if b is None:
-            return None
-
-        # String
-        if b == ord('"'):
-            return await self._parse_string()
-
-        # Number (starts with digit or minus)
-        elif (0x30 <= b <= 0x39) or b == 0x2D:
-            return await self._parse_number(b)
-
-        # true
-        elif b == ord('t'):
-            return await self._parse_literal(b, 'true', True)
-
-        # false
-        elif b == ord('f'):
-            return await self._parse_literal(b, 'false', False)
-
-        # null
-        elif b == ord('n'):
-            return await self._parse_literal(b, 'null', None)
-
-        # End of array
-        elif b == ord(']'):
-            self.finished = True
-            return None
-
-        # Comma (between elements)
-        elif b == ord(','):
-            # Skip comma and parse next element
-            return await self._parse_element()
-
-        else:
-            raise ValueError(f"Unexpected character: {chr(b)}")
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        """Async iterator protocol - yield next array element."""
         if self.finished:
             raise StopAsyncIteration
 
-        # First call - skip to opening bracket
         if not self.started:
-            b = await self._skip_whitespace()
-            if b != ord('['):
+            await self.parser.skip_whitespace()
+            await self.parser._fill_buffer(1)
+            if self.parser.pos >= len(self.parser.buffer) or self.parser.buffer[self.parser.pos] != ord('['):
+                self.finished = True
                 raise ValueError("Expected '[' at start of array")
+            self.parser.pos += 1
             self.started = True
 
-        # Parse next element
-        element = await self._parse_element()
-
-        if element is None and self.finished:
+        await self.parser.skip_whitespace()
+        await self.parser._fill_buffer(1)
+        
+        if self.parser.pos >= len(self.parser.buffer) or self.parser.buffer[self.parser.pos] == ord(']'):
+            self.finished = True
             raise StopAsyncIteration
 
-        return element
+        val = await self.parser.parse_value()
+
+        await self.parser.skip_whitespace()
+        await self.parser._fill_buffer(1)
+        if self.parser.pos < len(self.parser.buffer):
+            c = self.parser.buffer[self.parser.pos]
+            if c == ord(']'):
+                self.parser.pos += 1
+                self.finished = True
+            elif c == ord(','):
+                self.parser.pos += 1
+                
+        return val
 
 
-def parse_flat_json_array(reader):
+# ==========================================
+# Public API
+# ==========================================
+
+def loads(s, ignore_keys=None):
     """
-    Convenience function to parse a flat JSON array from a reader.
-
-    Args:
-        reader: An async reader with a read(n) method
-
-    Returns:
-        FlatJsonParser instance (async iterator)
-
-    Example:
-        reader, writer = await asyncio.open_connection(host, port)
-        # ... send HTTP request and skip headers ...
-        async for element in parse_flat_json_array(reader):
-            print(element)
+    Parse JSON string, skipping unwanted fields.
     """
-    return FlatJsonParser(reader)
+    parser = _StringJsonParser(s, ignore_keys=ignore_keys)
+    return parser.parse_value()
+
+async def load(async_iterable, ignore_keys=None):
+    """
+    Parse a single top-level JSON object from an asynchronous stream, skipping unwanted fields.
+    Useful for reading WebSockets block by block.
+    """
+    parser = _AsyncJsonParser(async_iterable, ignore_keys=ignore_keys)
+    return await parser.parse_value()
+
+def load_array(async_iterable):
+    """
+    Returns an async iterator that parses a flat JSON array from an async stream lazily.
+    Yields array elements one by one.
+    """
+    parser = _AsyncJsonParser(async_iterable)
+    return _AsyncArrayIterator(parser)

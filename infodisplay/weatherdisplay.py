@@ -8,7 +8,7 @@ import random
 from bitblt import blit_region
 
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 class WeatherDisplay:
     def __init__(self, display, url, refresh_period_seconds):
@@ -58,7 +58,7 @@ class WeatherDisplay:
                 # Stream parse JSON array without buffering entire response
                 # Format: [code, max_temp, min_temp, rain, code, max_temp, min_temp, rain, ...]
                 self.weather_data = []
-                async for element in parse_flat_json_array(reader):
+                async for element in load_array(reader):
                     self.weather_data.append(element)
 
             # Clean up after HTTP request

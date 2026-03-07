@@ -48,7 +48,7 @@ class Websocket:
     def settimeout(self, timeout):
         self.sock.settimeout(timeout)
 
-    async def read_frame(self, max_size=None):
+    async def read_frame_stream(self, chunk_size=128):
         two_bytes = await self.reader.readexactly(2)
 
         byte1, byte2 = struct.unpack('!BB', two_bytes)
@@ -69,21 +69,39 @@ class Websocket:
         if mask:  # Mask is 4 bytes
             mask_bits = await self.reader.readexactly(4)
 
-        try:
-            data = await self.reader.readexactly(length)
-        except MemoryError:
-            # We can't receive this many bytes, close the socket
-            print("Frame of length %s too big. Closing" % length)
-            await self.close(code=CLOSE_TOO_BIG)
-            return True, OP_CLOSE, None
+        yield fin, opcode
 
-        if mask:
-            # Unmask in-place to avoid creating new bytes object
-            data_mv = memoryview(data)
-            for i in range(len(data_mv)):
-                data_mv[i] ^= mask_bits[i % 4]
-            data = bytes(data_mv)
+        bytes_read = 0
+        while bytes_read < length:
+            to_read = min(chunk_size, length - bytes_read)
+            try:
+                data = await self.reader.readexactly(to_read)
+            except MemoryError:
+                # We can't receive this many bytes, close the socket
+                print("Frame of length %s too big. Closing" % length)
+                await self.close(code=CLOSE_TOO_BIG)
+                yield True, OP_CLOSE, None
+                return
 
+            if mask:
+                # Unmask in-place to avoid creating new bytes object
+                data_mv = memoryview(data)
+                for i in range(len(data_mv)):
+                    data_mv[i] ^= mask_bits[(bytes_read + i) % 4]
+                data = bytes(data_mv)
+
+            bytes_read += to_read
+            yield data
+
+    async def read_frame(self, max_size=None):
+        generator = self.read_frame_stream()
+        fin, opcode = await generator.__anext__()
+        
+        chunks = []
+        async for chunk in generator:
+            chunks.append(chunk)
+
+        data = b''.join(chunks) if chunks else b''
         return fin, opcode, data
 
     async def write_frame(self, opcode, data=b''):
@@ -122,28 +140,47 @@ class Websocket:
         self.writer.write(data)
         await self.writer.drain()
 
-    async def recv(self):
-        fin, opcode, data = await self.read_frame()
+    async def recv_stream(self):
+        generator = self.read_frame_stream()
+        fin, opcode = await generator.__anext__()
 
         if not fin:
             raise NotImplementedError("Not fin")
 
         if opcode == OP_TEXT:
-            return data.decode('utf-8')
+            async for data in generator:
+                yield data.decode('utf-8')
         elif opcode == OP_BYTES:
-            return data
+            async for data in generator:
+                yield data
         elif opcode == OP_CLOSE:
             self.writer.close()
             raise ConnectionClosed()
         elif opcode == OP_PONG:
-            return None
+            yield None
         elif opcode == OP_PING:
+            # Read remaining data for ping
+            data = b''.join([chunk async for chunk in generator])
             await self.write_frame(OP_PONG, data)
-            return None
+            yield None
         elif opcode == OP_CONT:
             raise NotImplementedError(opcode)
         else:
             raise ValueError(opcode)
+
+    async def recv(self):
+        chunks = []
+        async for chunk in self.recv_stream():
+            if chunk is not None:
+                chunks.append(chunk)
+
+        if not chunks:
+            return None
+        
+        if isinstance(chunks[0], str):
+            return ''.join(chunks)
+        else:
+            return b''.join(chunks)
 
     async def send(self, buf):
         if isinstance(buf, str):

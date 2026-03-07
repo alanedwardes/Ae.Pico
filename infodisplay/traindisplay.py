@@ -15,7 +15,7 @@ import gc
 import textbox
 import random
 from httpstream import HttpRequest
-from flatjson import parse_flat_json_array
+from flatjson import load_array
 
 # Define Departure named tuple for memory efficiency
 Departure = namedtuple('Departure', 'scheduled_time expected_time destination platform train_class cancelled delayed')
@@ -207,7 +207,7 @@ class TrainDisplay:
                 self.departures = []
                 element_buffer = []
 
-                async for element in parse_flat_json_array(reader):
+                async for element in load_array(reader):
                     element_buffer.append(element)
 
                     # Process in groups of 5 (std, station, platform, class, atd)
