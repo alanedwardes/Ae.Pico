@@ -84,10 +84,12 @@ class _AsyncJsonParser:
 
     async def _fill_buffer(self, min_length=1):
         while len(self.buffer) - self.pos < min_length and not self.finished:
-            # Drop consumed bytes to save memory
+            # Drop consumed bytes in-place to avoid allocating a new bytearray
             drop_pos = self.pos if self.keep_pos is None else self.keep_pos
             if drop_pos > 0:
-                self.buffer = self.buffer[drop_pos:]
+                remaining = len(self.buffer) - drop_pos
+                self.buffer[:remaining] = self.buffer[drop_pos:]
+                del self.buffer[remaining:]
                 self.pos -= drop_pos
                 if self.keep_pos is not None:
                     self.keep_pos -= drop_pos
