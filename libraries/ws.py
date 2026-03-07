@@ -95,7 +95,10 @@ class Websocket:
 
     async def read_frame(self, max_size=None):
         generator = self.read_frame_stream()
-        fin, opcode = await generator.__anext__()
+        if hasattr(generator, "asend"):
+            fin, opcode = await generator.asend(None)
+        else:
+            fin, opcode = await generator.__anext__()
         
         chunks = []
         async for chunk in generator:
@@ -142,7 +145,10 @@ class Websocket:
 
     async def recv_stream(self):
         generator = self.read_frame_stream()
-        fin, opcode = await generator.__anext__()
+        if hasattr(generator, "asend"):
+            fin, opcode = await generator.asend(None)
+        else:
+            fin, opcode = await generator.__anext__()
 
         if not fin:
             raise NotImplementedError("Not fin")

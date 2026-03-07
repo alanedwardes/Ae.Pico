@@ -93,7 +93,10 @@ class _AsyncJsonParser:
                     self.keep_pos -= drop_pos
             
             try:
-                chunk = await self.iterable.__anext__()
+                if hasattr(self.iterable, "asend"):
+                    chunk = await self.iterable.asend(None)
+                else:
+                    chunk = await self.iterable.__anext__()
                 if chunk is None:
                     continue
                 if isinstance(chunk, str):
