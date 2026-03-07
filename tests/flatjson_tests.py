@@ -3,7 +3,7 @@ import asyncio
 import unittest
 
 sys.path.insert(1, '../libraries')
-from flatjson import load, load_array, loads
+from flatjson import load, load_array
 
 class MockAsyncIterable:
     def __init__(self, data_str, chunk_size=5):
@@ -242,24 +242,24 @@ class TestFlatJsonParser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results, ["\u00A9"]) # The parser returns string "\u00A9"
 
 
-class TestStringJsonParser(unittest.TestCase):
-    def test_parse_basic_types(self):
-        self.assertEqual(loads('true'), True)
-        self.assertEqual(loads('false'), False)
-        self.assertEqual(loads('null'), None)
-        self.assertEqual(loads('123'), 123)
-        self.assertEqual(loads('-45.6'), -45.6)
-        self.assertEqual(loads('"hello"'), "hello")
+class TestStringJsonParser(unittest.IsolatedAsyncioTestCase):
+    async def test_parse_basic_types(self):
+        self.assertEqual(await load(MockAsyncIterable('true')), True)
+        self.assertEqual(await load(MockAsyncIterable('false')), False)
+        self.assertEqual(await load(MockAsyncIterable('null')), None)
+        self.assertEqual(await load(MockAsyncIterable('123')), 123)
+        self.assertEqual(await load(MockAsyncIterable('-45.6')), -45.6)
+        self.assertEqual(await load(MockAsyncIterable('"hello"')), "hello")
 
-    def test_parse_object_and_array(self):
+    async def test_parse_object_and_array(self):
         payload = '{"a": [1, 2], "b": {"c": true}}'
-        self.assertEqual(loads(payload), {"a": [1, 2], "b": {"c": True}})
+        self.assertEqual(await load(MockAsyncIterable(payload)), {"a": [1, 2], "b": {"c": True}})
 
-    def test_fast_skip_object_keys(self):
+    async def test_fast_skip_object_keys(self):
         payload = '{"ignore1": [1,2,{"x":3}], "keep": 42, "ignore2": "skipped"}'
-        self.assertEqual(loads(payload, ignore_keys={"ignore1", "ignore2"}), {"keep": 42})
+        self.assertEqual(await load(MockAsyncIterable(payload), ignore_keys={"ignore1", "ignore2"}), {"keep": 42})
 
-    def test_parse_complex_nested_structure(self):
+    async def test_parse_complex_nested_structure(self):
         payload = '{"status": "ok", "data": [{"id": 1, "value": [true, false, null, {"a": 1, "b": "str", "c": [1.1, 2.2]}]}, {"id": -2, "value": []}]}'
         expected = {
             "status": "ok", 
@@ -274,13 +274,13 @@ class TestStringJsonParser(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(loads(payload), expected)
+        self.assertEqual(await load(MockAsyncIterable(payload)), expected)
 
-    def test_parse_complex_arrays(self):
+    async def test_parse_complex_arrays(self):
         # Arrays containing mixed types and nested arrays/objects
         payload = '[1, "two", {"three": 3}, [4, 5, {"six": 6}], null, true]'
         expected = [1, "two", {"three": 3}, [4, 5, {"six": 6}], None, True]
-        self.assertEqual(loads(payload), expected)
+        self.assertEqual(await load(MockAsyncIterable(payload)), expected)
 
 if __name__ == "__main__":
     unittest.main()
