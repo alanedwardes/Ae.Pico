@@ -286,7 +286,7 @@ class SolarSystemDisplay:
             px, py = self._project_to_screen(x, y, z)
             
             if self.top_margin <= py < self.display_height:
-                self.display.pixel(px, py, color)
+                self.display.rect(px, py, 2, 2, color, fill=True)
 
     def _draw_moon(self, cx, cy, radius_px, angle_offset, color):
         t = utime.time() / 86400.0
@@ -383,7 +383,7 @@ class SolarSystemDisplay:
              ox, oy, oz = self._to_heliocentric_coords(r, v, c['node'], c['i'], c['arg_p'])
              opx, opy = self._project_to_screen(ox, oy, oz)
              if self.top_margin <= opy < self.display_height:
-                 self.display.pixel(opx, opy, 0x212021)
+                 self.display.rect(opx, opy, 2, 2, 0x212021, fill=True)
 
         # Draw Nucleus
         self.display.ellipse(cx, cy, c['size'], c['size'], c['color'], fill=True)
