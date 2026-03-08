@@ -57,24 +57,55 @@ def _rgb565_to_888_upscale_line(dest: ptr8, source: ptr16, src_offset: int, src_
 
 @micropython.viper
 def _rgb332_to_888_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int):
-    """Convert RGB332 (1 byte/pixel) to RGB666 (3 bytes/pixel)."""
+    """Convert RGB332 (1 byte/pixel) to RGB666 (3 bytes/pixel) with 4-pixel unrolling and uint32 writes."""
     s: int = src_offset
     d: int = 0
+    d32 = ptr32(dest)
+    
+    # Process 4 pixels at a time (12 bytes output)
+    while pixels >= 4:
+        # Pixel 0
+        c = source[s]
+        r0 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g0 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b0 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+        
+        # Pixel 1
+        c = source[s + 1]
+        r1 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g1 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b1 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+
+        # Pixel 2
+        c = source[s + 2]
+        r2 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g2 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b2 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+
+        # Pixel 3
+        c = source[s + 3]
+        r3 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g3 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b3 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+
+        # Write 12 bytes using 3 word writes (assuming Little Endian)
+        # Word 0: R0, G0, B0, R1
+        d32[d >> 2] = r0 | (g0 << 8) | (b0 << 16) | (r1 << 24)
+        # Word 1: G1, B1, R2, G2
+        d32[(d + 4) >> 2] = g1 | (b1 << 8) | (r2 << 16) | (g2 << 24)
+        # Word 2: B2, R3, G3, B3
+        d32[(d + 8) >> 2] = b2 | (r3 << 8) | (g3 << 16) | (b3 << 24)
+
+        s += 4
+        d += 12
+        pixels -= 4
+
+    # Remainder
     while pixels:
         c = source[s]
-        # Extract RGB332 components: RRR GGG BB
-        r3 = (c >> 5) & 0x07
-        g3 = (c >> 2) & 0x07
-        b2 = c & 0x03
-        
-        # Scale straight to 8-bit colors
-        # RRR -> RRRRRRRR
-        dest[d]       = (r3 << 5) | (r3 << 2) | (r3 >> 1)
-        # GGG -> GGGGGGGG
-        dest[d + 1]   = (g3 << 5) | (g3 << 2) | (g3 >> 1)
-        # BB -> BBBBBBBB
-        dest[d + 2]   = (b2 << 6) | (b2 << 4) | (b2 << 2) | b2
-        
+        dest[d] = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        dest[d+1] = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        dest[d+2] = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
         d += 3
         s += 1
         pixels -= 1
@@ -86,13 +117,9 @@ def _rgb332_to_888_upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_p
     d: int = 0
     while src_pixels:
         c = source[s]
-        r3 = (c >> 5) & 0x07
-        g3 = (c >> 2) & 0x07
-        b2 = c & 0x03
-        
-        r8 = (r3 << 5) | (r3 << 2) | (r3 >> 1)
-        g8 = (g3 << 5) | (g3 << 2) | (g3 >> 1)
-        b8 = (b2 << 6) | (b2 << 4) | (b2 << 2) | b2
+        r8 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g8 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b8 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
         
         for _ in range(scale):
             dest[d] = r8
