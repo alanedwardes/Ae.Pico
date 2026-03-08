@@ -3,7 +3,6 @@ import utime
 import gc
 import chart
 import colors
-import re
 import textbox
 import random
 from httpstream import HttpRequest
