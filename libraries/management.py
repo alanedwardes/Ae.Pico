@@ -251,56 +251,6 @@ class FilesystemController:
         writer.write(b'<form enctype="multipart/form-data" action="upload" method="post"><input type="file" name="file"/><button>Upload File</button/></form>')
         writer.write(BACK_LINK)
 
-class MemoryController:
-    def __init__(self):
-        self.allocated = []
-
-    def route(self, method, path):
-        return path == b'/memory'
-    
-    def widget(self):
-        return b' <form action="memory" method="post"><button>Memory</button></form>'
-    
-    async def serve(self, method, path, headers, reader, writer):
-        content_length = int(headers.get(b'content-length', '0'))
-        form = parse_form(await reader.readexactly(content_length))
-
-        allocate = int(form.get(b'allocate', '0'))        
-        if allocate > 0:
-            self.allocated.append(bytearray(allocate))
-        
-        if form.get(b'action') == b'reset':
-            self.allocated = []
-
-        if form.get(b'action') == b'collect':
-            gc.collect()
-
-        writer.write(OK_STATUS)
-        writer.write(HTML_HEADER)
-        writer.write(HEADER_TERMINATOR)
-        writer.write(MINIMAL_CSS)
-        writer.write(b'<h1>Memory</h1>')
-        used_memory = gc.mem_alloc() if hasattr(gc, 'mem_alloc') else 0
-        free_memory = gc.mem_free() if hasattr(gc, 'mem_free') else 0
-        writer.write(b'<p><b>Memory</b> <progress max="%i" value="%i" title="Used: %.2f KB, free: %.2f KB"></progress></p>' % (free_memory + used_memory, used_memory, used_memory / KB, free_memory / KB))
-
-        total_allocated = 0
-        for allocation in self.allocated:
-            total_allocated += len(allocation)
-
-        writer.write(b'<p><b>Allocated</b> %i</p>' % total_allocated)
-        writer.write(b'<p>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20"/><button>Allocate 20B</button></form>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="200"/><button>Allocate 200B</button></form>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="2000"/><button>Allocate 2KB</button></form>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="allocate" value="20000"/><button>Allocate 20KB</button></form>')
-        writer.write(b'</p>')
-        writer.write(b'<p>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="reset"/><button>Reset</button></form>')
-        writer.write(b'<form action="memory" method="post"><input type="hidden" name="action" value="collect"/><button>Collect</button></form>')
-        writer.write(b'</p>')
-        writer.write(BACK_LINK)
-
 class EditController:
     def route(self, method, path):
         return path == b'/edit' or path == b'/new'
@@ -590,8 +540,7 @@ class ManagementServer:
         self.port = port
         self.controllers = [IndexController(self), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
-                            ResetController(), ShellController(),
-                            GPIOController(), PWMController(), MemoryController()]
+                            ResetController(), ShellController()]
         self.authorization_header = None
         self.server = None
     
