@@ -31,11 +31,13 @@ class TemperatureDisplay:
             # Use unified HTTP request helper
             reader, writer = await self._http_request.get()
 
-            # Stream parse JSON array without buffering entire response
+            # Stream parse JSON array into pre-allocated list
             # Format: [current, min, max]
-            self.temperature_data = []
+            i = 0
             async for element in load_array(reader):
-                self.temperature_data.append(element)
+                if i < 3:
+                    self.temperature_data[i] = element
+                i += 1
 
             writer.close()
             await writer.wait_closed()

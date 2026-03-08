@@ -10,6 +10,8 @@ from bitblt import blit_region
 from httpstream import HttpRequest
 from flatjson import load_array
 
+_DAY_NAMES = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
+
 class WeatherDisplay:
     def __init__(self, display, url, refresh_period_seconds):
         self.display = display
@@ -106,9 +108,7 @@ class WeatherDisplay:
         
         y_start = 70
 
-        palette = []
 
-        day_names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
         # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
         num_days = len(self.weather_data) // 4
@@ -149,7 +149,7 @@ class WeatherDisplay:
                 day_pen = 0xFFFFFF
 
             height = 2 * 8
-            await textbox.draw_textbox(self.display, f"{day_names[day_of_week]}", sx, day_row_y, column_width, height, color=day_pen, font='small')
+            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, height, color=day_pen, font='small')
 
             icon = self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, 50)
             # icon is blitted directly; no color state

@@ -9,11 +9,26 @@ import random
 from httpstream import HttpRequest
 from flatjson import load_array
 
+_TARGET_HOURS = (0, 6, 12, 18)
+_LABEL_HOURS = (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
+_UV_LEVELS = (
+    (0.5, "LOW"),
+    (3.5, "MODERATE"),
+    (6.5, "HIGH"),
+    (8.5, "VERY HIGH"),
+    (11.5, "EXTREME")
+)
+_MAX_UV = 12
+
+def _uv_color_fn(idx, value):
+    return colors.get_color_for_uv(value)
+
 class UvDisplay:
     def __init__(self, display, url, refresh_period_seconds):
         self.display = display
         self.url = url
         self.uv_data = []
+        self._normalized_data = []
         self.refresh_period_seconds = refresh_period_seconds
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -73,6 +88,9 @@ class UvDisplay:
             import gc
             gc.collect()
 
+            # Pre-compute normalized values (avoids list comprehension per update)
+            self._normalized_data = [uv / _MAX_UV for uv in self.uv_data]
+
             self.tsf.set()
                 
         except Exception as e:
@@ -87,22 +105,18 @@ class UvDisplay:
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
 
         # Display specific hours: 00, 06, 12, 18
-        target_hours = [0, 6, 12, 18]
         display_hours = []
         hour_positions = []
         
-        for hour in target_hours:
+        for hour in _TARGET_HOURS:
             if hour < len(self.uv_data):
                 display_hours.append(self.uv_data[hour])
                 hour_positions.append(hour)
         
-        # Draw hour labels for every 2nd hour (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
-        # Since we show every other UV value above, we need to align with those positions
-        label_hours = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]
+        # Draw hour labels for every 2nd hour
         label_width = self.display_width // 12  # 12 UV values shown above
         
-        for i, hour in enumerate(label_hours):
-            # Map hours to positions: 0->0, 2->1, 4->2, 6->3, 8->4, 10->5, 12->6, 14->7, 16->8, 18->9, 20->10, 22->11
+        for i, hour in enumerate(_LABEL_HOURS):
             position = hour // 2
             sx = position * label_width
             
@@ -112,40 +126,32 @@ class UvDisplay:
         chart_height = self.display_height - y_start - 40  # Make chart fill more space
         
         # Draw vertical grid lines after chart area is defined
-        for i, hour in enumerate(label_hours):
+        for i, hour in enumerate(_LABEL_HOURS):
             if i > 0:  # Skip first line
                 position = hour // 2
                 sx = position * label_width
                 # Calculate the top of the chart area (UV 12 line)
-                chart_top = chart_y + chart_height - (12 / 12.0) * chart_height  # UV 12 line
+                chart_top = chart_y  # UV 12 line (12/12 = 1.0, so offset is 0)
                 # Extend to bottom of screen
-                self.display.rect(sx, int(chart_top), 1, self.display_height - int(chart_top), 0x424142, True)
+                self.display.rect(sx, chart_top, 1, self.display_height - chart_top, 0x424142, True)
 
         # Draw horizontal grid lines for all UV levels 0-12
         for uv_value in range(13):  # 0-12 inclusive
             # Calculate Y position (invert because 0 is at top)
-            y_pos = chart_y + chart_height - (uv_value / 12.0) * chart_height
+            y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
             
             # Draw horizontal grid line
             self.display.rect(0, int(y_pos), self.display_width, 1, 0x424142, True)
         
         # Draw labels for specific UV levels
-        uv_levels = [
-            (0.5, "LOW"),
-            (3.5, "MODERATE"), 
-            (6.5, "HIGH"),
-            (8.5, "VERY HIGH"),
-            (11.5, "EXTREME")
-        ]
-        
-        for uv_value, label in uv_levels:
+        for uv_value, label in _UV_LEVELS:
             # Calculate Y position (invert because 0 is at top)
-            y_pos = chart_y + chart_height - (uv_value / 12) * chart_height
+            y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
             
             # Draw label on the left
             await textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFFFF, font='small', align='left')
 
-        # Calculate spacing for 12 values (every other data point)
+        # Draw UV values for every other data point
         label_width = self.display_width // 12
         
         for i in range(0, len(self.uv_data), 2):  # Step by 2 to get every other value
@@ -154,19 +160,11 @@ class UvDisplay:
             x_pos = label_index * label_width
             await textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFFFF, font='small')
 
-        # Normalize UV values for chart (max UV is 12)
-        max_uv_value = 12  # Fixed maximum
-        normalized_data = [uv / max_uv_value for uv in self.uv_data]
-        
-        # Shared segmented area and colored points
-        def uv_color_fn(idx, value):
-            return colors.get_color_for_uv(value)
-
         await chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
-                                   self.uv_data, normalized_data, uv_color_fn)
+                                   self.uv_data, self._normalized_data, _uv_color_fn)
 
         await chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
-                                   self.uv_data, normalized_data, uv_color_fn, radius=2)
+                                   self.uv_data, self._normalized_data, _uv_color_fn, radius=2)
 
         # Draw current time vertical line
         if len(self.uv_data) > 0:
@@ -190,7 +188,7 @@ class UvDisplay:
                 current_uv = self.uv_data[current_hour]
                 
                 # Calculate y position for the UV value
-                normalized_uv = current_uv / max_uv_value
+                normalized_uv = current_uv / _MAX_UV
                 uv_y = chart_y + chart_height - (normalized_uv * chart_height)
                 
                 # Draw 2px black circle with 1px white circle inside
