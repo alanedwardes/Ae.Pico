@@ -113,11 +113,14 @@ class WeatherDisplay:
         # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
         num_days = len(self.weather_data) // 4
 
+        usable_height = self.display_height - y_start
+        slot_height = usable_height // 5
+
         day_row_y = y_start
-        icon_row_y = day_row_y + 15
-        max_row_y = icon_row_y + 54
-        min_row_y = max_row_y + 32
-        rain_row_y = min_row_y + 32
+        icon_row_y = day_row_y + slot_height
+        max_row_y = icon_row_y + slot_height
+        min_row_y = max_row_y + slot_height
+        rain_row_y = min_row_y + slot_height
 
         for i in range(num_days):
             data_index = i * 4
@@ -135,24 +138,20 @@ class WeatherDisplay:
             column_width = next_sx - sx
 
             # Clear this column
-            self.display.rect(sx, y_start, column_width, self.display_height - y_start, 0x000000, True)
+            self.display.rect(sx, y_start, column_width, usable_height, 0x000000, True)
 
             # Get current day of week (0 = Monday, 6 = Sunday)
-            # Use utime to get current time and calculate day of week
             now = utime.localtime()
-            # Calculate day of week (0 = Monday) and increment for each column
-            day_of_week = (now[6] + i) % 7  # MicroPython already uses 0=Monday, so no conversion needed
+            day_of_week = (now[6] + i) % 7
 
             if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
                 day_pen = 0xC8CED4
             else:
                 day_pen = 0xFFFFFF
 
-            height = 2 * 8
-            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, height, color=day_pen, font='small')
+            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font='small')
 
-            icon = self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, 50)
-            # icon is blitted directly; no color state
+            self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, slot_height)
 
             # Format temperatures, avoiding "-0" display
             max_temp_rounded = round(max_temperature)
@@ -160,15 +159,11 @@ class WeatherDisplay:
             max_temp_str = f"{abs(max_temp_rounded) if max_temp_rounded == 0 else max_temp_rounded:.0f}°"
             min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
 
-            height = 2 * 8
-            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, height, color=colors.get_color_for_temperature(max_temperature), font='small')
-
-            height = 2 * 8
-            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, height, color=colors.get_color_for_temperature(min_temperature), font='small')
+            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, slot_height, color=colors.get_color_for_temperature(max_temperature), font='small')
+            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, slot_height, color=colors.get_color_for_temperature(min_temperature), font='small')
 
             rain_color = colors.get_color_for_rain_percentage(rain)
-            height = 2 * 8
-            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, height, color=rain_color, font='small')
+            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, slot_height, color=rain_color, font='small')
 
             # Update just this column
             self.display.update((sx, y_start, column_width, self.display_height - y_start))
