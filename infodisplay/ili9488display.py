@@ -48,7 +48,7 @@ class ILI9488Display:
             disp_mode=disp_mode,
             display=(0, 0, 1, True, True),
             scale=scale,
-            source_color_mode=mode,
+            source_color_mode=mode
         )
 
         # Drawing uses reduced framebuffer dimensions

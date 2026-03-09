@@ -1,7 +1,9 @@
 from time import sleep_ms
 import gc
 import micropython
-from machine import PWM
+import rp2
+from machine import PWM, Pin
+import os
 
 # User orientation constants
 LANDSCAPE = 0  # Default
@@ -10,6 +12,30 @@ USD = 2
 PORTRAIT = 4
 # Display types
 GENERIC = 0x000000
+
+# SPI Hardware Register offsets (common to RP2040/RP2350)
+_SPI_SSPDR_OFFSET = 0x08
+_SPI_SSPDMACR_OFFSET = 0x24
+_SPI_TXDMAE_BIT = 0x02
+
+# Detect chip type for hardware addresses and DREQs
+_machine = os.uname().machine
+if "RP2350" in _machine:
+    _SPI0_BASE = 0x40080000
+    _SPI1_BASE = 0x40088000
+    _DREQ_SPI0_TX = 24
+    _DREQ_SPI1_TX = 26
+elif "RP2040" in _machine:
+    _SPI0_BASE = 0x4003c000
+    _SPI1_BASE = 0x40040000
+    _DREQ_SPI0_TX = 16
+    _DREQ_SPI1_TX = 18
+else:
+    # Fallback/Unknown - DMA paths will be disabled in __init__
+    _SPI0_BASE = 0
+    _SPI1_BASE = 0
+    _DREQ_SPI0_TX = 0
+    _DREQ_SPI1_TX = 0
 
 @micropython.viper
 def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int):
@@ -57,58 +83,21 @@ def _rgb565_to_888_upscale_line(dest: ptr8, source: ptr16, src_offset: int, src_
 
 @micropython.viper
 def _rgb332_to_888_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int):
-    """Convert RGB332 (1 byte/pixel) to RGB666 (3 bytes/pixel) with 4-pixel unrolling and uint32 writes."""
+    """Convert RGB332 (1 byte/pixel) to RGB666 (3 bytes/pixel)"""
     s: int = src_offset
     d: int = 0
-    d32 = ptr32(dest)
-    
-    # Process 4 pixels at a time (12 bytes output)
-    while pixels >= 4:
-        # Pixel 0
-        c = source[s]
-        r0 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g0 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b0 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-        
-        # Pixel 1
-        c = source[s + 1]
-        r1 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g1 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b1 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-
-        # Pixel 2
-        c = source[s + 2]
-        r2 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g2 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b2 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-
-        # Pixel 3
-        c = source[s + 3]
-        r3 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g3 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b3 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-
-        # Write 12 bytes using 3 word writes (assuming Little Endian)
-        # Word 0: R0, G0, B0, R1
-        d32[d >> 2] = r0 | (g0 << 8) | (b0 << 16) | (r1 << 24)
-        # Word 1: G1, B1, R2, G2
-        d32[(d + 4) >> 2] = g1 | (b1 << 8) | (r2 << 16) | (g2 << 24)
-        # Word 2: B2, R3, G3, B3
-        d32[(d + 8) >> 2] = b2 | (r3 << 8) | (g3 << 16) | (b3 << 24)
-
-        s += 4
-        d += 12
-        pixels -= 4
-
-    # Remainder
     while pixels:
         c = source[s]
-        dest[d] = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        dest[d+1] = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        dest[d+2] = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-        d += 3
+        r = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        g = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        b = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+        dest[d] = r
+        dest[d + 1] = g
+        dest[d + 2] = b
         s += 1
+        d += 3
         pixels -= 1
+
 
 @micropython.viper
 def _rgb332_to_888_upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_pixels: int, scale: int):
@@ -136,39 +125,97 @@ class ILI9488:
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
     # rst and cs are active low, SPI is mode 0
-    def __init__(
-        self,
-        spi,
-        cs,
-        dc,
-        rst=None,
-        backlight=None,
-        height=320,
-        width=480,
-        disp_mode=LANDSCAPE,
-        init_spi=False,
-        display=GENERIC,
-        scale=1,
-        source_color_mode='RGB565',
-    ):
-        if not 0 <= disp_mode <= 7:
-            raise ValueError("Invalid display mode:", disp_mode)
+    def __init__(self,
+                 spi,
+                 cs,
+                 dc,
+                 rst,
+                 backlight=None,
+                 width=480,
+                 height=320,
+                 disp_mode=LANDSCAPE,
+                 display=GENERIC,
+                 scale=1,
+                 source_color_mode='RGB565'):
+        self._offset = display[:2]
+        orientation = display[2]
+        self._spi_init = False # Standard
+        
         self._spi = spi
-        self._dc = dc
         self._cs = cs
+        self._dc = dc
         self._rst = rst
-        self._backlight = backlight  # Backlight pin
-        self._scale = scale  # Upscaling factor (1 = no upscaling)
-        self.height = height  # Required by Writer class
+        self._backlight = backlight
+        self._backlight_pwm = None
         self.width = width
-        self._offset = display[:2]  # display arg is (x, y, orientation)
-        orientation = display[2]  # where x, y is the RAM offset
-        self._spi_init = init_spi  # Possible user callback
+        self.height = height
+        self._current_mode = disp_mode
+        self._display = display
+        self._scale = scale
         self.source_color_mode = source_color_mode
-        gc.collect()
-        self._linebuf = bytearray(self.width * 3)  # Changed back to 3 bytes per pixel
+        self._linebuf = bytearray(self.width * 3)
+        
+        self._dma = None
+        self._dma_active = False
+        
+        # Internal DMA logic (auto-enable on RP2 hardware)
+        use_dma = True
+        if _SPI0_BASE == 0: # Unknown chip detected in module-level code
+            use_dma = False
+        else:
+            try:
+                import rp2
+            except ImportError:
+                use_dma = False
+                    
+        if use_dma:
+            self._setup_dma()
+
         self._init(disp_mode, orientation, display[3:])
         self._backlight_pwm = None
+
+    def _setup_dma(self):
+        # Identify SPI bus and base address
+        spi_str = str(self._spi)
+        if "SPI(0," in spi_str:
+            base = _SPI0_BASE
+            dreq = _DREQ_SPI0_TX
+        elif "SPI(1," in spi_str:
+            base = _SPI1_BASE
+            dreq = _DREQ_SPI1_TX
+        else:
+            print("DMA: Could not identify SPI bus from", spi_str)
+            return
+
+        if base == 0:
+            print("DMA: Hardware addresses not mapped for this chip.")
+            return
+
+        self._spi_dr = base + _SPI_SSPDR_OFFSET
+        self._spi_dmacr = base + _SPI_SSPDMACR_OFFSET
+        
+        # Enable DMA on SPI hardware
+        # We use a viper-like write to the SPI register
+        @micropython.viper
+        def _enable_spi_dma(addr: int, bit: int):
+            p = ptr32(addr)
+            p[0] |= bit
+        
+        _enable_spi_dma(self._spi_dmacr, _SPI_TXDMAE_BIT)
+        
+        # Claim DMA channel
+        import rp2
+        self._dma = rp2.DMA()
+        self._dma_ctrl = self._dma.pack_ctrl(
+            size=0, # 8-bit transfers
+            inc_read=True,
+            inc_write=False,
+            treq_sel=dreq
+        )
+        
+        # We need two line buffers for ping-pong
+        self._linebuf_pair = [bytearray(self.width * 3), bytearray(self.width * 3)]
+        self._linebuf_idx = 0
 
     # Write a command, a bytes instance (in practice 1 byte).
     def _wcmd(self, buf):
@@ -377,80 +424,81 @@ class ILI9488:
         self._wcmd(b"\x2b")
         self._wcd_data(bytes([(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF]))
 
-    def render(self, framebuffer, width, height, region):
-        # Unpack and validate region (region is in framebuffer coordinates)
-        x, y, rw, rh = region
+    def render(self, fb, width, height, bbox):
+        """Write a framebuffer region to the display."""
+        x, y, rw, rh = bbox
         if x < 0 or y < 0 or rw <= 0 or rh <= 0:
             return
         if x + rw > width or y + rh > height:
             return
-        # Check scaled dimensions match display size
+            
         scale = self._scale
-        if width * scale != self.width or height * scale != self.height:
-            return
-
+        
         # Set hardware window to scaled region
-        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
+        self._set_region_window(x, y, rw, rh)
 
         # Send RAMWR command (0x2C)
-        if self._spi_init:
-            self._spi_init(self._spi)
-
         self._wcmd(b"\x2c")
         
-        # Prepare for data write (match Waveshare `write_data` and `show_up` flow)
-        self._cs(1)
         self._dc(1)
         self._cs(0)
-
-        src = memoryview(framebuffer)
         
-        if self.source_color_mode == 'RGB565':
-            # Framebuffer is 2 bytes per pixel (RGB565)
-            row_bytes = width * 2
+        if self._dma:
+            # High-performance DMA Path
+            src = fb
+            dr = self._spi_dr
+            ctrl = self._dma_ctrl
             
-            if scale == 1:
-                # No upscaling, convert to 3 bytes per pixel RGB666
-                output_bytes = rw * 3
-                lb = memoryview(self._linebuf[:output_bytes])
-                for row in range(rh):
-                    fb_byte_offset = (y + row) * row_bytes + x * 2
-                    fb_word_offset = fb_byte_offset // 2
-                    _rgb565_to_888_line(lb, src, fb_word_offset, rw)
-                    self._spi.write(lb)
+            if self.source_color_mode == 'RGB565':
+                line_conv = _rgb565_to_888_line if scale == 1 else _rgb565_to_888_upscale_line
             else:
-                # Upscaling with RGB666 conversion
-                output_line_bytes = rw * scale * 3
-                lb = memoryview(self._linebuf[:output_line_bytes])
-                for row in range(rh):
-                    fb_byte_offset = (y + row) * row_bytes + x * 2
-                    fb_word_offset = fb_byte_offset // 2
-                    _rgb565_to_888_upscale_line(lb, src, fb_word_offset, rw, scale)
-                    # Write the line 'scale' times for vertical upscaling
-                    for _ in range(scale):
-                        self._spi.write(lb)
-                        
-        else: # RGB332
-            # Framebuffer is 1 byte per pixel (RGB332)
-            row_bytes = width
+                line_conv = _rgb332_to_888_line if scale == 1 else _rgb332_to_888_upscale_line
+            
+            for row in range(rh):
+                # Pick next buffer in ping-pong
+                buf = self._linebuf_pair[self._linebuf_idx]
+                self._linebuf_idx = (self._linebuf_idx + 1) & 1
+                
+                # Convert this row while the previous DMA (if any) is running
+                if scale == 1:
+                    line_conv(buf, src, (y + row) * width + x, rw)
+                else:
+                    line_conv(buf, src, (y + row) * width + x, rw, scale)
+                
+                # Each source row handles 'scale' vertical display rows
+                for _ in range(scale):
+                    # Wait for DMA to be ready (it might still be sending the PREVIOUS line or PREVIOUS scale-repeat)
+                    while self._dma.active():
+                        pass
+                    
+                    self._dma.config(
+                        read=buf,
+                        write=dr,
+                        count=rw * scale * 3,
+                        ctrl=ctrl,
+                        trigger=True
+                    )
+            
+            # Final wait for completion
+            while self._dma.active():
+                pass
+        else:
+            # Standard Path
+            linebuf = self._linebuf
+            if self.source_color_mode == 'RGB565':
+                line_conv = _rgb565_to_888_line if scale == 1 else _rgb565_to_888_upscale_line
+            else:
+                line_conv = _rgb332_to_888_line if scale == 1 else _rgb332_to_888_upscale_line
 
-            if scale == 1:
-                # No upscaling - convert RGB332 to RGB666
-                output_bytes = rw * 3
-                lb = memoryview(self._linebuf[:output_bytes]) if output_bytes < len(self._linebuf) else memoryview(self._linebuf)
-                for row in range(rh):
-                    fb_offset = (y + row) * row_bytes + x
-                    _rgb332_to_888_line(lb, src, fb_offset, rw)
-                    self._spi.write(lb)
-            else:
-                # Upscaling with RGB332 to RGB666 conversion
-                output_line_bytes = rw * scale * 3
-                lb = memoryview(self._linebuf[:output_line_bytes])
-                for row in range(rh):
-                    fb_offset = (y + row) * row_bytes + x
-                    _rgb332_to_888_upscale_line(lb, src, fb_offset, rw, scale)
-                    for _ in range(scale):
-                        self._spi.write(lb)
+            for row in range(rh):
+                if scale == 1:
+                    line_conv(linebuf, fb, (y + row) * width + x, rw)
+                else:
+                    line_conv(linebuf, fb, (y + row) * width + x, rw, scale)
+                
+                for _ in range(scale):
+                    self._spi.write(linebuf[:rw * scale * 3])
+                    
         self._cs(1)
 
     def set_backlight(self, brightness):
