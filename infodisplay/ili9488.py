@@ -6,7 +6,7 @@ import os
 from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, BacklightManager, SpiController, DmaManager
 
 # Display types
-GENERIC = 0x000000
+GENERIC = (0, 0, 1, True, True) # Default (x, y, orientation, bgr, inv)
 
 @micropython.viper
 def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int):

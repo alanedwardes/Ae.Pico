@@ -6,7 +6,7 @@ from machine import PWM
 from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, BacklightManager, SpiController, DmaManager
 
 # Display types
-GENERIC = 0x000000  # Default. Suits Waveshare Pico res touch.
+GENERIC = (0, 0, 1, 0, True) # Default (x, y, orientation, bgr, inv)
 TDISPLAY = 0x342801
 PI_PICO_LCD_2 = 0x000001  # Waveshare Pico LCD 2 determined by Mike Wilson.
 DFR0995 = 0x220000  # DFR0995 Contributed by @EdgarKluge
