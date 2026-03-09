@@ -232,7 +232,7 @@ class ILI9488:
         if x + rw > width or y + rh > height: return
             
         scale = self._scale
-        self._set_region_window(x, y, rw, rh)
+        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
         self._wcmd(b"\x2c")  # RAMWR
         self._spi_ctrl.start_data()
         
