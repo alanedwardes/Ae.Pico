@@ -154,7 +154,7 @@ class SpiController:
         self.end_data()
 
 class DmaManager:
-    def __init__(self, spi, width, spi_id, bytes_per_pixel=3):
+    def __init__(self, spi, width, spi_id, bytes_per_pixel=3, use_dma=None):
         self._spi = spi
         self._width = width
         self._bytes_per_pixel = bytes_per_pixel
@@ -164,7 +164,7 @@ class DmaManager:
         self._linebuf_idx = 0
         self._ctrl = None
 
-        if _SPI0_BASE != 0:
+        if use_dma is not False and _SPI0_BASE != 0:
             try:
                 import rp2
                 self._setup_dma(spi_id)
