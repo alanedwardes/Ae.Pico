@@ -5,7 +5,12 @@ import asyncio
 import utime
 import uos
 import gc
-from micropython import const
+
+try:
+    from micropython import const
+except ImportError:
+    def const(x):
+        return x
 
 HEADER_TERMINATOR = b'\r\n'
 KB = const(1024)
