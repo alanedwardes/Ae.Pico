@@ -1,21 +1,22 @@
 import struct
 import gc
 import framebuf
+
+import sys
 try:
     import micropython
-except ImportError:  # Allow importing under CPython tooling
-    micropython = None
+    IS_MICROPYTHON = sys.implementation.name == 'micropython'
+except ImportError:
+    IS_MICROPYTHON = False
+
+from bitblt import blit_region, _as_ptr16, _as_ptr8
 
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
 _GLYPH_FMT = '<HHHHhhhB'
 
 def _build_palette_bytes(tint_color, bytes_per_pixel):
-    """Build a 256x1 palette as bytes for GS8 source, scaled to the destination bit depth.
-
-    If tint_color is None, palette maps grayscale to white.
-    If tint_color is an (r, g, b) tuple, palette maps intensity to the tinted color.
-    """
+    """Build a 256x1 palette as bytes for GS8 source, scaled to the destination bit depth."""
     if tint_color is None or not isinstance(tint_color, int):
         r, g, b = 255, 255, 255
     else:
@@ -44,111 +45,19 @@ def _build_palette_bytes(tint_color, bytes_per_pixel):
             pal[i] = val
     return pal
 
-# Cached palette
-_PALETTE_CACHE = {}  # (tint_color (r,g,b), bytes_per_pixel) -> palette bytes
+_PALETTE_CACHE = {}
 _PALETTE_CACHE_LIMIT = 16
 
 def _resolve_palette(tint_color, bytes_per_pixel):
-    if tint_color is None or not isinstance(tint_color, int):
-        cache_key = (0xFFFFFF, bytes_per_pixel)
-    else:
-        cache_key = (tint_color, bytes_per_pixel)
-
+    cache_key = (tint_color if isinstance(tint_color, int) else 0xFFFFFF, bytes_per_pixel)
     pal = _PALETTE_CACHE.get(cache_key)
-    if pal is not None:
-        return pal
-        
+    if pal is not None: return pal
     pal = _build_palette_bytes(cache_key[0], cache_key[1])
     if len(_PALETTE_CACHE) >= _PALETTE_CACHE_LIMIT:
-        try:
-            _PALETTE_CACHE.pop(next(iter(_PALETTE_CACHE)))
-        except StopIteration:
-            pass
+        try: _PALETTE_CACHE.pop(next(iter(_PALETTE_CACHE)))
+        except StopIteration: pass
     _PALETTE_CACHE[cache_key] = pal
     return pal
-
-def blit_region(framebuffer, fb_width, fb_height, fh, src_row_bytes,
-               sx, sy, sw, sh, dx, dy, tint_color=None, linebuf=None, clip=None):
-    if sw <= 0 or sh <= 0:
-        return
-    
-    # Calculate clipping limits
-    min_x = 0
-    min_y = 0
-    max_x = fb_width
-    max_y = fb_height
-    
-    if clip is not None:
-        cx, cy, cw, ch = clip
-        min_x = max(min_x, cx)
-        min_y = max(min_y, cy)
-        max_x = min(max_x, cx + cw)
-        max_y = min(max_y, cy + ch)
-        
-    if dx >= max_x or dy >= max_y:
-        return
-    if dx + sw <= min_x or dy + sh <= min_y:
-        return
-
-    start_row = max(0, min_y - dy)
-    end_row = min(sh, max_y - dy)
-
-    left_clip = max(0, min_x - dx)
-    right_clip = max(0, dx + sw - max_x)
-    copy_width = sw - left_clip - right_clip
-    if copy_width <= 0:
-        return
-
-    src_x = sx + left_clip
-    fb_x = dx + left_clip
-    
-    # Use provided linebuf or allocate a minimal one (fallback)
-    # The batch size is determined by how many rows fit in the available buffer.
-    if linebuf is not None and len(linebuf) >= copy_width:
-        scratch = linebuf
-        rows_per_batch = len(scratch) // copy_width
-    else:
-        # Fallback if no buffer provided or too small: process 1 row at a time with a temp buffer
-        scratch = bytearray(copy_width)
-        rows_per_batch = 1
-        
-    if rows_per_batch == 0:
-        rows_per_batch = 1 # Should not happen given logic above but safety check
-
-    # Build/resolve palette for GS8 source based on target color depth
-    bytes_per_pixel = framebuffer.bytes_per_pixel
-    palette = _resolve_palette(tint_color, bytes_per_pixel)
-
-    current_row = start_row
-    while current_row < end_row:
-        # Determine how many rows we can process in this batch
-        batch_h = min(rows_per_batch, end_row - current_row)
-        
-        # Read the batch of rows from the file into the contiguous buffer
-        # We must seek per row because file storage is stride-based (src_row_bytes)
-        for i in range(batch_h):
-            row_index = current_row + i
-            src_y = sy + row_index
-            src_offset = 4 + src_y * src_row_bytes + src_x
-            fh.seek(src_offset)
-            
-            # Read into the correct slice of the scratch buffer
-            start_idx = i * copy_width
-            view = memoryview(scratch)[start_idx : start_idx + copy_width]
-            fh.readinto(view)
-
-        # Create a FrameBuffer for this batch of rows
-        # The buffer must be just the size we used
-        total_bytes = copy_width * batch_h
-        batch_view = memoryview(scratch)[:total_bytes]
-        source_framebuffer = (batch_view, copy_width, batch_h, framebuf.GS8)
-
-        # Blit the entire batch
-        # Destination Y is offset by current_row
-        palette_format = framebuf.RGB565 if bytes_per_pixel == 2 else framebuf.GS8
-        framebuffer.blit(source_framebuffer, fb_x, dy + current_row, 0, (palette, 256, 1, palette_format))
-
-        current_row += batch_h
 
 class BMFont:
     def __init__(self):
@@ -217,44 +126,43 @@ class BMFont:
 
 def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None, clip=None):
     # GS8 source atlases: one byte per pixel per row
-    row_bytes = font.scale_w * 1
-    # Reuse a line buffer for all glyphs to limit per-glyph allocations
-    if linebuf is None:
-        linebuf = bytearray(max(1, font.scale_w or 1))
+    row_bytes = font.scale_w
+    
+    # Detemine destination pixel depth
+    bytes_per_pixel = framebuffer.bytes_per_pixel if hasattr(framebuffer, 'bytes_per_pixel') else 2
+    
+    # Resolve tinted palette for font rendering (GS8 -> Dest)
+    palette = _resolve_palette(color, bytes_per_pixel)
+
     pages = {}
-    if isinstance(page_files, str):
-        raise TypeError("page_files must be file objects (not paths)")
-    if hasattr(page_files, 'items'):
-        iterator = page_files.items()
+    if isinstance(page_files, (list, tuple)):
+        pages = {i: f for i, f in enumerate(page_files)}
+    elif hasattr(page_files, 'items'):
+        pages = page_files
     else:
-        iterator = enumerate(page_files)
-    for pid, fh in iterator:
-        if not (hasattr(fh, 'seek') and hasattr(fh, 'readinto')):
-            raise TypeError("page_files values must be file-like with seek and readinto")
-        pages[pid] = fh
-    cx = x
-    cy = y
+        pages = {0: page_files}
+
+    cx, cy = x, y
     prev_id = None
     for ch in text:
         if ch == "\n":
-            cx = x
-            cy += font.line_height
-            prev_id = None
-            continue
+            cx, cy = x, cy + font.line_height; prev_id = None; continue
         code = ord(ch)
         off = font.chars.get(code)
-        if off is None:
-            prev_id = None
-            continue
+        if off is None: prev_id = None; continue
         if prev_id is not None and kerning:
             cx += font.kerning.get((prev_id, code), 0)
+        
         src_x, src_y, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
-        dest_x = cx + xoffset * scale_up // scale_down
-        dest_y = cy + yoffset * scale_up // scale_down
-        blit_region(framebuffer, display_width, display_height,
-                    pages[page], row_bytes,
+        dest_x = cx + (xoffset * scale_up) // scale_down
+        dest_y = cy + (yoffset * scale_up) // scale_down
+        
+        # Use standardized blit_region
+        blit_region(framebuffer, display_width, display_height, 1, 
+                    pages[page], 4, row_bytes,
                     src_x, src_y, width, height,
-                    dest_x, dest_y, color, linebuf, clip=clip)
+                    dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip)
+        
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
 
