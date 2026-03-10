@@ -1,132 +1,26 @@
 from time import sleep_ms
 import gc
 import micropython
-from machine import Pin
-import os
-from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, BacklightManager, SpiController, DmaManager
+from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, MipiDisplay, \
+    _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line
 
 # Display types
 GENERIC = (0, 0, 1, True, True) # Default (x, y, orientation, bgr, inv)
 
-@micropython.viper
-def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int, lut: ptr8):
-    # For RGB565 to RGB666 (3 bytes per pixel) - Unrolled 4x for speed + LUT
-    s: int = src_offset
-    d: int = 0
-    while pixels >= 4:
-        # Pixel 1
-        c = source[s]
-        dest[d] = lut[(c >> 11) & 0x1F]
-        dest[d + 1] = lut[((c >> 5) & 0x3F) + 32]
-        dest[d + 2] = lut[(c & 0x1F) + 96]
-        # Pixel 2
-        c = source[s + 1]
-        dest[d + 3] = lut[(c >> 11) & 0x1F]
-        dest[d + 4] = lut[((c >> 5) & 0x3F) + 32]
-        dest[d + 5] = lut[(c & 0x1F) + 96]
-        # Pixel 3
-        c = source[s + 2]
-        dest[d + 6] = lut[(c >> 11) & 0x1F]
-        dest[d + 7] = lut[((c >> 5) & 0x3F) + 32]
-        dest[d + 8] = lut[(c & 0x1F) + 96]
-        # Pixel 4
-        c = source[s + 3]
-        dest[d + 9] = lut[(c >> 11) & 0x1F]
-        dest[d + 10] = lut[((c >> 5) & 0x3F) + 32]
-        dest[d + 11] = lut[(c & 0x1F) + 96]
-        
-        s += 4; d += 12; pixels -= 4
-        
-    while pixels:
-        c = source[s]
-        dest[d] = lut[(c >> 11) & 0x1F]
-        dest[d + 1] = lut[((c >> 5) & 0x3F) + 32]
-        dest[d + 2] = lut[(c & 0x1F) + 96]
-        s += 1; d += 3; pixels -= 1
-
-@micropython.viper
-def _rgb565_to_888_upscale_line(dest: ptr8, source: ptr16, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
-    # For RGB565 to RGB666 upscale (3 bytes per pixel) + LUT
-    s: int = src_offset
-    d: int = 0
-    while src_pixels:
-        c = source[s]
-        r8 = lut[(c >> 11) & 0x1F]
-        g8 = lut[((c >> 5) & 0x3F) + 32]
-        b8 = lut[(c & 0x1F) + 96]
-        
-        for _ in range(scale):
-            dest[d] = r8; dest[d + 1] = g8; dest[d + 2] = b8
-            d += 3
-        s += 1; src_pixels -= 1
-
-@micropython.viper
-def _rgb332_to_888_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int, lut: ptr8):
-    """Convert RGB332 (1 byte/pixel) to RGB666 (3 bytes/pixel)"""
-    s: int = src_offset
-    d: int = 0
-    while pixels:
-        c = source[s]
-        r = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-        dest[d] = r
-        dest[d + 1] = g
-        dest[d + 2] = b
-        s += 1
-        d += 3
-        pixels -= 1
-
-
-@micropython.viper
-def _rgb332_to_888_upscale_line(dest: ptr8, source: ptr8, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
-    """Convert RGB332 to RGB666 with horizontal upscaling."""
-    s: int = src_offset
-    d: int = 0
-    while src_pixels:
-        c = source[s]
-        r8 = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        g8 = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        b8 = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
-        
-        for _ in range(scale):
-            dest[d] = r8
-            dest[d + 1] = g8
-            dest[d + 2] = b8
-            d += 3
-        s += 1
-        src_pixels -= 1
-
-class ILI9488:
-    # Use shared rgb function
+class ILI9488(MipiDisplay):
     rgb = staticmethod(rgb)
 
-    # rst and cs are active low, SPI is mode 0
-    def __init__(self,
-                 spi,
-                 cs,
-                 dc,
-                 rst,
-                 backlight=None,
-                 width=480,
-                 height=320,
-                 disp_mode=LANDSCAPE,
-                 display=GENERIC,
-                 spi_id=1,
-                 scale=1,
-                 source_color_mode='RGB565',
-                 use_dma=None):
-        self._offset = display[:2]
-        orientation = display[2]
+    def __init__(self, spi, cs, dc, rst, backlight=None, width=480, height=320, 
+                 disp_mode=LANDSCAPE, display=GENERIC, spi_id=1, scale=1, 
+                 source_color_mode='RGB565', use_dma=None):
         
-        self._spi = spi
-        self._dc = dc
-        self._cs = cs
+        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, spi_id, use_dma)
+        
+        self._offset = display[:2]
         self._rst = rst
-        self._backlight = BacklightManager(backlight)
+        self._display = display
         
         # Initialize Micro-LUT (128 bytes)
-        # R5: 0-31, G6: 32-95, B5: 96-127
         self._lut = bytearray(128)
         for i in range(32):
             val = (i << 3) | (i >> 2)
@@ -134,103 +28,52 @@ class ILI9488:
             self._lut[i + 96] = val  # B5
         for i in range(64):
             self._lut[i + 32] = (i << 2) | (i >> 4) # G6
-        self.width = width
-        self.height = height
-        self._current_mode = disp_mode
-        self._display = display
-        self._scale = scale
-        self.source_color_mode = source_color_mode
-        self._linebuf = bytearray(self.width * 3)
-        
-        self._spi_ctrl = SpiController(spi, dc, cs)
-        self._dma = DmaManager(spi, self.width, spi_id=spi_id, bytes_per_pixel=3, use_dma=use_dma)
+            
+        self._init(disp_mode, display[2], display[3:])
 
-        self._init(disp_mode, orientation, display[3:])
-
-    # Delegate command methods to SpiController
-    def _wcmd(self, buf):
-        self._spi_ctrl.write_cmd(buf)
-
-    def _wcd(self, c, d):
-        self._spi_ctrl.write_cd(c, d)
-        
-    def _wcd_data(self, d):
-        self._spi_ctrl.write_data(d)
+    def _get_line_conv(self, scale):
+        if self.source_color_mode == 'RGB565':
+            return _rgb565_to_888_line if scale == 1 else _rgb565_to_888_upscale_line
+        return _rgb332_to_888_line # No upscale for 332->888 yet
 
     def _init(self, user_mode, orientation, cfg):
-        bgr = cfg[0] if len(cfg) else False  # Color mode BGR/RGB
+        bgr = cfg[0] if len(cfg) else False
         inv = cfg[1] if len(cfg) else False
         self._bgr = bgr
         self._orientation = orientation
         
-        cmd = self._wcmd
-        wcd = self._wcd
-
         if self._rst:
-            self._rst.value(1)
-            sleep_ms(5)
-            self._rst.value(0)
-            sleep_ms(10)
-            self._rst.value(1)
-            sleep_ms(5)
+            self._rst.value(1); sleep_ms(5); self._rst.value(0); sleep_ms(10); self._rst.value(1); sleep_ms(5)
 
-        cmd(b"\x01")  # Software reset
-        sleep_ms(150)
-        
-        cmd(b"\x21")  # Display inversion ON
-
-        wcd(b"\xC2", b"\x33")
-        wcd(b"\xC5", b"\x00\x1e\x80")
-        wcd(b"\xB1", b"\xB0")
-        
-        wcd(b"\xE0", b"\x00\x13\x18\x04\x0F\x06\x3a\x56\x4d\x03\x0a\x06\x30\x3e\x0f")
-        wcd(b"\xE1", b"\x00\x13\x18\x01\x11\x06\x38\x34\x4d\x06\x0d\x0b\x31\x37\x0f")
-
-        wcd(b"\x3A", b"\x66")  # COLMOD 18-bit (RGB666)
-        
-        cmd(b"\x11")  # SLPOUT: exit sleep mode
-        sleep_ms(120)
-        
-        cmd(b"\x29")  # DISPON
-        
-        wcd(b"\xB6", b"\x00\x62")
+        self._wcmd(b"\x01"); sleep_ms(150)
+        self._wcmd(b"\x21") # Inversion ON
+        self._wcd(b"\xC2", b"\x33")
+        self._wcd(b"\xC5", b"\x00\x1e\x80")
+        self._wcd(b"\xB1", b"\xB0")
+        self._wcd(b"\xE0", b"\x00\x13\x18\x04\x0F\x06\x3a\x56\x4d\x03\x0a\x06\x30\x3e\x0f")
+        self._wcd(b"\xE1", b"\x00\x13\x18\x01\x11\x06\x38\x34\x4d\x06\x0d\x0b\x31\x37\x0f")
+        self._wcd(b"\x3A", b"\x66") # COLMOD 18-bit
+        self._wcmd(b"\x11"); sleep_ms(120)
+        self._wcmd(b"\x29") # DISPON
+        self._wcd(b"\xB6", b"\x00\x62")
 
         mode = get_madctl(user_mode, orientation, bgr)
         self._current_mode = mode
-        wcd(b"\x36", int.to_bytes(mode, 1, "little"))  # MADCTL
+        self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
         self.set_window(mode)
-
-        self._clear_display()
-
-    def _clear_display(self):
         self._spi_ctrl.clear(self.width, self.height, self._linebuf)
 
-    # Change display rotation at runtime using the same flags as constructor
+    def _wcmd(self, buf): self._spi_ctrl.write_cmd(buf)
+    def _wcd(self, c, d): self._spi_ctrl.write_cd(c, d)
+    def _wcd_data(self, d): self._spi_ctrl.write_data(d)
+
     def set_rotation(self, disp_mode):
-        if not 0 <= disp_mode <= 7:
-            raise ValueError("Invalid display mode:", disp_mode)
         mode = get_madctl(disp_mode, self._orientation, self._bgr)
         self._current_mode = mode
         self.set_window(mode)
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
 
-    def set_rotation_degrees(self, degrees):
-        deg = degrees % 360
-        if deg == 0:
-            mode = REFLECT
-        elif deg == 90:
-            mode = PORTRAIT | REFLECT | USD
-        elif deg == 180:
-            mode = REFLECT | USD
-        elif deg == 270:
-            mode = PORTRAIT | REFLECT
-        else:
-            raise ValueError("Degrees must be one of 0, 90, 180, 270")
-        self.set_rotation(mode)
-
-    # Define the mapping between RAM and the display.
     def set_window(self, mode):
-        # ILI9488 RAM is 320x480
         xs, xe, ys, ye = get_window_coords(320, 480, self.width, self.height, self._offset[0], self._offset[1], mode, 0, 0, self.width, self.height)
         self._wcmd(b"\x2a")
         self._wcd_data(bytes([(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF]))
@@ -243,50 +86,3 @@ class ILI9488:
         self._wcd_data(bytes([(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF]))
         self._wcmd(b"\x2b")
         self._wcd_data(bytes([(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF]))
-
-    def render(self, fb, width, height, bbox):
-        """Write a framebuffer region to the display."""
-        x, y, rw, rh = bbox
-        if x < 0 or y < 0 or rw <= 0 or rh <= 0: return
-        if x + rw > width or y + rh > height: return
-            
-        scale = self._scale
-        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
-        self._wcmd(b"\x2c")  # RAMWR
-        self._spi_ctrl.start_data()
-        
-        if self.source_color_mode == 'RGB565':
-            line_conv = _rgb565_to_888_line if scale == 1 else _rgb565_to_888_upscale_line
-        else:
-            line_conv = _rgb332_to_888_line if scale == 1 else _rgb332_to_888_upscale_line
-        
-        if self._dma.active:
-            fb_ptr = y * width + x
-            lut = self._lut
-            for row in range(rh):
-                buf = self._dma.get_next_buffer()
-                if scale == 1:
-                    line_conv(buf, fb, fb_ptr, rw, lut)
-                else:
-                    line_conv(buf, fb, fb_ptr, rw, scale, lut)
-                fb_ptr += width
-                for _ in range(scale):
-                    self._dma.send(buf, count=rw * scale * 3)
-            self._dma.wait()
-        else:
-            fb_ptr = y * width + x
-            lut = self._lut
-            for row in range(rh):
-                if scale == 1:
-                    line_conv(self._linebuf, fb, fb_ptr, rw, lut)
-                else:
-                    line_conv(self._linebuf, fb, fb_ptr, rw, scale, lut)
-                fb_ptr += width
-                for _ in range(scale):
-                    self._spi.write(self._linebuf[:rw * scale * 3])
-                    
-        self._spi_ctrl.end_data()
-
-    def set_backlight(self, brightness):
-        """Set backlight brightness."""
-        self._backlight.set(brightness)

@@ -1,4 +1,3 @@
-import os
 import micropython
 from machine import PWM
 
@@ -38,6 +37,109 @@ else:
 def rgb(r, g, b):
     """Convert r, g, b in range 0-255 to a 16-bit RGB565 colour value."""
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+
+# --- Viper Converters (Shared) ---
+
+@micropython.viper
+def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int, lut: ptr8):
+    # For RGB565 to RGB666 (3 bytes per pixel) - Unrolled 4x for speed + LUT
+    s: int = src_offset
+    d: int = 0
+    while pixels >= 4:
+        c = source[s]
+        dest[d] = lut[(c >> 11) & 0x1F]
+        dest[d + 1] = lut[((c >> 5) & 0x3F) + 32]
+        dest[d + 2] = lut[(c & 0x1F) + 96]
+        c = source[s + 1]
+        dest[d + 3] = lut[(c >> 11) & 0x1F]
+        dest[d + 4] = lut[((c >> 5) & 0x3F) + 32]
+        dest[d + 5] = lut[(c & 0x1F) + 96]
+        c = source[s + 2]
+        dest[d + 6] = lut[(c >> 11) & 0x1F]
+        dest[d + 7] = lut[((c >> 5) & 0x3F) + 32]
+        dest[d + 8] = lut[(c & 0x1F) + 96]
+        c = source[s + 3]
+        dest[d + 9] = lut[(c >> 11) & 0x1F]
+        dest[d + 10] = lut[((c >> 5) & 0x3F) + 32]
+        dest[d + 11] = lut[(c & 0x1F) + 96]
+        s += 4; d += 12; pixels -= 4
+    while pixels:
+        c = source[s]
+        dest[d] = lut[(c >> 11) & 0x1F]
+        dest[d + 1] = lut[((c >> 5) & 0x3F) + 32]
+        dest[d + 2] = lut[(c & 0x1F) + 96]
+        s += 1; d += 3; pixels -= 1
+
+@micropython.viper
+def _rgb565_to_888_upscale_line(dest: ptr8, source: ptr16, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
+    s: int = src_offset
+    d: int = 0
+    while src_pixels:
+        c = source[s]
+        r8 = lut[(c >> 11) & 0x1F]
+        g8 = lut[((c >> 5) & 0x3F) + 32]
+        b8 = lut[(c & 0x1F) + 96]
+        for _ in range(scale):
+            dest[d] = r8; dest[d + 1] = g8; dest[d + 2] = b8
+            d += 3
+        s += 1; src_pixels -= 1
+
+@micropython.viper
+def _rgb565_swap_line(dest: ptr16, source: ptr16, src_offset: int, pixels: int, lut: ptr8):
+    # For RGB565 byte swap - Unrolled 4x
+    s: int = src_offset
+    d: int = 0
+    while pixels >= 4:
+        c = source[s]; dest[d] = (c << 8) | (c >> 8)
+        c = source[s+1]; dest[d+1] = (c << 8) | (c >> 8)
+        c = source[s+2]; dest[d+2] = (c << 8) | (c >> 8)
+        c = source[s+3]; dest[d+3] = (c << 8) | (c >> 8)
+        s += 4; d += 4; pixels -= 4
+    while pixels:
+        c = source[s]; dest[d] = (c << 8) | (c >> 8)
+        s += 1; d += 1; pixels -= 1
+
+@micropython.viper
+def _rgb565_swap_upscale_line(dest: ptr16, source: ptr16, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
+    s: int = src_offset
+    d: int = 0
+    while src_pixels:
+        c = source[s]
+        sw = (c << 8) | (c >> 8)
+        for _ in range(scale):
+            dest[d] = sw
+            d += 1
+        s += 1; src_pixels -= 1
+
+@micropython.viper
+def _rgb332_to_888_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int, lut: ptr8):
+    s: int = src_offset
+    d: int = 0
+    while pixels:
+        c = source[s]
+        dest[d] = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        dest[d + 1] = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        dest[d + 2] = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+        s += 1; d += 3; pixels -= 1
+
+@micropython.viper
+def _rgb332_to_565_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int, lut: ptr8):
+    s: int = src_offset
+    d: int = 0
+    while pixels >= 4:
+        idx: int = source[s] << 1
+        dest[d] = lut[idx]; dest[d+1] = lut[idx+1]
+        idx = source[s+1] << 1
+        dest[d+2] = lut[idx]; dest[d+3] = lut[idx+1]
+        idx = source[s+2] << 1
+        dest[d+4] = lut[idx]; dest[d+5] = lut[idx+1]
+        idx = source[s+3] << 1
+        dest[d+6] = lut[idx]; dest[d+7] = lut[idx+1]
+        s += 4; d += 8; pixels -= 4
+    while pixels:
+        idx: int = source[s] << 1
+        dest[d] = lut[idx]; dest[d+1] = lut[idx+1]
+        s += 1; d += 2; pixels -= 1
 
 def get_madctl(user_mode, panel_orientation, bgr):
     """Calculate MADCTL register value based on orientation and color order."""
@@ -224,3 +326,62 @@ class DmaManager:
         if self._dma:
             while self._dma.active():
                 pass
+
+class MipiDisplay:
+    """Base class for MIPI DCS compatible displays (ILI9488, ST7789, etc)."""
+    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, spi_id, use_dma):
+        self._spi = spi
+        self._cs = cs
+        self._dc = dc
+        self._backlight = BacklightManager(backlight)
+        self.width = width
+        self.height = height
+        self._scale = scale
+        self.source_color_mode = color_mode
+        self._bpp = bpp # Bytes per pixel on SPI bus
+        self._linebuf = bytearray(width * bpp)
+        self._lut = None # To be initialized by subclass
+        
+        self._spi_ctrl = SpiController(spi, dc, cs)
+        self._dma = DmaManager(spi, width, spi_id=spi_id, bytes_per_pixel=bpp, use_dma=use_dma)
+
+    def render(self, fb, width, height, bbox):
+        x, y, rw, rh = bbox
+        if x < 0 or y < 0 or rw <= 0 or rh <= 0: return
+        if x + rw > width or y + rh > height: return
+            
+        scale = self._scale
+        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
+        self._spi_ctrl.write_cmd(b"\x2c")  # RAMWR
+        self._spi_ctrl.start_data()
+        
+        line_conv = self._get_line_conv(scale)
+        fb_ptr = y * width + x
+        lut = self._lut
+        bpp = self._bpp
+        
+        if self._dma.active:
+            for _ in range(rh):
+                buf = self._dma.get_next_buffer()
+                line_conv(buf, fb, fb_ptr, rw, scale, lut) if scale > 1 else line_conv(buf, fb, fb_ptr, rw, lut)
+                fb_ptr += width
+                for _ in range(scale):
+                    self._dma.send(buf, count=rw * scale * bpp)
+            self._dma.wait()
+        else:
+            for _ in range(rh):
+                lb = self._linebuf
+                line_conv(lb, fb, fb_ptr, rw, scale, lut) if scale > 1 else line_conv(lb, fb, fb_ptr, rw, lut)
+                fb_ptr += width
+                for _ in range(scale):
+                    self._spi.write(lb[:rw * scale * bpp])
+        self._spi_ctrl.end_data()
+
+    def _get_line_conv(self, scale):
+        raise NotImplementedError
+
+    def _set_region_window(self, x, y, rw, rh):
+        raise NotImplementedError
+
+    def set_backlight(self, brightness):
+        self._backlight.set(brightness)
