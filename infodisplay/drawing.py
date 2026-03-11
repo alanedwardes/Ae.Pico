@@ -1,5 +1,15 @@
 import framebuf
-import math
+
+try:
+    import micropython
+    IS_MICROPYTHON = sys.implementation.name == 'micropython'
+except ImportError:
+    IS_MICROPYTHON = False
+
+if not IS_MICROPYTHON:
+    class micropython:
+        @staticmethod
+        def viper(f): return f
 
 class Drawing:
     def __init__(self, width, height, color_mode='RGB565'):
@@ -22,11 +32,13 @@ class Drawing:
         # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
         self._scratch_buffer = bytearray(1024)
 
-    def pack(self, color24):
-        r = (color24 >> 16) & 0xFF
-        g = (color24 >> 8) & 0xFF
-        b = color24 & 0xFF
-        if self.color_mode == 'RGB565':
+    @micropython.viper
+    def pack(self, color24: int) -> int:
+        c = int(color24)
+        r = (c >> 16) & 0xFF
+        g = (c >> 8) & 0xFF
+        b = c & 0xFF
+        if int(self.bytes_per_pixel) == 2:
             return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
         else:
             return (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
