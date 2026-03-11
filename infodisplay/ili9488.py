@@ -71,14 +71,32 @@ class ILI9488(MipiDisplay):
 
     def set_window(self, mode):
         xs, xe, ys, ye = get_window_coords(320, 480, self.width, self.height, self._offset[0], self._offset[1], mode, 0, 0, self.width, self.height)
+        self._cmd_buf[0] = xs >> 8
+        self._cmd_buf[1] = xs & 0xFF
+        self._cmd_buf[2] = xe >> 8
+        self._cmd_buf[3] = xe & 0xFF
         self._wcmd(b"\x2a")
-        self._wcd_data(bytes([(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF]))
+        self._wcd_data(self._cmd_buf)
+        
+        self._cmd_buf[0] = ys >> 8
+        self._cmd_buf[1] = ys & 0xFF
+        self._cmd_buf[2] = ye >> 8
+        self._cmd_buf[3] = ye & 0xFF
         self._wcmd(b"\x2b")
-        self._wcd_data(bytes([(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF]))
+        self._wcd_data(self._cmd_buf)
 
     def _set_region_window(self, x, y, rw, rh):
         xs, xe, ys, ye = get_window_coords(320, 480, self.width, self.height, self._offset[0], self._offset[1], self._current_mode, x, y, rw, rh)
+        self._cmd_buf[0] = xs >> 8
+        self._cmd_buf[1] = xs & 0xFF
+        self._cmd_buf[2] = xe >> 8
+        self._cmd_buf[3] = xe & 0xFF
         self._wcmd(b"\x2a")
-        self._wcd_data(bytes([(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF]))
+        self._wcd_data(self._cmd_buf)
+        
+        self._cmd_buf[0] = ys >> 8
+        self._cmd_buf[1] = ys & 0xFF
+        self._cmd_buf[2] = ye >> 8
+        self._cmd_buf[3] = ye & 0xFF
         self._wcmd(b"\x2b")
-        self._wcd_data(bytes([(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF]))
+        self._wcd_data(self._cmd_buf)

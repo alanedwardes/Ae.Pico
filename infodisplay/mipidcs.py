@@ -208,6 +208,7 @@ class SpiController:
         self.dc = dc
         self.cs = cs
         self.chunked_data = chunked_data
+        self._byte_buf = bytearray(1)
 
     def write_cmd(self, cmd):
         self.cs(1)
@@ -241,7 +242,8 @@ class SpiController:
             for byte in d:
                 self.dc(1)
                 self.cs(0)
-                self.spi.write(bytearray([byte]))
+                self._byte_buf[0] = byte
+                self.spi.write(self._byte_buf)
                 self.cs(1)
         else:
             self.dc(1)
@@ -353,6 +355,7 @@ class MipiDisplay:
         self.source_color_mode = color_mode
         self._bpp = bpp # Bytes per pixel on SPI bus
         self._linebuf = bytearray(width * bpp)
+        self._cmd_buf = bytearray(4)
         self._lut = None # To be initialized by subclass
         
         self._spi_ctrl = SpiController(spi, dc, cs, chunked_data=chunked_command_data)
@@ -404,6 +407,20 @@ class MipiDisplay:
 
     def _wcd_data(self, d):
         self._spi_ctrl.write_data(d)
+
+    def set_rotation_degrees(self, degrees):
+        deg = degrees % 360
+        if deg == 0:
+            mode = LANDSCAPE
+        elif deg == 90:
+            mode = PORTRAIT
+        elif deg == 180:
+            mode = LANDSCAPE | USD
+        elif deg == 270:
+            mode = PORTRAIT | REFLECT
+        else:
+            raise ValueError("Degrees must be one of 0, 90, 180, 270")
+        self.set_rotation(mode)
 
     def set_backlight(self, brightness):
         self._backlight.set(brightness)

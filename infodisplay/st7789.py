@@ -64,28 +64,34 @@ class ST7789(MipiDisplay):
         self._current_mode = mode
         self.set_window(mode)
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
-
-    def set_rotation_degrees(self, degrees):
-        deg = degrees % 360
-        if deg == 0:
-            mode = LANDSCAPE
-        elif deg == 90:
-            mode = PORTRAIT
-        elif deg == 180:
-            mode = LANDSCAPE | USD
-        elif deg == 270:
-            mode = PORTRAIT | REFLECT
-        else:
-            raise ValueError("Degrees must be one of 0, 90, 180, 270")
-        self.set_rotation(mode)
+        self._spi_ctrl.clear(self.width, self.height, self._linebuf)
+        self._wcmd(b"\x29") # DISPON
 
     def set_window(self, mode):
         # ST7789 RAM is (typically) 240x320
         xs, xe, ys, ye = get_window_coords(240, 320, self.width, self.height, self._offset[0], self._offset[1], mode, 0, 0, self.width, self.height)
-        self._wcd(b"\x2a", int.to_bytes((xs << 16) + xe, 4, "big"))
-        self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
+        self._cmd_buf[0] = xs >> 8
+        self._cmd_buf[1] = xs & 0xFF
+        self._cmd_buf[2] = xe >> 8
+        self._cmd_buf[3] = xe & 0xFF
+        self._wcd(b"\x2a", self._cmd_buf)
+        
+        self._cmd_buf[0] = ys >> 8
+        self._cmd_buf[1] = ys & 0xFF
+        self._cmd_buf[2] = ye >> 8
+        self._cmd_buf[3] = ye & 0xFF
+        self._wcd(b"\x2b", self._cmd_buf)
 
     def _set_region_window(self, x, y, rw, rh):
         xs, xe, ys, ye = get_window_coords(240, 320, self.width, self.height, self._offset[0], self._offset[1], self._current_mode, x, y, rw, rh)
-        self._wcd(b"\x2a", int.to_bytes((xs << 16) + xe, 4, "big"))
-        self._wcd(b"\x2b", int.to_bytes((ys << 16) + ye, 4, "big"))
+        self._cmd_buf[0] = xs >> 8
+        self._cmd_buf[1] = xs & 0xFF
+        self._cmd_buf[2] = xe >> 8
+        self._cmd_buf[3] = xe & 0xFF
+        self._wcd(b"\x2a", self._cmd_buf)
+        
+        self._cmd_buf[0] = ys >> 8
+        self._cmd_buf[1] = ys & 0xFF
+        self._cmd_buf[2] = ye >> 8
+        self._cmd_buf[3] = ye & 0xFF
+        self._wcd(b"\x2b", self._cmd_buf)
