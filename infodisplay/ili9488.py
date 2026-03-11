@@ -14,7 +14,7 @@ class ILI9488(MipiDisplay):
                  disp_mode=LANDSCAPE, display=GENERIC, spi_id=1, scale=1, 
                  source_color_mode='RGB565', use_dma=None):
         
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, spi_id, use_dma)
+        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, spi_id, use_dma, chunked_command_data=True)
         
         self._offset = display[:2]
         self._rst = rst
@@ -62,10 +62,6 @@ class ILI9488(MipiDisplay):
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
         self.set_window(mode)
         self._spi_ctrl.clear(self.width, self.height, self._linebuf)
-
-    def _wcmd(self, buf): self._spi_ctrl.write_cmd(buf)
-    def _wcd(self, c, d): self._spi_ctrl.write_cd(c, d)
-    def _wcd_data(self, d): self._spi_ctrl.write_data(d)
 
     def set_rotation(self, disp_mode):
         mode = get_madctl(disp_mode, self._orientation, self._bgr)

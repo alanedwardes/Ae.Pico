@@ -19,7 +19,7 @@ class ST7789(MipiDisplay):
                  disp_mode=LANDSCAPE, init_spi=False, display=GENERIC, 
                  spi_id=0, scale=1, source_color_mode='RGB565', use_dma=None):
         
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, spi_id, use_dma)
+        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, spi_id, use_dma, chunked_command_data=False)
         
         self._offset = display[:2]
         self._spi_init = init_spi
@@ -58,11 +58,6 @@ class ST7789(MipiDisplay):
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
         self._spi_ctrl.clear(self.width, self.height, self._linebuf)
         self._wcmd(b"\x29") # DISPON
-
-    def _wcmd(self, buf): self._spi_ctrl.write_cmd(buf)
-    def _wcd(self, c, d):
-        self._dc(0); self._cs(0); self._spi.write(c); self._cs(1)
-        self._dc(1); self._cs(0); self._spi.write(d); self._cs(1)
 
     def set_rotation(self, disp_mode):
         mode = get_madctl(disp_mode, self._orientation, self._bgr)

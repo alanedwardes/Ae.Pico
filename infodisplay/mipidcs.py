@@ -203,10 +203,11 @@ class BacklightManager:
             self._pwm.duty_u16(int(brightness * 65535))
 
 class SpiController:
-    def __init__(self, spi, dc, cs):
+    def __init__(self, spi, dc, cs, chunked_data=True):
         self.spi = spi
         self.dc = dc
         self.cs = cs
+        self.chunked_data = chunked_data
 
     def write_cmd(self, cmd):
         self.cs(1)
@@ -222,18 +223,30 @@ class SpiController:
         self.cs(0)
         self.spi.write(c)
         self.cs(1)
-        for byte in d:
+        if self.chunked_data:
+            for byte in d:
+                self.dc(1)
+                self.cs(0)
+                self.spi.write(bytearray([byte]))
+                self.cs(1)
+        else:
             self.dc(1)
             self.cs(0)
-            self.spi.write(bytearray([byte]))
+            self.spi.write(d)
             self.cs(1)
 
     def write_data(self, d):
         """Write raw data (usually coordinates for window set)."""
-        for byte in d:
+        if self.chunked_data:
+            for byte in d:
+                self.dc(1)
+                self.cs(0)
+                self.spi.write(bytearray([byte]))
+                self.cs(1)
+        else:
             self.dc(1)
             self.cs(0)
-            self.spi.write(bytearray([byte]))
+            self.spi.write(d)
             self.cs(1)
 
     def start_data(self):
@@ -329,7 +342,7 @@ class DmaManager:
 
 class MipiDisplay:
     """Base class for MIPI DCS compatible displays (ILI9488, ST7789, etc)."""
-    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, spi_id, use_dma):
+    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, spi_id, use_dma, chunked_command_data=True):
         self._spi = spi
         self._cs = cs
         self._dc = dc
@@ -342,7 +355,7 @@ class MipiDisplay:
         self._linebuf = bytearray(width * bpp)
         self._lut = None # To be initialized by subclass
         
-        self._spi_ctrl = SpiController(spi, dc, cs)
+        self._spi_ctrl = SpiController(spi, dc, cs, chunked_data=chunked_command_data)
         self._dma = DmaManager(spi, width, spi_id=spi_id, bytes_per_pixel=bpp, use_dma=use_dma)
 
     def render(self, fb, width, height, bbox):
@@ -382,6 +395,15 @@ class MipiDisplay:
 
     def _set_region_window(self, x, y, rw, rh):
         raise NotImplementedError
+
+    def _wcmd(self, buf):
+        self._spi_ctrl.write_cmd(buf)
+
+    def _wcd(self, c, d):
+        self._spi_ctrl.write_cd(c, d)
+
+    def _wcd_data(self, d):
+        self._spi_ctrl.write_data(d)
 
     def set_backlight(self, brightness):
         self._backlight.set(brightness)
