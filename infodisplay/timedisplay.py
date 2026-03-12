@@ -51,12 +51,15 @@ class TimeDisplay:
         # Original: 200px time, 64px temp (fixed), rest date
         # Target: Similar proportions but flexible
         
-        TEMP_WIDTH = 64 # Keep temp display fixed width for now as it contains an icon
+        TEMP_WIDTH = self.height # Temp display is square, so width equals height
+        available_width = self.display_width - TEMP_WIDTH
         
-        # Give time display ~60% of available width
-        time_width = int(self.display_width * 0.625)
+        # Give time display ~80% of the remaining width
+        time_width = int(available_width * 0.8)
+        date_seconds_width = available_width - time_width
         
-        date_seconds_width = self.display_width - time_width - TEMP_WIDTH
+        # Font scale proportional to height
+        font_scale = self.height / 70.0
 
         now = self.rtc.datetime()
         # datetime format: (year, month, day, weekday, hour, minute, second, subsecond)
@@ -72,7 +75,7 @@ class TimeDisplay:
             
             # Clear time area then draw
             self.display.rect(0, 0, time_width, height, 0x000000, True)
-            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=1)
+            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale)
             
             # Render only the time region
             self.display.update((0, 0, time_width, height))
@@ -85,17 +88,17 @@ class TimeDisplay:
             day_text = self.DAYS[now[3]-1]
             
             self.display.rect(time_width, 0, date_seconds_width, section_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFFFF, font='regular', scale=1)
+            await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align='left')
             
             # Render only the day region
             self.display.update((time_width, 0, date_seconds_width, section_height))
 
         # Helper vars for layout
-        sec_width = 36
+        sec_width = int(36 * font_scale) 
         sec_height = section_height
-        sec_x = time_width + (date_seconds_width - sec_width) // 2 - 6 # Shift left slightly
+        sec_x = time_width
         
-        ms_width = 15
+        ms_width = date_seconds_width - sec_width 
         ms_height = section_height
         ms_x = sec_x + sec_width
 
@@ -109,7 +112,7 @@ class TimeDisplay:
                 sec_text = "00" # Safety fallback
             
             self.display.rect(sec_x, section_height, sec_width, sec_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFFFF, font='regular', scale=1)
+            await textbox.draw_textbox(self.display, sec_text, sec_x, section_height, sec_width, sec_height, color=0xFFFFFF, font='regular', scale=font_scale, align='left')
             self.display.update((sec_x, section_height, sec_width, sec_height))
 
         # 4. Milliseconds (Tenths) Display
@@ -120,5 +123,5 @@ class TimeDisplay:
             ms_text = self._tenth_numbers[tenth]
 
             self.display.rect(ms_x, section_height, ms_width, ms_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFFFF, font='small', scale=1, align='left')
+            await textbox.draw_textbox(self.display, ms_text, ms_x, section_height, ms_width, ms_height, color=0xFFFFFF, font='small', scale=font_scale, align='left')
             self.display.update((ms_x, section_height, ms_width, ms_height))

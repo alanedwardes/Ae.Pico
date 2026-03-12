@@ -72,18 +72,19 @@ class TemperatureDisplay:
         minimum_temperature = round(float(self.temperature_data[1]))
         maximum_temperature = round(float(self.temperature_data[2]))
         
-        self.display.rect(self.display_width - 64, 0, 64, self.height, 0x000000, True)
+        self.display.rect(self.display_width - self.height, 0, self.height, self.height, 0x000000, True)
         
-        position = (self.display_width - 64, 0)
-        size = (64, 64)
+        position = (self.display_width - self.height, 0)
+        size = (self.height, self.height)
         gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_temperature)
         
         # Draw current temperature in the gauge
         white_pen = 0xFFFFFF
         primary_scale = size[1] * 0.06
         primary_height = size[1]
+        font_scale = self.height / 70.0
         current_temp_str = f"{abs(current_temperature) if current_temperature == 0 else current_temperature:.0f}°"
-        await textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=white_pen, font='regular')
+        await textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=white_pen, font='regular', scale=font_scale)
         
         # Draw min/max labels under the gauge
         centre_x = size[0] / 2 + position[0]
@@ -96,8 +97,8 @@ class TemperatureDisplay:
         text_size_y = text_height + 4
         min_temp_str = f"{abs(minimum_temperature) if minimum_temperature == 0 else minimum_temperature:.0f}°"
         max_temp_str = f"{abs(maximum_temperature) if maximum_temperature == 0 else maximum_temperature:.0f}°"
-        await textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small')
-        await textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
+        await textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
+        await textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
 
         # Render only the temperature region
-        self.display.update((self.display_width - 64, 0, 64, self.height))
+        self.display.update((self.display_width - self.height, 0, self.height, self.height))
