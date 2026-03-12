@@ -7,9 +7,10 @@ from httpstream import HttpRequest
 from flatjson import load_array
 
 class NewsDisplay:
-    def __init__(self, display, url):
+    def __init__(self, display, url, start_y):
         self.display = display
         self.url = url
+        self.start_y = start_y
         self.stories = []
         self.display_width, self.display_height = self.display.get_bounds()
         self.story_index = 0
@@ -19,8 +20,8 @@ class NewsDisplay:
 
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['news']
-        return NewsDisplay(provider['display'], config['url'])
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return NewsDisplay(provider['display'], provider['config']['news']['url'], y_separator)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -56,7 +57,7 @@ class NewsDisplay:
     async def update(self):
         stories = self.stories
 
-        y_offset = 70
+        y_offset = self.start_y
 
         self.display.rect(0, y_offset, self.display_width, self.display_height - y_offset, 0x000000, True)
 

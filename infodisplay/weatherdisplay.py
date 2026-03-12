@@ -13,11 +13,12 @@ from flatjson import load_array
 _DAY_NAMES = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
 
 class WeatherDisplay:
-    def __init__(self, display, url, refresh_period_seconds):
+    def __init__(self, display, url, refresh_period_seconds, start_y):
         self.display = display
         self.url = url
         self.weather_data = []
         self.refresh_period_seconds = refresh_period_seconds
+        self.start_y = start_y
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -34,8 +35,10 @@ class WeatherDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        refresh_period = provider['config']['weather'].get('refresh_period_seconds', 300)
-        return WeatherDisplay(provider['display'], provider['config']['weather']['url'], refresh_period)
+        config = provider['config']['weather']
+        refresh_period = config.get('refresh_period_seconds', 300)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return WeatherDisplay(provider['display'], config['url'], refresh_period, y_separator)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -106,7 +109,7 @@ class WeatherDisplay:
         if len(self.weather_data) == 0:
             return
         
-        y_start = 70
+        y_start = self.start_y
         font_name = 'regular' if self.display_width > 320 else 'small'
 
 

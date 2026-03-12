@@ -8,9 +8,10 @@ class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
     
-    def __init__(self, display, rtc):
+    def __init__(self, display, rtc, height):
         self.display = display
         self.rtc = rtc
+        self.height = height
         
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -29,10 +30,11 @@ class TimeDisplay:
     def create(provider):
         rtc = provider.get('remotetime.RemoteTime')
         if not rtc:
-            print('Falling back to machine.RTC as remotetime.Remotetime unavailable')
+            print('Falling back to machine.RTC as remotetime.RemoteTime unavailable')
             import machine
             rtc = machine.RTC()
-        return TimeDisplay(provider['display'], rtc)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return TimeDisplay(provider['display'], rtc, y_separator)
     
     async def start(self):
         while True:
@@ -42,7 +44,7 @@ class TimeDisplay:
 
     async def __update(self):
         # Layout constants
-        height = 70
+        height = self.height
         section_height = height // 2
         
         # Calculate proportional widths

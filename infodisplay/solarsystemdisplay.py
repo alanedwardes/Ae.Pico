@@ -5,14 +5,14 @@ import textbox
 import random
 
 class SolarSystemDisplay:
-    def __init__(self, display):
+    def __init__(self, display, start_y):
         self.display = display
         
         self.display_width, self.display_height = self.display.get_bounds()
         self.center_x = int(self.display_width / 2)
         
-        # Assume top bar takes 70px, similar to InfoDisplay and WeatherDisplay
-        self.top_margin = 70
+        # Assume top bar takes start_y, similar to InfoDisplay and WeatherDisplay
+        self.top_margin = start_y
         self.center_y = int(self.top_margin + (self.display_height - self.top_margin) / 2)
         
         self.sun_color = 0xFFFF00  # Yellow
@@ -195,7 +195,8 @@ class SolarSystemDisplay:
     
     @staticmethod
     def create(provider):
-        return SolarSystemDisplay(provider['display'])
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return SolarSystemDisplay(provider['display'], y_separator)
         
     async def start(self):
         await asyncio.Event().wait()

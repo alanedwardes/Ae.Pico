@@ -3,15 +3,17 @@ import binascii
 import textbox
 
 class StartupDisplay:
-    def __init__(self, display, nic):
+    def __init__(self, display, nic, start_y):
         self.display = display
         self.nic = nic
+        self.start_y = start_y
         self.display_width, self.display_height = self.display.get_bounds()
         self.pending_activation = True
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return StartupDisplay(provider['display'], provider['nic'])
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return StartupDisplay(provider['display'], provider['nic'], y_separator)
     
     async def start(self):
         await asyncio.Event().wait()
@@ -26,7 +28,7 @@ class StartupDisplay:
             await asyncio.sleep(0.1)
 
     async def update(self):
-        y_start = 70
+        y_start = self.start_y
         
         # Clear the display area
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)

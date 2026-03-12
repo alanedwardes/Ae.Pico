@@ -4,10 +4,11 @@ import gc
 import textbox
 
 class SolarDisplay:
-    def __init__(self, display, hass, entity_ids):
+    def __init__(self, display, hass, entity_ids, start_y):
         self.display = display
         self.hass = hass
         self.entity_ids = entity_ids
+        self.start_y = start_y
         
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -33,7 +34,9 @@ class SolarDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        return SolarDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['solar'])
+        config = provider['config']['solar']
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return SolarDisplay(provider['display'], provider['hassws.HassWs'], config, y_separator)
     
     def entity_updated(self, entity_id, entity):
         # Update the appropriate entity value based on entity_id
@@ -83,9 +86,9 @@ class SolarDisplay:
         await self.__update()
     
     async def __update(self):
-        y_start = 70
+        y_start = self.start_y
         
-        # Clear the display area below 70px
+        # Clear the display area below start_y
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
         
         # Set up colors
@@ -176,4 +179,4 @@ class SolarDisplay:
                 await textbox.draw_textbox(self.display, "LOAD: ?", x_right, y_bottom, item_width - 20, 30, color=white, font='regular')
 
         # Render only the solar display region (below the time/temperature displays)
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
+        self.display.update((0, self.start_y, self.display_width, self.display_height - self.start_y))

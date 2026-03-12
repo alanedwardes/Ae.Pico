@@ -107,9 +107,10 @@ def get_color_for_train_status(std_str, atd_str, cancelled):
         return 0xF80000  # Red for major delay (>30 min)
 
 class TrainDisplay:
-    def __init__(self, display, url):
+    def __init__(self, display, url, start_y):
         self.display = display
         self.url = url
+        self.start_y = start_y
         self.departures = []
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -120,8 +121,8 @@ class TrainDisplay:
    
     CREATION_PRIORITY = 1
     def create(provider):
-        config = provider['config']['trains']
-        return TrainDisplay(provider['display'], config['url'])
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return TrainDisplay(provider['display'], provider['config']['trains']['url'], y_separator)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -265,7 +266,7 @@ class TrainDisplay:
         return len(self.departures) // 7
 
     async def update(self):
-        y_start = 70
+        y_start = self.start_y
         row_height = 17
 
         # Clear header area

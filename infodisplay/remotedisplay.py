@@ -21,11 +21,9 @@ class RemoteDisplay:
     def create(provider):
         config = provider['config']['remote']
         display = provider['display']
+        y_separator = provider['config']['display'].get('y_separator', 70)
         
-        if 'start_y' in config:
-            start_offset = config['start_y'] * display.width * display.bytes_per_pixel
-        else:
-            start_offset = config.get('start_offset', 0)
+        start_offset = y_separator * display.width * display.bytes_per_pixel
             
         return RemoteDisplay(
             display,

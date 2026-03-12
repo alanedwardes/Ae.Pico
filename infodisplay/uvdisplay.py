@@ -24,12 +24,13 @@ def _uv_color_fn(idx, value):
     return colors.get_color_for_uv(value)
 
 class UvDisplay:
-    def __init__(self, display, url, refresh_period_seconds):
+    def __init__(self, display, url, refresh_period_seconds, start_y):
         self.display = display
         self.url = url
         self.uv_data = []
         self._normalized_data = []
         self.refresh_period_seconds = refresh_period_seconds
+        self.start_y = start_y
 
         self.display_width, self.display_height = self.display.get_bounds()
 
@@ -40,8 +41,10 @@ class UvDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        refresh_period = provider['config']['uv'].get('refresh_period_seconds', 300)
-        return UvDisplay(provider['display'], provider['config']['uv']['url'], refresh_period)
+        config = provider['config']['uv']
+        refresh_period = config.get('refresh_period_seconds', 300)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return UvDisplay(provider['display'], config['url'], refresh_period, y_separator)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -100,7 +103,7 @@ class UvDisplay:
         if len(self.uv_data) == 0:
             return
         
-        y_start = 70
+        y_start = self.start_y
                
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
 

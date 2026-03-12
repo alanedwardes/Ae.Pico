@@ -5,10 +5,11 @@ import gc
 import textbox
 
 class ThermostatDisplay:
-    def __init__(self, display, hass, entity_id, event_bus=None):
+    def __init__(self, display, hass, entity_id, start_y, event_bus=None):
         self.display = display
         self.hass = hass
         self.entity_id = entity_id
+        self.start_y = start_y
         self.event_bus = event_bus
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -26,7 +27,8 @@ class ThermostatDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         event_bus = provider.get('eventbus.EventBus') or provider.get('libraries.eventbus.EventBus')
-        return ThermostatDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['thermostat']['entity_id'], event_bus)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return ThermostatDisplay(provider['display'], provider['hassws.HassWs'], provider['config']['thermostat']['entity_id'], y_separator, event_bus)
     
     def entity_updated(self, entity_id, entity):
         should_request_focus = False
@@ -73,12 +75,12 @@ class ThermostatDisplay:
         maximum_temperature = float(thermostat_entity['a']['max_temp'])
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
         
-        self.display.rect(0, 70, self.display_width, self.display_height - 70, 0x000000, True)
+        self.display.rect(0, self.start_y, self.display_width, self.display_height - self.start_y, 0x000000, True)
         
         groove_color = 0x8A4018 if hvac_action == 'heating' else 0x424142
         notch_outline_color = 0xFB6D21 if hvac_action and hvac_action != 'off' else 0x000000
-        position = (0, 70)
-        size = (self.display_width, self.display_height - 70)
+        position = (0, self.start_y)
+        size = (self.display_width, self.display_height - self.start_y)
         gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_target, current_temperature, False, groove_color=groove_color, notch_outline_color=notch_outline_color)
 
         # Draw primary (target) and secondary (current) temperatures
@@ -93,7 +95,7 @@ class ThermostatDisplay:
         await textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFFFF, font='small')
 
         # Render only the thermostat region (below the time/temperature displays)
-        self.display.update((0, 70, self.display_width, self.display_height - 70))
+        self.display.update((0, self.start_y, self.display_width, self.display_height - self.start_y))
     
     async def activate(self):
         while True:

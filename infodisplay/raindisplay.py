@@ -36,11 +36,12 @@ def wind_speed_to_beaufort(wind_speed_ms):
         return beaufort_rounded
 
 class RainDisplay:
-    def __init__(self, display, url, refresh_period_seconds):
+    def __init__(self, display, url, refresh_period_seconds, start_y):
         self.display = display
         self.url = url
         self.weather_data = []
         self.refresh_period_seconds = refresh_period_seconds
+        self.start_y = start_y
 
         self.display_width, self.display_height = self.display.get_bounds()
         # Cached, precomputed arrays to reduce per-frame allocations
@@ -54,8 +55,10 @@ class RainDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        refresh_period = provider['config']['rain'].get('refresh_period_seconds', 300)
-        return RainDisplay(provider['display'], provider['config']['rain']['url'], refresh_period)
+        config = provider['config']['rain']
+        refresh_period = config.get('refresh_period_seconds', 300)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return RainDisplay(provider['display'], config['url'], refresh_period, y_separator)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -169,7 +172,7 @@ class RainDisplay:
             return
 
         font_name = 'regular' if self.display_width > 320 else 'small'
-        y_start = 70
+        y_start = self.start_y
         key_width = self.display_width // 10
         data_width = self.display_width - key_width
         # Use integer arithmetic for column positions to avoid float churn

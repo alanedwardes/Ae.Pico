@@ -10,11 +10,12 @@ from httpstream import HttpRequest
 from flatjson import load_array
 
 class TemperatureDisplay:
-    def __init__(self, display, url, refresh_period_seconds):
+    def __init__(self, display, url, refresh_period_seconds, height):
         self.display = display
         self.url = url
         self.temperature_data = [0, 0, 0]  # [current, min, max]
         self.refresh_period_seconds = refresh_period_seconds
+        self.height = height
 
         self.display_width, self.display_height = self.display.get_bounds()
 
@@ -23,8 +24,10 @@ class TemperatureDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        refresh_period = provider['config']['temperature'].get('refresh_period_seconds', 300)
-        return TemperatureDisplay(provider['display'], provider['config']['temperature']['url'], refresh_period)
+        config = provider['config']['temperature']
+        refresh_period = config.get('refresh_period_seconds', 300)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return TemperatureDisplay(provider['display'], config['url'], refresh_period, y_separator)
     
     async def fetch_temperature_data(self):
         try:
@@ -69,7 +72,7 @@ class TemperatureDisplay:
         minimum_temperature = round(float(self.temperature_data[1]))
         maximum_temperature = round(float(self.temperature_data[2]))
         
-        self.display.rect(self.display_width - 64, 0, 64, 70, 0x000000, True)
+        self.display.rect(self.display_width - 64, 0, 64, self.height, 0x000000, True)
         
         position = (self.display_width - 64, 0)
         size = (64, 64)
@@ -97,4 +100,4 @@ class TemperatureDisplay:
         await textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small')
 
         # Render only the temperature region
-        self.display.update((self.display_width - 64, 0, 64, 70))
+        self.display.update((self.display_width - 64, 0, 64, self.height))

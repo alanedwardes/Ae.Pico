@@ -2,7 +2,7 @@ import asyncio
 import gc
 
 class LocalDisplay:
-    def __init__(self, display, paths, start_offset=0):
+    def __init__(self, display, paths, start_offset):
         self.display = display
         self.paths = paths
         self.start_offset = start_offset
@@ -13,18 +13,15 @@ class LocalDisplay:
     def create(provider):
         config = provider['config']['local']
         display = provider['display']
+        y_separator = provider['config']['display'].get('y_separator', 70)
         
         # Support both simple path array and config dict
         if isinstance(config, list):
             paths = config
-            start_offset = 0
         else:
             paths = config['paths']
             
-            if 'start_y' in config:
-                start_offset = config['start_y'] * display.width * display.bytes_per_pixel
-            else:
-                start_offset = config.get('start_offset', 0)
+        start_offset = y_separator * display.width * display.bytes_per_pixel
             
         return LocalDisplay(
             display,

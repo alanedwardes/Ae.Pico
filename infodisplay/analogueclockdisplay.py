@@ -5,14 +5,14 @@ import gc
 import textbox
 
 class AnalogueClockDisplay:
-    def __init__(self, display, rtc):
+    def __init__(self, display, rtc, start_y):
         self.display = display
         self.rtc = rtc
         
         self.display_width, self.display_height = self.display.get_bounds()
         
-        # Top 70 pixels are usually reserved for the global time/date display
-        self.y_start = 70
+        # Top start_y pixels are usually reserved for the global time/date display
+        self.y_start = start_y
         self.avail_height = self.display_height - self.y_start
         
         self.cx = self.display_width // 2
@@ -33,7 +33,8 @@ class AnalogueClockDisplay:
             print('Falling back to machine.RTC as remotetime.RemoteTime unavailable')
             import machine
             rtc = machine.RTC()
-        return AnalogueClockDisplay(provider['display'], rtc)
+        y_separator = provider['config']['display'].get('y_separator', 70)
+        return AnalogueClockDisplay(provider['display'], rtc, y_separator)
 
     async def start(self):
         await self.activate()
