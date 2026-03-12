@@ -48,11 +48,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../i
 import mipidcs
 
 class TestMipiDcs(unittest.TestCase):
-
-    def test_rgb(self):
-        self.assertEqual(mipidcs.rgb(255, 255, 255), 0xFFFF)
-        self.assertEqual(mipidcs.rgb(0, 0, 0), 0)
-
     def test_get_madctl(self):
         self.assertEqual(mipidcs.get_madctl(0, True, False), 0x60)
         self.assertEqual(mipidcs.get_madctl(0, False, False), 0x00)

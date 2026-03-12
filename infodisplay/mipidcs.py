@@ -7,37 +7,6 @@ REFLECT = 1
 USD = 2
 PORTRAIT = 4
 
-# SPI Hardware Register offsets (common to RP2040/RP2350)
-_SPI_SSPDR_OFFSET = 0x08
-_SPI_SSPDMACR_OFFSET = 0x24
-_SPI_TXDMAE_BIT = 0x02
-
-# Detect chip type for hardware addresses and DREQs
-try:
-    _machine = os.uname().machine
-except:
-    _machine = "Unknown"
-
-if "RP2350" in _machine:
-    _SPI0_BASE = 0x40080000
-    _SPI1_BASE = 0x40088000
-    _DREQ_SPI0_TX = 24
-    _DREQ_SPI1_TX = 26
-elif "RP2040" in _machine:
-    _SPI0_BASE = 0x4003c000
-    _SPI1_BASE = 0x40040000
-    _DREQ_SPI0_TX = 16
-    _DREQ_SPI1_TX = 18
-else:
-    _SPI0_BASE = 0
-    _SPI1_BASE = 0
-    _DREQ_SPI0_TX = 0
-    _DREQ_SPI1_TX = 0
-
-def rgb(r, g, b):
-    """Convert r, g, b in range 0-255 to a 16-bit RGB565 colour value."""
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-
 # --- Viper Converters (Shared) ---
 
 @micropython.viper
@@ -270,81 +239,9 @@ class SpiController:
             self.spi.write(linebuf)
         self.end_data()
 
-class DmaManager:
-    def __init__(self, spi, width, spi_id, bytes_per_pixel=3, use_dma=None):
-        self._spi = spi
-        self._width = width
-        self._bytes_per_pixel = bytes_per_pixel
-        self._dma = None
-        self._spi_dr = 0
-        self._linebuf_pair = [bytearray(width * bytes_per_pixel), bytearray(width * bytes_per_pixel)]
-        self._linebuf_idx = 0
-        self._ctrl = None
-
-        if use_dma is not False and _SPI0_BASE != 0:
-            try:
-                import rp2
-                self._setup_dma(spi_id)
-            except ImportError:
-                pass
-
-    def _setup_dma(self, spi_id):
-        if spi_id == 0:
-            base, dreq = _SPI0_BASE, _DREQ_SPI0_TX
-        elif spi_id == 1:
-            base, dreq = _SPI1_BASE, _DREQ_SPI1_TX
-        else:
-            return
-
-        self._spi_dr = base + _SPI_SSPDR_OFFSET
-        dmacr = base + _SPI_SSPDMACR_OFFSET
-        
-        @micropython.viper
-        def _enable_spi_dma(addr: int, bit: int):
-            p = ptr32(addr)
-            p[0] |= bit
-        _enable_spi_dma(dmacr, _SPI_TXDMAE_BIT)
-        
-        import rp2
-        self._dma = rp2.DMA()
-        self._ctrl = self._dma.pack_ctrl(size=0, inc_read=True, inc_write=False, treq_sel=dreq)
-
-    @property
-    def active(self):
-        return self._dma is not None
-
-    def get_next_buffer(self):
-        buf = self._linebuf_pair[self._linebuf_idx]
-        self._linebuf_idx = (self._linebuf_idx + 1) & 1
-        return buf
-
-    def send(self, buf, count=None):
-        if not self._dma:
-            self._spi.write(buf)
-            return
-
-        if count is None:
-            count = len(buf)
-
-        while self._dma.active():
-            pass
-        
-        self._dma.config(
-            read=buf,
-            write=self._spi_dr,
-            count=count,
-            ctrl=self._ctrl,
-            trigger=True
-        )
-
-    def wait(self):
-        if self._dma:
-            while self._dma.active():
-                pass
-
 class MipiDisplay:
     """Base class for MIPI DCS compatible displays (ILI9488, ST7789, etc)."""
-    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, spi_id, use_dma, chunked_command_data=True):
+    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, chunked_command_data=True):
         self._spi = spi
         self._cs = cs
         self._dc = dc
@@ -359,7 +256,6 @@ class MipiDisplay:
         self._lut = None # To be initialized by subclass
         
         self._spi_ctrl = SpiController(spi, dc, cs, chunked_data=chunked_command_data)
-        self._dma = DmaManager(spi, width, spi_id=spi_id, bytes_per_pixel=bpp, use_dma=use_dma)
 
     def render(self, fb, width, height, bbox):
         x, y, rw, rh = bbox
@@ -376,29 +272,10 @@ class MipiDisplay:
         lut = self._lut
         bpp = self._bpp
         
-        if self._dma.active:
-            self._render_dma(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
-        else:
-            self._render_spi(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
+        self._render_spi(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
         self._spi_ctrl.end_data()
 
-    def _render_dma(self, fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv):
-        if scale > 1:
-            send_cnt = rw * scale * bpp
-            for _ in range(rh):
-                buf = self._dma.get_next_buffer()
-                line_conv(buf, fb, fb_ptr, rw, scale, lut)
-                fb_ptr += width
-                for _ in range(scale):
-                    self._dma.send(buf, count=send_cnt)
-        else:
-            send_cnt = rw * bpp
-            for _ in range(rh):
-                buf = self._dma.get_next_buffer()
-                line_conv(buf, fb, fb_ptr, rw, lut)
-                fb_ptr += width
-                self._dma.send(buf, count=send_cnt)
-        self._dma.wait()
+
 
     def _render_spi(self, fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv):
         write_len = rw * scale * bpp

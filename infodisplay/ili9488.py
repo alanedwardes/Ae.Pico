@@ -1,20 +1,18 @@
 from time import sleep_ms
 import gc
 import micropython
-from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, MipiDisplay, \
+from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, get_window_coords, MipiDisplay, \
     _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line
 
 # Display types
 GENERIC = (0, 0, 1, True, True) # Default (x, y, orientation, bgr, inv)
 
 class ILI9488(MipiDisplay):
-    rgb = staticmethod(rgb)
-
     def __init__(self, spi, cs, dc, rst, backlight=None, width=480, height=320, 
-                 disp_mode=LANDSCAPE, display=GENERIC, spi_id=1, scale=1, 
-                 source_color_mode='RGB565', use_dma=None):
+                 disp_mode=LANDSCAPE, display=GENERIC, scale=1, 
+                 source_color_mode='RGB565'):
         
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, spi_id, use_dma, chunked_command_data=True)
+        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, chunked_command_data=True)
         
         self._offset = display[:2]
         self._rst = rst

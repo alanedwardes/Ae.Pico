@@ -1,7 +1,7 @@
 from time import sleep_ms
 import gc
 import micropython
-from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, rgb, get_madctl, get_window_coords, MipiDisplay, \
+from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, get_window_coords, MipiDisplay, \
     _rgb565_swap_line, _rgb565_swap_upscale_line, _rgb332_to_565_line
 
 # Display types
@@ -13,13 +13,10 @@ WAVESHARE_13 = 0x000010
 ADAFRUIT_1_9 = (35, 0, PORTRAIT)
 
 class ST7789(MipiDisplay):
-    rgb = staticmethod(rgb)
-
     def __init__(self, spi, cs, dc, backlight=None, height=240, width=240, 
-                 disp_mode=LANDSCAPE, init_spi=False, display=GENERIC, 
-                 spi_id=0, scale=1, source_color_mode='RGB565', use_dma=None):
+                 scale=1, source_color_mode='RGB565'):
         
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, spi_id, use_dma, chunked_command_data=False)
+        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, chunked_command_data=False)
         
         self._offset = display[:2]
         self._spi_init = init_spi
