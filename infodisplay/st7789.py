@@ -14,6 +14,7 @@ ADAFRUIT_1_9 = (35, 0, PORTRAIT)
 
 class ST7789(MipiDisplay):
     def __init__(self, spi, cs, dc, backlight=None, height=240, width=240, 
+                 disp_mode=LANDSCAPE, init_spi=False, display=GENERIC, 
                  scale=1, source_color_mode='RGB565'):
         
         super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, chunked_command_data=False)
