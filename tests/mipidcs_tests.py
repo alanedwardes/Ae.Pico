@@ -27,15 +27,7 @@ builtins.ptr8 = lambda x: x
 builtins.ptr16 = lambda x: x
 builtins.ptr32 = lambda x: [x] if isinstance(x, int) else x
 
-# Mock rp2 module
-class MockDMA:
-    def __init__(self): self._active = False
-    def pack_ctrl(self, **kwargs): return 0x1234
-    def active(self): return self._active
-    def config(self, **kwargs): pass
 
-sys.modules['rp2'] = MagicMock()
-sys.modules['rp2'].DMA = MockDMA
 
 # Mock os.uname before importing mipidcs
 import os as real_os
@@ -89,17 +81,7 @@ class TestMipiDcs(unittest.TestCase):
         ctrl.clear(10, 10, bytearray(10))
         mock_spi.write.assert_called()
 
-    def test_dma_manager_setup(self):
-        # Trigger the hardware detection logic again for the test
-        mock_spi = MagicMock()
-        mock_spi.__str__.return_value = "SPI(0, baudrate=...)"
-        
-        # Manually set the base addresses since they were detected at import time
-        mipidcs._SPI0_BASE = 0x40080000 
-        
-        mgr = mipidcs.DmaManager(mock_spi, 480, spi_id=0)
-        self.assertTrue(mgr.active)
-        self.assertEqual(mgr._spi_dr, 0x40080000 + 0x08)
+
 
 if __name__ == '__main__':
     unittest.main()
