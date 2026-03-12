@@ -377,23 +377,45 @@ class MipiDisplay:
         bpp = self._bpp
         
         if self._dma.active:
+            self._render_dma(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
+        else:
+            self._render_spi(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
+        self._spi_ctrl.end_data()
+
+    def _render_dma(self, fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv):
+        if scale > 1:
+            send_cnt = rw * scale * bpp
             for _ in range(rh):
                 buf = self._dma.get_next_buffer()
-                line_conv(buf, fb, fb_ptr, rw, scale, lut) if scale > 1 else line_conv(buf, fb, fb_ptr, rw, lut)
+                line_conv(buf, fb, fb_ptr, rw, scale, lut)
                 fb_ptr += width
                 for _ in range(scale):
-                    self._dma.send(buf, count=rw * scale * bpp)
-            self._dma.wait()
+                    self._dma.send(buf, count=send_cnt)
         else:
-            write_len = rw * scale * bpp
-            out_view = memoryview(self._linebuf)[:write_len]
+            send_cnt = rw * bpp
+            for _ in range(rh):
+                buf = self._dma.get_next_buffer()
+                line_conv(buf, fb, fb_ptr, rw, lut)
+                fb_ptr += width
+                self._dma.send(buf, count=send_cnt)
+        self._dma.wait()
+
+    def _render_spi(self, fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv):
+        write_len = rw * scale * bpp
+        out_view = memoryview(self._linebuf)[:write_len]
+        if scale > 1:
             for _ in range(rh):
                 lb = self._linebuf
-                line_conv(lb, fb, fb_ptr, rw, scale, lut) if scale > 1 else line_conv(lb, fb, fb_ptr, rw, lut)
+                line_conv(lb, fb, fb_ptr, rw, scale, lut)
                 fb_ptr += width
                 for _ in range(scale):
                     self._spi.write(out_view)
-        self._spi_ctrl.end_data()
+        else:
+            for _ in range(rh):
+                lb = self._linebuf
+                line_conv(lb, fb, fb_ptr, rw, lut)
+                fb_ptr += width
+                self._spi.write(out_view)
 
     def _get_line_conv(self, scale):
         raise NotImplementedError
