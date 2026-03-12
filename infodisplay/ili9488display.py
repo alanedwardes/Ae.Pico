@@ -47,7 +47,6 @@ class ILI9488Display:
             width=display_width,
             disp_mode=disp_mode,
             display=(0, 0, 1, True, True),
-            spi_id=1,
             scale=scale,
             source_color_mode=mode
         )

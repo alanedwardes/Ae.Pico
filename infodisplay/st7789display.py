@@ -40,7 +40,6 @@ class ST7789Display:
             width=display_width,
             disp_mode=LANDSCAPE,
             display=(0, 0, 1, 0, True),
-            spi_id=0,
             scale=scale,
             source_color_mode=mode,
         )

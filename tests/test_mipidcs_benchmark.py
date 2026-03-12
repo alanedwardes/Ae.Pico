@@ -50,8 +50,6 @@ class TestDisplay(MipiDisplay):
             scale=1,
             color_mode='RGB565',
             bpp=2,
-            spi_id=0,
-            use_dma=False,
             chunked_command_data=False
         )
         self._lut = bytearray(512)
