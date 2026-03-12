@@ -385,12 +385,14 @@ class MipiDisplay:
                     self._dma.send(buf, count=rw * scale * bpp)
             self._dma.wait()
         else:
+            write_len = rw * scale * bpp
+            out_view = memoryview(self._linebuf)[:write_len]
             for _ in range(rh):
                 lb = self._linebuf
                 line_conv(lb, fb, fb_ptr, rw, scale, lut) if scale > 1 else line_conv(lb, fb, fb_ptr, rw, lut)
                 fb_ptr += width
                 for _ in range(scale):
-                    self._spi.write(lb[:rw * scale * bpp])
+                    self._spi.write(out_view)
         self._spi_ctrl.end_data()
 
     def _get_line_conv(self, scale):
