@@ -168,6 +168,7 @@ class RainDisplay:
         if len(self.weather_data) == 0:
             return
 
+        font_name = 'regular' if self.display_width > 320 else 'small'
         y_start = 70
         key_width = 30
         data_width = self.display_width - key_width
@@ -189,10 +190,10 @@ class RainDisplay:
 
         # Draw key labels
         white_pen = 0xFFFFFF
-        await textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font='small')
-        await textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font='small')
-        await textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font='small')
-        await textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font='small')
+        await textbox.draw_textbox(self.display, 't', 0, hour_row_y, key_width, 16, color=white_pen, font=font_name)
+        await textbox.draw_textbox(self.display, 'mm', 0, precip_row_y, key_width, 16, color=white_pen, font=font_name)
+        await textbox.draw_textbox(self.display, '%', 0, chart_y, key_width, chart_height, color=white_pen, font=font_name)
+        await textbox.draw_textbox(self.display, 'Bft', 0, wind_row_y, key_width, 16, color=white_pen, font=font_name)
 
         # Draw separator lines
         self.display.rect(key_width, precip_row_y - 10, data_width, 2, 0x424142, True)
@@ -225,19 +226,19 @@ class RainDisplay:
             self.display.rect(sx, chart_y - 10, column_width, 2, 0x424142, True)
 
             # Hour numbers
-            await textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font='small')
+            await textbox.draw_textbox(self.display, f'{hour_number}', sx, hour_row_y, column_width_int, 16, color=white_pen, font=font_name)
 
             # Precipitation amount
             if rate_int > 0:
                 precip_color = colors.get_color_for_precip_rate(rate_int)
             else:
                 precip_color = 0x636563
-            await textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font='small')
+            await textbox.draw_textbox(self.display, str(rate_int), sx, precip_row_y, column_width_int, 16, color=precip_color, font=font_name)
 
             # Beaufort scale
             beaufort_number = self._beaufort_values[i] if i < len(self._beaufort_values) else wind_speed_to_beaufort(self.weather_data[idx + 3])
             beaufort_color = colors.get_color_for_beaufort_scale(beaufort_number)
-            await textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font='small')
+            await textbox.draw_textbox(self.display, f"{beaufort_number}", sx, wind_row_y, column_width_int, 16, color=beaufort_color, font=font_name)
             
             await asyncio.sleep(0)
 

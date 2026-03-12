@@ -107,7 +107,7 @@ class WeatherDisplay:
             return
         
         y_start = 70
-
+        font_name = 'regular' if self.display_width > 320 else 'small'
 
 
         # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
@@ -149,7 +149,7 @@ class WeatherDisplay:
             else:
                 day_pen = 0xFFFFFF
 
-            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font='small')
+            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font=font_name)
 
             self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, slot_height)
 
@@ -159,11 +159,12 @@ class WeatherDisplay:
             max_temp_str = f"{abs(max_temp_rounded) if max_temp_rounded == 0 else max_temp_rounded:.0f}°"
             min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
 
-            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, slot_height, color=colors.get_color_for_temperature(max_temperature), font='small')
-            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, slot_height, color=colors.get_color_for_temperature(min_temperature), font='small')
+            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, slot_height, color=colors.get_color_for_temperature(max_temperature), font=font_name)
+            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, slot_height, color=colors.get_color_for_temperature(min_temperature), font=font_name)
 
             rain_color = colors.get_color_for_rain_percentage(rain)
-            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, slot_height, color=rain_color, font='small')
+            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, slot_height, color=rain_color, font=font_name)
+
 
             # Update just this column
             self.display.update((sx, y_start, column_width, self.display_height - y_start))
