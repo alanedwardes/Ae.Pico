@@ -110,5 +110,62 @@ class TestBitBlt(unittest.TestCase):
         
         self.assertEqual(fb8_data[0], 0xE0)
 
+    def test_transparency_gs8_to_rgb565_palette(self):
+        palette = bytearray([0x00] * 512)
+        # map 0x01 to 0xF800, keep 0x00 as whatever (it's transparency key)
+        palette[2] = 0x00; palette[3] = 0xF8
+        
+        # fill fb with blue
+        for i in range(0, len(self.fb_data), 2):
+            self.fb_data[i] = 0x1F
+            self.fb_data[i+1] = 0x00
+            
+        src_data = bytearray([0x00, 0x01, 0x00, 0x01]) # 2x2
+        fh = io.BytesIO(src_data)
+        
+        blit_region(self.fb, self.width, self.height, 1, fh, 0, 2,
+                    0, 0, 2, 2, 0, 0, palette=palette, key=0)
+                    
+        val0 = (self.fb_data[1] << 8) | self.fb_data[0]
+        val1 = (self.fb_data[3] << 8) | self.fb_data[2]
+        
+        self.assertEqual(val0, 0x001F) # Should remain blue (transparent)
+        self.assertEqual(val1, 0xF800) # Should be red
+
+    def test_transparency_rgb565(self):
+        # fill fb with blue
+        for i in range(0, len(self.fb_data), 2):
+            self.fb_data[i] = 0x1F
+            self.fb_data[i+1] = 0x00
+            
+        src_data = bytearray([0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0xF8]) # 2x2, key is 0x0000
+        fh = io.BytesIO(src_data)
+        
+        blit_region(self.fb, self.width, self.height, 2, fh, 0, 4,
+                    0, 0, 2, 2, 0, 0, src_format=1, key=0)
+                    
+        val0 = (self.fb_data[1] << 8) | self.fb_data[0]
+        val1 = (self.fb_data[3] << 8) | self.fb_data[2]
+        
+        self.assertEqual(val0, 0x001F) # Should remain blue
+        self.assertEqual(val1, 0xF800) # Should be red
+
+    def test_transparency_8bit_to_8bit(self):
+        fb8_data = bytearray(self.width * self.height)
+        fb8 = framebuf.FrameBuffer(fb8_data, self.width, self.height, framebuf.GS8)
+        fb8.bytes_per_pixel = 1
+        
+        for i in range(len(fb8_data)):
+            fb8_data[i] = 0xAA
+            
+        src_data = bytearray([0x00, 0xFF, 0x00, 0xFF]) # key is 0
+        fh = io.BytesIO(src_data)
+        
+        blit_region(fb8, self.width, self.height, 1, fh, 0, 2,
+                    0, 0, 2, 2, 0, 0, key=0)
+                    
+        self.assertEqual(fb8_data[0], 0xAA)
+        self.assertEqual(fb8_data[1], 0xFF)
+
 if __name__ == '__main__':
     unittest.main()

@@ -48,58 +48,103 @@ else:
 @micropython.viper
 def _blit_rect_gs8_to_rgb565_viper(dest: ptr16, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
-                                 w: int, h: int, palette: ptr16):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(w):
-            dest[d_p + x] = palette[src[s_p + x]]
+                                 w: int, h: int, palette: ptr16, key: int):
+    if key == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                dest[d_p + x] = palette[src[s_p + x]]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                if val != key:
+                    dest[d_p + x] = palette[val]
 
 @micropython.viper
 def _blit_rect_gs8_to_rgb565_direct_viper(dest: ptr16, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
-                                 w: int, h: int):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(w):
-            val = int(src[s_p + x])
-            dest[d_p + x] = ((val & 0xF8) << 8) | ((val & 0xFC) << 3) | (val >> 3)
+                                 w: int, h: int, key: int):
+    if key == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                dest[d_p + x] = ((val & 0xF8) << 8) | ((val & 0xFC) << 3) | (val >> 3)
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                if val != key:
+                    dest[d_p + x] = ((val & 0xF8) << 8) | ((val & 0xFC) << 3) | (val >> 3)
 
 @micropython.viper
 def _blit_rect_rgb565_to_rgb565_viper(dest: ptr16, d_off: int, d_stride: int,
                                  src: ptr16, s_off: int, s_stride: int,
-                                 w: int, h: int):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(w):
-            dest[d_p + x] = src[s_p + x]
+                                 w: int, h: int, key: int):
+    if key == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                dest[d_p + x] = src[s_p + x]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                if val != key:
+                    dest[d_p + x] = val
 
 @micropython.viper
 def _blit_rect_8bit_to_8bit_viper(dest: ptr8, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
-                                 w: int, h: int):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(w):
-            dest[d_p + x] = src[s_p + x]
+                                 w: int, h: int, key: int):
+    if key == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                dest[d_p + x] = src[s_p + x]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                if val != key:
+                    dest[d_p + x] = val
 
 @micropython.viper
 def _blit_rect_gs8_to_8bit_palette_viper(dest: ptr8, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
-                                 w: int, h: int, palette: ptr8):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(w):
-            dest[d_p + x] = palette[src[s_p + x]]
+                                 w: int, h: int, palette: ptr8, key: int):
+    if key == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                dest[d_p + x] = palette[src[s_p + x]]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(w):
+                val = int(src[s_p + x])
+                if val != key:
+                    dest[d_p + x] = palette[val]
 
 # --- Main Blit API ---
 
 def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
-                sx, sy, sw, sh, dx, dy, buffer=None, src_format=None, palette=None, clip=None):
+                sx, sy, sw, sh, dx, dy, buffer=None, src_format=None, palette=None, clip=None, key=-1):
     """ Standard high-performance blit from flash to framebuffer. """
     if sw <= 0 or sh <= 0: return
         
@@ -171,12 +216,12 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
             if src_fmt == 6: # GS8 -> RGB565
                 p_src = _as_ptr8(batch_buf)
                 if p_pal is not None:
-                    _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal)
+                    _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal, key)
                 else:
-                    _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h)
+                    _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
             elif src_fmt == 1: # RGB565 -> RGB565
                 p_src = _as_ptr16(batch_buf)
-                _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h)
+                _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
         elif dest_bpp == 1:
             p_dest = _as_ptr8(framebuffer)
             d_off = d_fb_y * fb_width + d_fb_x
@@ -185,9 +230,9 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
                 p_src = _as_ptr8(batch_buf)
                 if palette is not None:
                     p_pal = _as_ptr8(palette)
-                    _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal)
+                    _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal, key)
                 else:
-                    _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h)
+                    _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
         else:
             raise ValueError(f"Unsupported blit: dest_bpp={dest_bpp} src_fmt={src_fmt}")
 

@@ -161,7 +161,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         blit_region(framebuffer, display_width, display_height, 1, 
                     pages[page], 4, row_bytes,
                     src_x, src_y, width, height,
-                    dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip)
+                    dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
         
         cx += (xadvance * scale_up) // scale_down
         prev_id = code
