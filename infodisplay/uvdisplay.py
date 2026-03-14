@@ -9,16 +9,8 @@ import random
 from httpstream import HttpRequest
 from flatjson import load_array
 
-_TARGET_HOURS = (0, 6, 12, 18)
-_LABEL_HOURS = (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
-_UV_LEVELS = (
-    (0.5, "LOW"),
-    (3.5, "MODERATE"),
-    (6.5, "HIGH"),
-    (8.5, "VERY HIGH"),
-    (11.5, "EXTREME")
-)
 _MAX_UV = 12
+_LABEL_HOURS = (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
 
 def _uv_color_fn(idx, value):
     return colors.get_color_for_uv(value)
@@ -103,100 +95,135 @@ class UvDisplay:
         if len(self.uv_data) == 0:
             return
         
+        font_name = 'regular' if self.display_width > 320 else 'small'
         y_start = self.start_y
-               
+        
+        # Calculate relative sizing
+        label_height = max(16, self.display_height // 12)
+        if font_name == 'regular':
+            label_height = max(label_height, 22) # Ensure regular font fits
+            
+        num_hours = len(self.uv_data)
+        # Ensure legend column and data segments are evenly distributed
+        # Total units = 1 (legend) + (num_hours - 1) (chart segments) = num_hours
+        unit_width = self.display_width // (num_hours if num_hours > 0 else 24)
+        key_width = unit_width
+        
+        # data_width is the rest of the screen for the chart
+        data_width = self.display_width - key_width
+        denom = (num_hours - 1) if num_hours > 1 else 1
+        
+        # Clear the entire display area
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
 
-        # Display specific hours: 00, 06, 12, 18
-        display_hours = []
-        hour_positions = []
+
+        chart_y = y_start + 5
+        chart_height = self.display_height - y_start - label_height - 10
         
-        for hour in _TARGET_HOURS:
-            if hour < len(self.uv_data):
-                display_hours.append(self.uv_data[hour])
-                hour_positions.append(hour)
+        # Draw colored labels column (key column) - now just color sections
+        sections = [
+            (0, 3, colors.get_color_for_uv(0)),
+            (3, 6, colors.get_color_for_uv(3)),
+            (6, 8, colors.get_color_for_uv(6)),
+            (8, 11, colors.get_color_for_uv(8)),
+            (11, 12, colors.get_color_for_uv(11))
+        ]
         
-        # Draw hour labels for every 2nd hour
-        label_width = self.display_width // 12  # 12 UV values shown above
-        
-        for i, hour in enumerate(_LABEL_HOURS):
-            position = hour // 2
-            sx = position * label_width
+        # Calculate vertical scale and draw sections (no text labels)
+        for low_uv, high_uv, color in sections:
+            y_top = chart_y + chart_height - (high_uv / _MAX_UV) * chart_height
+            y_bot = chart_y + chart_height - (low_uv / _MAX_UV) * chart_height
             
-            await textbox.draw_textbox(self.display, f'{hour:02d}', sx, self.display_height - 16, label_width, 16, color=0xFFFFFF, font='small')
+            rect_h = int(y_bot - y_top)
+            if rect_h > 0:
+                self.display.rect(0, int(y_top), key_width, rect_h, color, True)
 
-        chart_y = y_start + 20  # Move chart up to start after UV values
-        chart_height = self.display_height - y_start - 40  # Make chart fill more space
-        
-        # Draw vertical grid lines after chart area is defined
-        for i, hour in enumerate(_LABEL_HOURS):
-            if i > 0:  # Skip first line
-                position = hour // 2
-                sx = position * label_width
-                # Calculate the top of the chart area (UV 12 line)
-                chart_top = chart_y  # UV 12 line (12/12 = 1.0, so offset is 0)
-                # Extend to bottom of screen
-                self.display.rect(sx, chart_top, 1, self.display_height - chart_top, 0x424142, True)
-
-        # Draw horizontal grid lines for all UV levels 0-12
-        for uv_value in range(13):  # 0-12 inclusive
-            # Calculate Y position (invert because 0 is at top)
+        # Draw horizontal grid lines across data area
+        for uv_value in range(13):
             y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
-            
-            # Draw horizontal grid line
-            self.display.rect(0, int(y_pos), self.display_width, 1, 0x424142, True)
-        
-        # Draw labels for specific UV levels
-        for uv_value, label in _UV_LEVELS:
-            # Calculate Y position (invert because 0 is at top)
-            y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
-            
-            # Draw label on the left
-            await textbox.draw_textbox(self.display, label, 0, y_pos - 8, 48, 16, color=0xFFFFFF, font='small', align='left')
+            self.display.rect(key_width, int(y_pos), data_width, 1, 0x424142, True)
 
-        # Draw UV values for every other data point
-        label_width = self.display_width // 12
-        
-        for i in range(0, len(self.uv_data), 2):  # Step by 2 to get every other value
-            uv = self.uv_data[i]
-            label_index = i // 2  # Index for positioning
-            x_pos = label_index * label_width
-            await textbox.draw_textbox(self.display, str(uv), x_pos, y_start + 5, label_width, 16, color=0xFFFFFF, font='small')
+        # Draw hour labels at the bottom
+        label_box_width = 30
+        for i, hour in enumerate(_LABEL_HOURS):
+            if hour < num_hours:
+                sx = key_width + (hour * data_width) // denom
+                
+                # Draw vertical grid line
+                self.display.rect(sx, chart_y, 1, chart_height, 0x424142, True)
 
-        await chart.draw_segmented_area(self.display, 0, chart_y, self.display_width, chart_height,
+                # Center the label on the tick mark, but clamp to screen bounds to avoid clipping
+                tx = sx - (label_box_width // 2)
+                if tx < 0:
+                    tx = 0
+                elif tx + label_box_width > self.display_width:
+                    tx = self.display_width - label_box_width
+                
+                await textbox.draw_textbox(self.display, f'{hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
+
+        # Draw UV chart
+        await chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
                                    self.uv_data, self._normalized_data, _uv_color_fn)
 
-        await chart.draw_colored_points(self.display, 0, chart_y, self.display_width, chart_height,
+        await chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
                                    self.uv_data, self._normalized_data, _uv_color_fn, radius=2)
 
-        # Draw current time vertical line
-        if len(self.uv_data) > 0:
-            now = utime.localtime()
-            current_hour = now[3]  # Hour from time tuple
-            current_minute = now[4]  # Minute from time tuple
-            
-            # Calculate position for current time with minute precision
-            # Convert to decimal hours (e.g., 2:30 = 2.5 hours)
-            current_time_decimal = current_hour + (current_minute / 60.0)
-            
-            # Since we show every other UV value (step=2), we need to map the time to the correct position
-            if current_hour < len(self.uv_data):
-                # Calculate x position based on decimal time
-                time_x = (current_time_decimal / len(self.uv_data)) * self.display_width
-                
-                # Draw 2px light gray vertical line
-                self.display.rect(int(time_x - 1), y_start, 2, self.display_height - y_start, 0x848284, True)
-                
-                # Find the UV value at current hour (still use hour for data lookup)
-                current_uv = self.uv_data[current_hour]
-                
-                # Calculate y position for the UV value
-                normalized_uv = current_uv / _MAX_UV
+        # Draw peak UV label on the graph (last to be on top)
+        if num_hours > 0:
+            max_uv = max(self.uv_data)
+            if max_uv > 0:
+                peak_idx = self.uv_data.index(max_uv)
+                sx = key_width + (peak_idx * data_width) // denom
+                normalized_uv = max_uv / _MAX_UV
                 uv_y = chart_y + chart_height - (normalized_uv * chart_height)
                 
-                # Draw 2px black circle with 1px white circle inside
-                self.display.ellipse(int(time_x), int(uv_y), 5, 5, 0x000000, True)
-                self.display.ellipse(int(time_x), int(uv_y), 2, 2, 0xFFFFFF, True)
+                # Draw the peak UV value high above the point (dynamic offset)
+                peak_offset = label_height + 5
+                
+                # Center-align and clamp to avoid edge clipping
+                peak_box_w = 40
+                tx = sx - (peak_box_w // 2)
+                if tx < 0:
+                    tx = 0
+                elif tx + peak_box_w > self.display_width:
+                    tx = self.display_width - peak_box_w
+                
+                ty = int(uv_y - peak_offset)
+                if ty < y_start + 2:
+                    ty = y_start + 2
+                    
+                await textbox.draw_textbox(self.display, str(max_uv), tx, ty, peak_box_w, label_height, color=0xFFFFFF, font=font_name, align='center')
+        # Draw current time vertical line
+        now = utime.localtime()
+        current_hour = now[3]
+        current_minute = now[4]
+        current_time_decimal = current_hour + (current_minute / 60.0)
+        
+        if current_time_decimal < num_hours - 1:
+            time_x = key_width + (current_time_decimal / denom) * data_width
+            
+            # Draw 2px light gray vertical line
+            self.display.rect(int(time_x - 1), y_start, 2, self.display_height - y_start, 0x848284, True)
+            
+            # Find the UV value at current hour (linear interpolation for smoother movement)
+            h_idx = int(current_time_decimal)
+            h_frac = current_time_decimal - h_idx
+            
+            # Use interpolated value to match the line drawing
+            current_uv = self.uv_data[h_idx] * (1 - h_frac) + self.uv_data[h_idx + 1] * h_frac
+            
+            # Calculate y position for the UV value
+            normalized_uv = current_uv / _MAX_UV
+            uv_y = chart_y + chart_height - (normalized_uv * chart_height)
+            
+            # Draw indicator circle
+            self.display.ellipse(int(time_x), int(uv_y), 5, 5, 0x000000, True)
+            self.display.ellipse(int(time_x), int(uv_y), 2, 2, 0xFFFFFF, True)
 
-        # Render only the UV display region (below the time/temperature displays)
+        # Draw "UV" label in top-left of the chart area
+        uv_label_width = 40
+        await textbox.draw_textbox(self.display, 'UV', key_width + 5, y_start + 5, uv_label_width, label_height, color=0xFFFFFF, font=font_name, align='left')
+
+        # Render only the UV display region
         self.display.update((0, y_start, self.display_width, self.display_height - y_start))
+
