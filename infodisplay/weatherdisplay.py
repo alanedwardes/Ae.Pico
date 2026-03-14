@@ -5,6 +5,7 @@ import colors
 import struct
 import textbox
 import random
+import array
 from bitblt import blit_region
 
 from httpstream import HttpRequest
@@ -125,6 +126,7 @@ class WeatherDisplay:
         min_row_y = max_row_y + slot_height
         rain_row_y = min_row_y + slot_height
 
+        now = utime.localtime()
         for i in range(num_days):
             data_index = i * 4
             if data_index + 3 >= len(self.weather_data):
@@ -143,16 +145,34 @@ class WeatherDisplay:
             # Clear this column
             self.display.rect(sx, y_start, column_width, usable_height, 0x000000, True)
 
-            # Get current day of week (0 = Monday, 6 = Sunday)
-            now = utime.localtime()
-            day_of_week = (now[6] + i) % 7
-
-            if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
-                day_pen = 0xC8CED4
+            if i == 0:
+                # Today: draw a yellow triangle pointing down instead of the day name
+                # Use a reasonable size for the triangle
+                tri_w = column_width // 3
+                tri_h = slot_height // 3
+                
+                # Center it in the day row slot
+                cx = sx + column_width // 2
+                cy = day_row_y + slot_height // 2
+                
+                # Triangle points (downward arrow)
+                # (x1, y1), (x2, y2), (x3, y3) relative to (cx, cy)
+                pts = array.array('h', [
+                    -tri_w // 2, -tri_h // 2,   # Top-left
+                    tri_w // 2, -tri_h // 2,    # Top-right
+                    0, tri_h // 2               # Bottom-center
+                ])
+                self.display.poly(cx, cy, pts, 0xFFFF00, True)
             else:
-                day_pen = 0xFFFFFF
+                # Get current day of week (0 = Monday, 6 = Sunday)
+                day_of_week = (now[6] + i) % 7
 
-            await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font=font_name)
+                if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
+                    day_pen = 0xC8CED4
+                else:
+                    day_pen = 0xFFFFFF
+
+                await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font=font_name)
 
             self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, slot_height)
 
