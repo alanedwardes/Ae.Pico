@@ -168,7 +168,7 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     if copy_width <= 0: return
 
     # 2. Format Detection
-    dest_bpp = framebuffer.bytes_per_pixel if hasattr(framebuffer, 'bytes_per_pixel') else 2
+    # 2. Format Detection
     if src_format is None:
         src_fmt = 1 if bytes_per_pixel == 2 else 6
     else:
@@ -178,12 +178,20 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     row_size = copy_width * src_bpp
     
     # 3. Buffer Management with Row Batching
-    if not buffer or len(buffer) < row_size:
+    if buffer is None or len(buffer) < row_size:
         batch_buf = memoryview(bytearray(row_size))
         rows_per_batch = 1
     else:
         batch_buf = memoryview(buffer)
         rows_per_batch = len(batch_buf) // row_size
+
+    # Optimization: Cache dest_bpp and pointers once outside the loop
+    if not hasattr(framebuffer, '_cached_bpp'):
+        framebuffer._cached_bpp = framebuffer.bytes_per_pixel if hasattr(framebuffer, 'bytes_per_pixel') else 2
+    dest_bpp = framebuffer._cached_bpp
+
+    p_dest = _as_ptr16(framebuffer) if dest_bpp == 2 else _as_ptr8(framebuffer)
+    p_pal = _as_ptr16(palette) if (dest_bpp == 2 and palette is not None) else (_as_ptr8(palette) if palette is not None else None)
 
     current_row = start_row
     while current_row < end_row:
@@ -208,11 +216,12 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
         d_fb_x = dx + left_clip
         d_fb_y = dy + current_row
         
+        # 4. Fast Path Dispatch
+        d_fb_x = dx + left_clip
+        d_fb_y = dy + current_row
+        d_off = d_fb_y * fb_width + d_fb_x
+
         if dest_bpp == 2:
-            p_dest = _as_ptr16(framebuffer)
-            p_pal = _as_ptr16(palette)
-            d_off = d_fb_y * fb_width + d_fb_x
-            
             if src_fmt == 6: # GS8 -> RGB565
                 p_src = _as_ptr8(batch_buf)
                 if p_pal is not None:
@@ -223,13 +232,9 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
                 p_src = _as_ptr16(batch_buf)
                 _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
         elif dest_bpp == 1:
-            p_dest = _as_ptr8(framebuffer)
-            d_off = d_fb_y * fb_width + d_fb_x
-            
             if src_fmt == 6: # 8-bit (GS8/RGB332) -> 8-bit
                 p_src = _as_ptr8(batch_buf)
-                if palette is not None:
-                    p_pal = _as_ptr8(palette)
+                if p_pal is not None:
                     _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal, key)
                 else:
                     _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)

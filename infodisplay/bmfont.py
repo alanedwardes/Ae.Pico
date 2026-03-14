@@ -1,13 +1,5 @@
 import struct
 import gc
-import framebuf
-
-import sys
-try:
-    import micropython
-    IS_MICROPYTHON = sys.implementation.name == 'micropython'
-except ImportError:
-    IS_MICROPYTHON = False
 
 from bitblt import blit_region, _as_ptr16, _as_ptr8
 
@@ -134,13 +126,18 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
     # Resolve tinted palette for font rendering (GS8 -> Dest)
     palette = _resolve_palette(color, bytes_per_pixel)
 
-    pages = {}
-    if isinstance(page_files, (list, tuple)):
-        pages = {i: f for i, f in enumerate(page_files)}
-    elif hasattr(page_files, 'items'):
+    if isinstance(page_files, dict):
         pages = page_files
+    elif isinstance(page_files, (list, tuple)):
+        pages = {i: f for i, f in enumerate(page_files)}
     else:
         pages = {0: page_files}
+
+    # Optimization: pre-index glyph data for faster access
+    glyph_data = font._glyph_data
+    
+    # Scale fast path
+    is_scaled = (scale_up != 1 or scale_down != 1)
 
     cx, cy = x, y
     prev_id = None
@@ -153,17 +150,45 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         if prev_id is not None and kerning:
             cx += font.kerning.get((prev_id, code), 0)
         
-        src_x, src_y, width, height, xoffset, yoffset, xadvance, page = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
-        dest_x = cx + (xoffset * scale_up) // scale_down
-        dest_y = cy + (yoffset * scale_up) // scale_down
+        # Unpack glyph data: manual unpack (faster than struct in uPy): <HHHHhhhB (15 bytes)
+        # 0: src_x (H), 2: src_y (H), 4: width (H), 6: height (H), 8: xoffset (h), 10: yoffset (h), 12: xadvance (h), 14: page (B)
+        src_x = glyph_data[off] | (glyph_data[off+1] << 8)
+        src_y = glyph_data[off+2] | (glyph_data[off+3] << 8)
+        width = glyph_data[off+4] | (glyph_data[off+5] << 8)
+        height = glyph_data[off+6] | (glyph_data[off+7] << 8)
         
-        # Use standardized blit_region
-        blit_region(framebuffer, display_width, display_height, 1, 
-                    pages[page], 4, row_bytes,
-                    src_x, src_y, width, height,
-                    dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
+        xo = glyph_data[off+8] | (glyph_data[off+9] << 8)
+        if xo > 32767: xo -= 65536
+        yo = glyph_data[off+10] | (glyph_data[off+11] << 8)
+        if yo > 32767: yo -= 65536
+        xa = glyph_data[off+12] | (glyph_data[off+13] << 8)
+        if xa > 32767: xa -= 65536
+        page = glyph_data[off+14]
+
+        if is_scaled:
+            dest_x = cx + (xo * scale_up) // scale_down
+            dest_y = cy + (yo * scale_up) // scale_down
+        else:
+            dest_x = cx + xo
+            dest_y = cy + yo
         
-        cx += (xadvance * scale_up) // scale_down
+        # Quick bounds check (rejection) before calling blit_region
+        if not clip:
+            if dest_x >= display_width or dest_y >= display_height: pass
+            elif dest_x + width <= 0 or dest_y + height <= 0: pass
+            else:
+                blit_region(framebuffer, display_width, display_height, 1, 
+                            pages[page], 4, row_bytes,
+                            src_x, src_y, width, height,
+                            dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
+        else:
+            # Complex clipping case - let blit_region handle it
+            blit_region(framebuffer, display_width, display_height, 1, 
+                        pages[page], 4, row_bytes,
+                        src_x, src_y, width, height,
+                        dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
+        
+        cx += (xa * scale_up) // scale_down if is_scaled else xa
         prev_id = code
 
 def measure_text(font: BMFont, text: str, kerning=False):
