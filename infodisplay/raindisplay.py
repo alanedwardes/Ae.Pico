@@ -182,7 +182,7 @@ class RainDisplay:
         column_width_int = max(1, data_width // denom)
 
         # Draw key column first
-        self.display.rect(0, y_start, key_width, self.display_height - y_start, 0x212021, True)
+        self.display.rect(0, y_start, key_width, self.display_height - y_start, 0x404040, True)
 
         # Define row positions with proper spacing
         row_height = max(16, self.display_height // 8)
