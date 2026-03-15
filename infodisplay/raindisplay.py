@@ -9,8 +9,8 @@ from httpstream import HttpRequest
 from flatjson import load_array
 
 def rain_color_fn(idx, value):
-    # color mapping for rain percentage (expects raw 0-100)
-    return colors.get_color_for_rain_percentage(int(value))
+    # Static blue color for rain graph
+    return 0x5096FF
 
 def wind_speed_to_beaufort(wind_speed_ms):
     """
