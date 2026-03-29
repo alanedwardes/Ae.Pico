@@ -108,5 +108,5 @@ class RTC:
         if len(args) > 0:
             print("machine.RTC.datetime called with args: ", args)
         
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now()
         return (now.year, now.month, now.day, now.weekday() + 1, now.hour, now.minute, now.second, int(now.microsecond / 1000))
