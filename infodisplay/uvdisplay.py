@@ -16,13 +16,14 @@ def _uv_color_fn(idx, value):
     return colors.get_color_for_uv(value)
 
 class UvDisplay:
-    def __init__(self, display, url, refresh_period_seconds, start_y):
+    def __init__(self, display, url, refresh_period_seconds, start_y, local_time=None):
         self.display = display
         self.url = url
         self.uv_data = []
         self._normalized_data = []
         self.refresh_period_seconds = refresh_period_seconds
         self.start_y = start_y
+        self.local_time = local_time or utime.localtime
 
         self.display_width, self.display_height = self.display.get_bounds()
 
@@ -36,7 +37,9 @@ class UvDisplay:
         config = provider['config']['uv']
         refresh_period = config.get('refresh_period_seconds', 300)
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return UvDisplay(provider['display'], config['url'], refresh_period, y_separator)
+        remote_time = provider.get('remotetime.RemoteTime')
+        local_time = remote_time.local_time if remote_time else None
+        return UvDisplay(provider['display'], config['url'], refresh_period, y_separator, local_time)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -143,12 +146,17 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
             self.display.rect(key_width, int(y_pos), data_width, 1, 0x424142, True)
 
+        # Compute UTC-to-local offset in whole hours for label display
+        now_utc = utime.localtime()
+        now_local = self.local_time()
+        utc_offset_hours = (now_local[3] - now_utc[3] + 24) % 24
+
         # Draw hour labels at the bottom
         label_box_width = 30
         for i, hour in enumerate(_LABEL_HOURS):
             if hour < num_hours:
                 sx = key_width + (hour * data_width) // denom
-                
+
                 # Draw vertical grid line
                 self.display.rect(sx, chart_y, 1, chart_height, 0x424142, True)
 
@@ -158,8 +166,9 @@ class UvDisplay:
                     tx = 0
                 elif tx + label_box_width > self.display_width:
                     tx = self.display_width - label_box_width
-                
-                await textbox.draw_textbox(self.display, f'{hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
+
+                local_label_hour = (hour + utc_offset_hours) % 24
+                await textbox.draw_textbox(self.display, f'{local_label_hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
 
         # Draw UV chart
         await chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,

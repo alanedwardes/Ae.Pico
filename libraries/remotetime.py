@@ -79,9 +79,11 @@ class RemoteTime:
         seconds = t + carry
         return seconds, milliseconds
     
-    # Provides a method compatible with machine.RTC to obtain the time
-    # Provides millisecond resolution (whereas on some ports machine.RTC does not)
-    def datetime(self):
+    def local_time(self):
+        """Return current local time as a 9-tuple extending utime.localtime():
+        (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
+        Indices [0:8] are identical to utime.gmtime()/utime.localtime().
+        Index [8] adds milliseconds for sub-second display."""
         elapsed_ms = utime.ticks_diff(utime.ticks_ms(), self.last_update)
         total_ms = self.base_milliseconds + elapsed_ms
         carry, milliseconds = divmod(total_ms, 1000)
@@ -89,8 +91,7 @@ class RemoteTime:
         dst_offset = self.dst_delegate(seconds_utc) if self.dst_delegate else 0
         local_seconds = seconds_utc + self.offset_seconds + dst_offset
         tm = utime.gmtime(local_seconds)
-        # (year, month, day, weekday, hours, minutes, seconds, subseconds)
-        return (tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], milliseconds)
+        return (tm[0], tm[1], tm[2], tm[3], tm[4], tm[5], tm[6], tm[7], milliseconds)
     
     async def update_time(self):
         seconds, milliseconds = await self.acquire_time()

@@ -8,9 +8,9 @@ class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
     
-    def __init__(self, display, rtc, height):
+    def __init__(self, display, time_source, height):
         self.display = display
-        self.rtc = rtc
+        self.time_source = time_source
         self.height = height
         
         self.display_width, self.display_height = self.display.get_bounds()
@@ -28,13 +28,21 @@ class TimeDisplay:
     
     CREATION_PRIORITY = 1
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
+        remote_time = provider.get('remotetime.RemoteTime')
+        if remote_time:
+            time_source = remote_time.local_time
+        else:
             print('Falling back to machine.RTC as remotetime.RemoteTime unavailable')
             import machine
             rtc = machine.RTC()
+            # Adapt machine.RTC().datetime() to local_time() tuple format:
+            # RTC: (year, month, day, weekday, hour, minute, second, subseconds)
+            # local_time: (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
+            def time_source():
+                t = rtc.datetime()
+                return (t[0], t[1], t[2], t[4], t[5], t[6], t[3] - 1, 0, t[7])
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return TimeDisplay(provider['display'], rtc, y_separator)
+        return TimeDisplay(provider['display'], time_source, y_separator)
     
     async def start(self):
         while True:
@@ -61,16 +69,16 @@ class TimeDisplay:
         # Font scale proportional to height
         font_scale = self.height / 70.0
 
-        now = self.rtc.datetime()
-        # datetime format: (year, month, day, weekday, hour, minute, second, subsecond)
-        
+        now = self.time_source()
+        # local_time format: (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
+
         # 1. HH:MM Display
         # Only re-format and re-draw if the minute has changed
-        if now[5] != self._last_minute:
-            self._last_minute = now[5]
+        if now[4] != self._last_minute:
+            self._last_minute = now[4]
             # Use pre-allocated strings
-            hour_str = self._padded_numbers[now[4]]
-            min_str = self._padded_numbers[now[5]]
+            hour_str = self._padded_numbers[now[3]]
+            min_str = self._padded_numbers[now[4]]
             time_text = hour_str + ":" + min_str # String concatenation of interned strings is optimized in MicroPython
             
             # Clear time area then draw
@@ -82,10 +90,10 @@ class TimeDisplay:
 
         # 2. Day Display
         # Only update if day changed
-        if now[3] != self._last_day_idx:
-            self._last_day_idx = now[3]
+        if now[6] != self._last_day_idx:
+            self._last_day_idx = now[6]
             # Use direct access
-            day_text = self.DAYS[now[3]-1]
+            day_text = self.DAYS[now[6]]
             
             self.display.rect(time_width, 0, date_seconds_width, section_height, 0x000000, True)
             await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align='left')
@@ -103,11 +111,11 @@ class TimeDisplay:
         ms_x = sec_x + sec_width
 
         # 3. Seconds Display
-        if now[6] != self._last_second:
-            self._last_second = now[6]
+        if now[5] != self._last_second:
+            self._last_second = now[5]
             # Use pre-allocated string
-            if now[6] < 60:
-                sec_text = self._padded_numbers[now[6]]
+            if now[5] < 60:
+                sec_text = self._padded_numbers[now[5]]
             else:
                 sec_text = "00" # Safety fallback
             
@@ -116,7 +124,7 @@ class TimeDisplay:
             self.display.update((sec_x, section_height, sec_width, sec_height))
 
         # 4. Milliseconds (Tenths) Display
-        tenth = (now[7] // 100) % 10 # Ensure 0-9 range
+        tenth = (now[8] // 100) % 10 # Ensure 0-9 range
         if tenth != self._last_tenth:
             self._last_tenth = tenth
             # Use pre-allocated string

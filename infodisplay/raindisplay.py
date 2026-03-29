@@ -36,12 +36,13 @@ def wind_speed_to_beaufort(wind_speed_ms):
         return beaufort_rounded
 
 class RainDisplay:
-    def __init__(self, display, url, refresh_period_seconds, start_y):
+    def __init__(self, display, url, refresh_period_seconds, start_y, local_time=None):
         self.display = display
         self.url = url
         self.weather_data = []
         self.refresh_period_seconds = refresh_period_seconds
         self.start_y = start_y
+        self.local_time = local_time or utime.localtime
 
         self.display_width, self.display_height = self.display.get_bounds()
         # Cached, precomputed arrays to reduce per-frame allocations
@@ -58,7 +59,9 @@ class RainDisplay:
         config = provider['config']['rain']
         refresh_period = config.get('refresh_period_seconds', 300)
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return RainDisplay(provider['display'], config['url'], refresh_period, y_separator)
+        remote_time = provider.get('remotetime.RemoteTime')
+        local_time = remote_time.local_time if remote_time else None
+        return RainDisplay(provider['display'], config['url'], refresh_period, y_separator, local_time)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -103,7 +106,7 @@ class RainDisplay:
                 # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
                 # Store as flat array: [hour, rain_prob, rate_mmh, wind_speed, hour, rain_prob, rate_mmh, wind_speed, ...]
                 self.weather_data = []
-                current_hour = utime.localtime()[3]  # Get current hour
+                current_hour = self.local_time()[3]  # Get current local hour
                 element_buffer = []
                 hour_offset = 0
 
