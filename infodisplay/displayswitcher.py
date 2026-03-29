@@ -70,6 +70,7 @@ class DisplaySwitcher:
             
             # Check if the service wants to be activated
             if hasattr(service, 'should_activate') and not service.should_activate():
+                await asyncio.sleep(1)
                 continue
 
             # Cancel any previous active task and start new one
