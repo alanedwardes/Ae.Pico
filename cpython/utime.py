@@ -4,17 +4,12 @@ import datetime as _dt
 
 MICROPY_PY_UTIME_TICKS_PERIOD = 2**30
 
-_PASSTHRU = ("time", "sleep")
+_PASSTHRU = ("time", "sleep", "gmtime", "localtime")
 
 for f in _PASSTHRU:
     globals()[f] = getattr(_time, f)
 
 clock = _time.process_time()
-
-def gmtime(t):
-    return _time.gmtime(t)
-
-localtime = _time.gmtime
 
 def mktime(t):
     # Interpret the provided tuple as UTC and return seconds since Unix epoch.
