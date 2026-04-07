@@ -600,9 +600,12 @@ class ManagementServer:
             writer.write(BACK_LINK)
             raise
         finally:
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+            except ConnectionResetError:
+                pass
             gc.collect()
         
     async def __route(self, method, path, headers, reader, writer):
