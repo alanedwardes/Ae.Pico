@@ -20,35 +20,51 @@ from flatjson import load_array
 # Define Departure named tuple for memory efficiency
 Departure = namedtuple('Departure', 'scheduled_time expected_time destination platform train_class cancelled delayed')
 
-def format_time_to_hhmm(time_str):
+def format_time_to_hhmm(time_str, dst_delegate=None):
     """Convert datetime string to HH:MM format."""
     if not time_str:
         return ''
-    
+
     # Handle "On time" or similar text
     if isinstance(time_str, str) and not ':' in time_str:
         return time_str
-    
-    # Try to extract HH:MM from various formats
-    # Format could be: "14:30:00", "2024-01-15T14:30:00", "14:30", etc.
-    time_str = str(time_str)
-    
+
+    original = str(time_str)
+
     # Look for HH:MM pattern
-    if 'T' in time_str:
+    if 'T' in original:
         # ISO format: extract time part after T
-        time_part = time_str.split('T')[1]
+        time_part = original.split('T')[1]
         if '+' in time_part:
             time_part = time_part.split('+')[0]
         if 'Z' in time_part:
             time_part = time_part.replace('Z', '')
         time_str = time_part
-    
+    else:
+        time_str = original
+
     # Extract HH:MM (first 5 characters if format is HH:MM:SS)
     if ':' in time_str:
         parts = time_str.split(':')
         if len(parts) >= 2:
-            return f"{parts[0]:0>2}:{parts[1]:0>2}"
-    
+            minute = parts[1]
+            # Apply DST offset if delegate available
+            if dst_delegate and 'T' in original:
+                # Parse UTC time from ISO string
+                date_part = original.split('T')[0]
+                time_part = original.split('T')[1].split('+')[0].split('Z')[0]
+                tp = time_part.split(':')
+                utc_hour = int(tp[0])
+                utc_min = int(tp[1])
+                dp = date_part.split('-')
+                utc_year, utc_month, utc_day = int(dp[0]), int(dp[1]), int(dp[2])
+                import utime
+                utc_ts = utime.mktime((utc_year, utc_month, utc_day, utc_hour, utc_min, 0, 0, 0))
+                dst_offset = dst_delegate(utc_ts)
+                local_hour = (utc_hour + (dst_offset // 3600)) % 24
+                return f"{local_hour:0>2}:{minute}"
+            return f"{parts[0]:0>2}:{minute}"
+
     return time_str[:5] if len(time_str) >= 5 else time_str
 
 def parse_time_to_minutes(time_str):
@@ -107,10 +123,11 @@ def get_color_for_train_status(std_str, atd_str, cancelled):
         return 0xF80000  # Red for major delay (>30 min)
 
 class TrainDisplay:
-    def __init__(self, display, url, start_y):
+    def __init__(self, display, url, start_y, dst_delegate=None):
         self.display = display
         self.url = url
         self.start_y = start_y
+        self.dst_delegate = dst_delegate
         self.departures = []
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -122,7 +139,9 @@ class TrainDisplay:
     CREATION_PRIORITY = 1
     def create(provider):
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return TrainDisplay(provider['display'], provider['config']['trains']['url'], y_separator)
+        remote_time = provider.get('remotetime.RemoteTime')
+        dst_delegate = remote_time.dst_delegate if remote_time else None
+        return TrainDisplay(provider['display'], provider['config']['trains']['url'], y_separator, dst_delegate)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -220,8 +239,8 @@ class TrainDisplay:
                         atd = element_buffer[4]
 
                         # Format times to HH:MM
-                        std_formatted = format_time_to_hhmm(std)
-                        atd_formatted = format_time_to_hhmm(atd)
+                        std_formatted = format_time_to_hhmm(std, self.dst_delegate)
+                        atd_formatted = format_time_to_hhmm(atd, self.dst_delegate)
 
                         # Determine if cancelled or delayed
                         cancelled = False
