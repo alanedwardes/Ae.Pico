@@ -9,21 +9,21 @@ from flatjson import load_array
 def get_color_for_train_status(status, delay_minutes):
     """Get color for train status based on status string and delay minutes."""
     if status == 'cancelled':
-        return 0xF34446  # Red for cancelled
+        return 0xF80000  # Red for cancelled
 
     # On time (scheduled, estimated with 0 delay, or no delay info)
     if delay_minutes is None or delay_minutes == 0:
         return 0xFFFFFF  # White for on time
 
-    # Late delays
+    # Late delays — yellow to amber only, red reserved for cancelled
     if delay_minutes <= 5:
         return 0xFED800  # Yellow for minor delay (1-5 min)
     elif delay_minutes <= 15:
-        return 0xFDB412  # Orange-yellow for moderate delay (6-15 min)
+        return 0xFFBF00  # Gold for moderate delay (6-15 min)
     elif delay_minutes <= 30:
-        return 0xF34446  # Orange-red for significant delay (16-30 min)
+        return 0xFF9900  # Amber for significant delay (16-30 min)
     else:
-        return 0xF80000  # Red for major delay (>30 min)
+        return 0xFF8800  # Dark amber for major delay (>30 min)
 
 # API format: flat array, 6 fields per departure
 # [scheduled_time, destination, platform, status, delay_minutes, train_class, ...]
