@@ -171,10 +171,7 @@ class TrainDisplay:
 
     async def fetch_departures(self):
         try:
-            # Use unified HTTP request helper
             async with self._http_request.get_scoped() as (reader, writer):
-                # New format: flat array with 6 fields per departure
-                # [scheduled, destination, platform, status, delay_minutes, train_class, ...]
                 self.departures = []
 
                 # Calculate how many rows fit in the display area
@@ -186,6 +183,8 @@ class TrainDisplay:
                 async for element in load_array(reader):
                     self.departures.append(element)
                     if len(self.departures) >= max_elements:
+                        writer.close()
+                        await writer.wait_closed()
                         break
 
             # Clean up after HTTP request
