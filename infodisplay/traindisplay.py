@@ -1,14 +1,3 @@
-try:
-    from collections import namedtuple
-except ImportError:
-    # Fallback for MicroPython without collections
-    def namedtuple(name, fields):
-        class NamedTuple:
-            def __init__(self, *args):
-                for field, value in zip(fields.split(), args):
-                    setattr(self, field, value)
-        return NamedTuple
-
 import utime
 import asyncio
 import gc
@@ -17,103 +6,17 @@ import random
 from httpstream import HttpRequest
 from flatjson import load_array
 
-# Define Departure named tuple for memory efficiency
-Departure = namedtuple('Departure', 'scheduled_time expected_time destination platform train_class cancelled delayed')
-
-def format_time_to_hhmm(time_str, dst_delegate=None):
-    """Convert datetime string to HH:MM format."""
-    if not time_str:
-        return ''
-
-    # Handle "On time" or similar text
-    if isinstance(time_str, str) and not ':' in time_str:
-        return time_str
-
-    original = str(time_str)
-
-    # Look for HH:MM pattern
-    if 'T' in original:
-        # ISO format: extract time part after T
-        time_part = original.split('T')[1]
-        if '+' in time_part:
-            time_part = time_part.split('+')[0]
-        if 'Z' in time_part:
-            time_part = time_part.replace('Z', '')
-        time_str = time_part
-    else:
-        time_str = original
-
-    # Extract HH:MM (first 5 characters if format is HH:MM:SS)
-    if ':' in time_str:
-        parts = time_str.split(':')
-        if len(parts) >= 2:
-            minute = parts[1]
-            # Apply DST offset if delegate available
-            if dst_delegate and 'T' in original:
-                # Parse UTC time from ISO string
-                date_part = original.split('T')[0]
-                time_part = original.split('T')[1].split('+')[0].split('Z')[0]
-                tp = time_part.split(':')
-                utc_hour = int(tp[0])
-                utc_min = int(tp[1])
-                dp = date_part.split('-')
-                utc_year, utc_month, utc_day = int(dp[0]), int(dp[1]), int(dp[2])
-                import utime
-                utc_ts = utime.mktime((utc_year, utc_month, utc_day, utc_hour, utc_min, 0, 0, 0))
-                dst_offset = dst_delegate(utc_ts)
-                local_hour = (utc_hour + (dst_offset // 3600)) % 24
-                return f"{local_hour:0>2}:{minute}"
-            return f"{parts[0]:0>2}:{minute}"
-
-    return time_str[:5] if len(time_str) >= 5 else time_str
-
-def parse_time_to_minutes(time_str):
-    """Parse HH:MM time string to minutes since midnight. Returns None if invalid."""
-    if not time_str or time_str == 'TBC' or ':' not in str(time_str):
-        return None
-    try:
-        parts = str(time_str).split(':')
-        if len(parts) >= 2:
-            hours = int(parts[0])
-            minutes = int(parts[1])
-            return hours * 60 + minutes
-    except (ValueError, IndexError):
-        pass
-    return None
-
-def calculate_delay_minutes(std_str, atd_str):
-    """Calculate delay in minutes between scheduled (std) and actual (atd) times."""
-    std_minutes = parse_time_to_minutes(std_str)
-    atd_minutes = parse_time_to_minutes(atd_str)
-    
-    if std_minutes is None or atd_minutes is None:
-        return None
-    
-    delay = atd_minutes - std_minutes
-    # Handle day rollover (e.g., scheduled 23:50, actual 00:10 next day)
-    if delay < -720:  # More than 12 hours negative, assume next day
-        delay += 1440
-    elif delay > 720:  # More than 12 hours positive, assume previous day
-        delay -= 1440
-    
-    return delay if delay > 0 else 0
-
-def get_color_for_train_status(std_str, atd_str, cancelled):
-    """Get color for train status based on cancellation and delay."""
-    if cancelled:
+def get_color_for_train_status(status, delay_minutes):
+    """Get color for train status based on status string and delay minutes."""
+    if status == 'cancelled':
         return 0xF34446  # Red for cancelled
-    
-    if std_str == 'TBC' or atd_str == 'TBC':
-        return 0x848284  # Gray for TBC
-    
-    delay_minutes = calculate_delay_minutes(std_str, atd_str)
-    
-    if delay_minutes is None:
-        return 0x848284  # Grey for unknown/on time
-    
-    if delay_minutes == 0:
+
+    # On time (scheduled, estimated with 0 delay, or no delay info)
+    if delay_minutes is None or delay_minutes == 0:
         return 0xFFFFFF  # White for on time
-    elif delay_minutes <= 5:
+
+    # Late delays
+    if delay_minutes <= 5:
         return 0xFED800  # Yellow for minor delay (1-5 min)
     elif delay_minutes <= 15:
         return 0xFDB412  # Orange-yellow for moderate delay (6-15 min)
@@ -122,12 +25,20 @@ def get_color_for_train_status(std_str, atd_str, cancelled):
     else:
         return 0xF80000  # Red for major delay (>30 min)
 
+# API format: flat array, 6 fields per departure
+# [scheduled_time, destination, platform, status, delay_minutes, train_class, ...]
+#   scheduled_time:  HH:mm UK local string
+#   destination:     display name string
+#   platform:        string, null if suppressed
+#   status:          'scheduled' | 'late' | 'early' | 'estimated' | 'cancelled'
+#   delay_minutes:   null when on-time/cancelled; positive=int late, negative=int early
+#   train_class:      string, null if unknown
+
 class TrainDisplay:
-    def __init__(self, display, url, start_y, dst_delegate=None):
+    def __init__(self, display, url, start_y):
         self.display = display
         self.url = url
         self.start_y = start_y
-        self.dst_delegate = dst_delegate
         self.departures = []
 
         self.display_width, self.display_height = self.display.get_bounds()
@@ -135,14 +46,12 @@ class TrainDisplay:
 
         # Pre-allocate HTTP request helper
         self._http_request = HttpRequest(url)
-   
+
     CREATION_PRIORITY = 1
     def create(provider):
         y_separator = provider['config']['display'].get('y_separator', 70)
-        remote_time = provider.get('remotetime.RemoteTime')
-        dst_delegate = remote_time.dst_delegate if remote_time else None
-        return TrainDisplay(provider['display'], provider['config']['trains']['url'], y_separator, dst_delegate)
-    
+        return TrainDisplay(provider['display'], provider['config']['trains']['url'], y_separator)
+
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
         while True:
@@ -150,8 +59,8 @@ class TrainDisplay:
             await asyncio.sleep(300)  # Fetch every 5 minutes (API caches for 5m)
 
     def should_activate(self):
-        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
-        num_departures = len(self.departures) // 7
+        # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
+        num_departures = len(self.departures) // 6
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     async def activate(self):
@@ -160,16 +69,16 @@ class TrainDisplay:
     async def __draw_header_row(self, y_offset):
         """Draw header row with column labels."""
         header_color = 0x848284  # Grey for header
-        
+
         # Define column widths
         time_width = 50
         platform_width = 30
         train_class_width = 30
         expected_width = 50
-        
+
         # Calculate destination width dynamically
         destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
-        
+
         # Ensure minimum width
         if destination_width < 50:
              destination_width = 50
@@ -180,113 +89,121 @@ class TrainDisplay:
         await textbox.draw_textbox(self.display, 'Plt', time_width + destination_width, y_offset, platform_width, 20, color=header_color, font='small')
         await textbox.draw_textbox(self.display, 'Cls', time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=header_color, font='small')
         await textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
-    
+
     async def __draw_departure_row(self, departure_idx, y_offset):
-        # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
-        idx = departure_idx * 7
-        if idx > len(self.departures) -1:
+        # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
+        idx = departure_idx * 6
+        if idx > len(self.departures) - 1:
             return
-        
-        scheduled = self.departures[idx] or 'TBC'
+
+        scheduled = self.departures[idx] or ''
         destination = self.departures[idx + 1] or ''
         platform = self.departures[idx + 2] or '-'
-        train_class = self.departures[idx + 3] or '-'
-        expected = self.departures[idx + 4] or 'TBC'
-        cancelled = self.departures[idx + 5]
-        delayed = self.departures[idx + 6]
+        status = self.departures[idx + 3] or 'scheduled'
+        delay_minutes = self.departures[idx + 4]
+        train_class = self.departures[idx + 5] or '-'
 
-        row_pen = get_color_for_train_status(scheduled, expected, cancelled)
-        
+        row_pen = get_color_for_train_status(status, delay_minutes)
+
+        # Format expected time display
+        if status == 'cancelled':
+            expected = 'Cancelled'
+        elif status == 'estimated':
+            # Use scheduled time + delay for expected
+            if delay_minutes is not None and delay_minutes != 0:
+                # Parse scheduled time and add delay
+                if ':' in scheduled:
+                    parts = scheduled.split(':')
+                    hours = int(parts[0])
+                    mins = int(parts[1])
+                    total_mins = hours * 60 + mins + delay_minutes
+                    hours = (total_mins // 60) % 24
+                    mins = total_mins % 60
+                    expected = f"{hours:02d}:{mins:02d}"
+                else:
+                    expected = scheduled
+            else:
+                expected = scheduled
+        elif status == 'late' and delay_minutes:
+            if ':' in scheduled:
+                parts = scheduled.split(':')
+                hours = int(parts[0])
+                mins = int(parts[1])
+                total_mins = hours * 60 + mins + delay_minutes
+                hours = (total_mins // 60) % 24
+                mins = total_mins % 60
+                expected = f"{hours:02d}:{mins:02d}"
+            else:
+                expected = scheduled
+        elif status == 'early' and delay_minutes:
+            if ':' in scheduled:
+                parts = scheduled.split(':')
+                hours = int(parts[0])
+                mins = int(parts[1])
+                total_mins = hours * 60 + mins + delay_minutes
+                hours = (total_mins // 60) % 24
+                mins = total_mins % 60
+                expected = f"{hours:02d}:{mins:02d}"
+            else:
+                expected = scheduled
+        else:
+            expected = scheduled
+
         # Define column widths and positions
         time_width = 50
         platform_width = 30
         train_class_width = 30
         expected_width = 50
-        
+
         # Calculate destination width dynamically
         destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
 
         # Ensure minimum width
         if destination_width < 50:
              destination_width = 50
-        
+
         # Draw each column using textbox
         await textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')
         await textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='small', align='left')
         await textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
         await textbox.draw_textbox(self.display, train_class, time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=row_pen, font='small')
         await textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=row_pen, font='small')
-    
+
     async def fetch_departures(self):
         try:
             # Use unified HTTP request helper
             async with self._http_request.get_scoped() as (reader, writer):
-                # Stream parse JSON array without buffering entire response
-                # Format: [std, station, platform, class, atd, std, station, platform, class, atd, ...]
-                # Store as flat array: [std_formatted, station, platform, class, atd_formatted, cancelled, delayed, ...]
+                # New format: flat array with 6 fields per departure
+                # [scheduled, destination, platform, status, delay_minutes, train_class, ...]
                 self.departures = []
-                element_buffer = []
+
+                # Calculate how many rows fit in the display area
+                row_height = 17
+                available_height = self.display_height - self.start_y - row_height
+                max_rows = available_height // row_height
+                max_elements = max_rows * 6
 
                 async for element in load_array(reader):
-                    element_buffer.append(element)
-
-                    # Process in groups of 5 (std, station, platform, class, atd)
-                    if len(element_buffer) == 5:
-                        std = element_buffer[0]
-                        station = element_buffer[1]
-                        platform = element_buffer[2]
-                        train_class = element_buffer[3]
-                        atd = element_buffer[4]
-
-                        # Format times to HH:MM
-                        std_formatted = format_time_to_hhmm(std, self.dst_delegate)
-                        atd_formatted = format_time_to_hhmm(atd, self.dst_delegate)
-
-                        # Determine if cancelled or delayed
-                        cancelled = False
-                        delayed = False
-
-                        # If atd is empty or "On time", check for delays
-                        if atd_formatted and atd_formatted != std_formatted and atd_formatted != "On time":
-                            delayed = True
-
-                        # Convert empty strings to display values
-                        scheduled_time_display = std_formatted if std_formatted else ''
-                        expected_time_display = atd_formatted if atd_formatted else scheduled_time_display
-                        destination_display = station if station else ''
-                        platform_display = platform if platform else ''
-                        train_class_display = train_class if train_class else ''
-
-                        # Append as flat array: std, station, platform, class, atd, cancelled, delayed
-                        self.departures.append(scheduled_time_display)
-                        self.departures.append(destination_display)
-                        self.departures.append(platform_display)
-                        self.departures.append(train_class_display)
-                        self.departures.append(expected_time_display)
-                        self.departures.append(cancelled)
-                        self.departures.append(delayed)
-
-                        element_buffer = []
+                    self.departures.append(element)
+                    if len(self.departures) >= max_elements:
+                        break
 
             # Clean up after HTTP request
-            import gc
             gc.collect()
 
             self.departures_last_updated = utime.ticks_ms()
-            # Data format: [std, station, platform, class, atd, cancelled, delayed, ...]
-            num_departures = len(self.departures) // 7
+            # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
+            num_departures = len(self.departures) // 6
             print(f"Train data fetched: {num_departures} departures")
 
         except Exception as e:
             print(f"Error fetching train data: {e}")
-    
-    def get_departures(self):
-        # Return number of departures for backward compatibility
-        return len(self.departures) // 7
 
     async def update(self):
         y_start = self.start_y
         row_height = 17
+        available_height = self.display_height - self.start_y - row_height
+        max_rows = available_height // row_height
 
         # Clear header area
         self.display.rect(0, y_start, self.display_width, row_height, 0x000000, True)
@@ -300,7 +217,7 @@ class TrainDisplay:
         await asyncio.sleep(0)
 
         # Draw departure rows
-        for row in range(9):
+        for row in range(max_rows):
             row_start = y_start + row_height + row * row_height
 
             # Clear this row
