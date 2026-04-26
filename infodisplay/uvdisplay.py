@@ -120,8 +120,8 @@ class UvDisplay:
         self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
 
 
-        chart_y = y_start + 5
-        chart_height = self.display_height - y_start - label_height - 10
+        chart_y = y_start
+        chart_height = self.display_height - y_start - label_height - 5
         
         # Draw colored labels column (key column) - now just color sections
         sections = [
