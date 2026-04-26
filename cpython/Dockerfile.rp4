@@ -1,6 +1,6 @@
 # Docker file for Raspberry Pi 4 with Raspberry Pi Touch Display 2
 # Uses direct framebuffer access - no pygame/SDL required
-FROM python:3-slim
+FROM python:3.13-slim
 
 WORKDIR /app/cpython
 COPY Ae.Pico/cpython/requirements.txt .
