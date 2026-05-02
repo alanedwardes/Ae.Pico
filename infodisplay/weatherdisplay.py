@@ -14,12 +14,13 @@ from flatjson import load_array
 _DAY_NAMES = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
 
 class WeatherDisplay:
-    def __init__(self, display, url, refresh_period_seconds, start_y):
+    def __init__(self, display, url, refresh_period_seconds, start_y, local_time=None):
         self.display = display
         self.url = url
         self.weather_data = []
         self.refresh_period_seconds = refresh_period_seconds
         self.start_y = start_y
+        self.local_time = local_time or utime.localtime
 
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -39,7 +40,9 @@ class WeatherDisplay:
         config = provider['config']['weather']
         refresh_period = config.get('refresh_period_seconds', 300)
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return WeatherDisplay(provider['display'], config['url'], refresh_period, y_separator)
+        remote_time = provider.get('remotetime.RemoteTime')
+        local_time = remote_time.local_time if remote_time else None
+        return WeatherDisplay(provider['display'], config['url'], refresh_period, y_separator, local_time)
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -126,7 +129,7 @@ class WeatherDisplay:
         min_row_y = max_row_y + slot_height
         rain_row_y = min_row_y + slot_height
 
-        now = utime.localtime()
+        now = self.local_time()
         for i in range(num_days):
             data_index = i * 4
             if data_index + 3 >= len(self.weather_data):

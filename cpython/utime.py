@@ -4,7 +4,7 @@ import datetime as _dt
 
 MICROPY_PY_UTIME_TICKS_PERIOD = 2**30
 
-_PASSTHRU = ("time", "sleep", "gmtime", "localtime")
+_PASSTHRU = ("time", "sleep", "gmtime")
 
 for f in _PASSTHRU:
     globals()[f] = getattr(_time, f)
@@ -36,5 +36,7 @@ def ticks_add(t, delta):
 
 def ticks_diff(a, b):
     return ((a - b + MICROPY_PY_UTIME_TICKS_PERIOD // 2) & (MICROPY_PY_UTIME_TICKS_PERIOD - 1)) - MICROPY_PY_UTIME_TICKS_PERIOD // 2
+
+localtime = _time.gmtime
 
 del f
