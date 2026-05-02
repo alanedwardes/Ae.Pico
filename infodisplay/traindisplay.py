@@ -25,14 +25,15 @@ def get_color_for_train_status(status, delay_minutes):
     else:
         return 0xFF8800  # Dark amber for major delay (>30 min)
 
-# API format: flat array, 6 fields per departure
-# [scheduled_time, destination, platform, status, delay_minutes, train_class, ...]
+# API format: flat array, 7 fields per departure
+# [scheduled_time, destination, platform, status, delay_minutes, train_class, expected_time, ...]
 #   scheduled_time:  HH:mm UK local string
 #   destination:     display name string
-#   platform:        string, null if suppressed
-#   status:          'scheduled' | 'late' | 'early' | 'estimated' | 'cancelled'
+#   platform:        platform string, 'TBC' if suppressed, '-' if unallocated
+#   status:          'scheduled' | 'late' | 'early' | 'cancelled'
 #   delay_minutes:   null when on-time/cancelled; positive=int late, negative=int early
-#   train_class:      string, null if unknown
+#   train_class:     class string, '-' if unknown
+#   expected_time:   'On time' | 'HH:mm' | 'Cancelled'
 
 class TrainDisplay:
     def __init__(self, display, url, start_y):
@@ -59,8 +60,7 @@ class TrainDisplay:
             await asyncio.sleep(300)  # Fetch every 5 minutes (API caches for 5m)
 
     def should_activate(self):
-        # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
-        num_departures = len(self.departures) // 6
+        num_departures = len(self.departures) // 7
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     async def activate(self):
@@ -91,63 +91,19 @@ class TrainDisplay:
         await textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
 
     async def __draw_departure_row(self, departure_idx, y_offset):
-        # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
-        idx = departure_idx * 6
-        if idx > len(self.departures) - 1:
+        idx = departure_idx * 7
+        if idx + 6 > len(self.departures) - 1:
             return
 
         scheduled = self.departures[idx] or ''
         destination = self.departures[idx + 1] or ''
-        platform = self.departures[idx + 2] or '-'
+        platform = self.departures[idx + 2]
         status = self.departures[idx + 3] or 'scheduled'
         delay_minutes = self.departures[idx + 4]
-        train_class = self.departures[idx + 5] or '-'
+        train_class = self.departures[idx + 5]
+        expected = self.departures[idx + 6]
 
         row_pen = get_color_for_train_status(status, delay_minutes)
-
-        # Format expected time display
-        if status == 'cancelled':
-            expected = 'Cancelled'
-        elif status == 'estimated':
-            # Use scheduled time + delay for expected
-            if delay_minutes is not None and delay_minutes != 0:
-                # Parse scheduled time and add delay
-                if ':' in scheduled:
-                    parts = scheduled.split(':')
-                    hours = int(parts[0])
-                    mins = int(parts[1])
-                    total_mins = hours * 60 + mins + delay_minutes
-                    hours = (total_mins // 60) % 24
-                    mins = total_mins % 60
-                    expected = f"{hours:02d}:{mins:02d}"
-                else:
-                    expected = scheduled
-            else:
-                expected = scheduled
-        elif status == 'late' and delay_minutes:
-            if ':' in scheduled:
-                parts = scheduled.split(':')
-                hours = int(parts[0])
-                mins = int(parts[1])
-                total_mins = hours * 60 + mins + delay_minutes
-                hours = (total_mins // 60) % 24
-                mins = total_mins % 60
-                expected = f"{hours:02d}:{mins:02d}"
-            else:
-                expected = scheduled
-        elif status == 'early' and delay_minutes:
-            if ':' in scheduled:
-                parts = scheduled.split(':')
-                hours = int(parts[0])
-                mins = int(parts[1])
-                total_mins = hours * 60 + mins + delay_minutes
-                hours = (total_mins // 60) % 24
-                mins = total_mins % 60
-                expected = f"{hours:02d}:{mins:02d}"
-            else:
-                expected = scheduled
-        else:
-            expected = scheduled
 
         # Define column widths and positions
         time_width = 50
@@ -178,7 +134,7 @@ class TrainDisplay:
                 row_height = 17
                 available_height = self.display_height - self.start_y - row_height
                 max_rows = available_height // row_height
-                max_elements = max_rows * 6
+                max_elements = max_rows * 7
 
                 async for element in load_array(reader):
                     self.departures.append(element)
@@ -192,7 +148,7 @@ class TrainDisplay:
 
             self.departures_last_updated = utime.ticks_ms()
             # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
-            num_departures = len(self.departures) // 6
+            num_departures = len(self.departures) // 7
             print(f"Train data fetched: {num_departures} departures")
 
         except Exception as e:
