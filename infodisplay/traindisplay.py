@@ -25,8 +25,8 @@ def get_color_for_train_status(status, delay_minutes):
     else:
         return 0xFF8800  # Dark amber for major delay (>30 min)
 
-# API format: flat array, 7 fields per departure
-# [scheduled_time, destination, platform, status, delay_minutes, train_class, expected_time, ...]
+# API format: flat array, 8 fields per departure
+# [scheduled_time, destination, platform, status, delay_minutes, train_class, expected_time, toc_code]
 #   scheduled_time:  HH:mm UK local string
 #   destination:     display name string
 #   platform:        platform string, 'TBC' if suppressed, '-' if unallocated
@@ -34,6 +34,20 @@ def get_color_for_train_status(status, delay_minutes):
 #   delay_minutes:   null when on-time/cancelled; positive=int late, negative=int early
 #   train_class:     class string, '-' if unknown
 #   expected_time:   'On time' | 'HH:mm' | 'Cancelled'
+#   toc_code:        2-char train operating company code, e.g. 'GR', 'VT'
+
+FIELDS_PER_DEPARTURE = 8
+
+# Column definitions: (header_label, field_offset, fixed_width | None=fill_remaining)
+# Exactly one column must have width=None; it expands to fill the display.
+COLUMNS = [
+    ('Time', 0, 45),
+    ('Destination', 1, None),
+    ('Plt', 2, 28),
+    ('Cls', 5, 28),
+    ('Op', 7, 35),
+    ('Expected', 6, 70),
+]
 
 class TrainDisplay:
     def __init__(self, display, url, start_y):
@@ -60,70 +74,45 @@ class TrainDisplay:
             await asyncio.sleep(300)  # Fetch every 5 minutes (API caches for 5m)
 
     def should_activate(self):
-        num_departures = len(self.departures) // 7
+        num_departures = len(self.departures) // FIELDS_PER_DEPARTURE
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     async def activate(self):
         await self.update()
 
+    def _resolve_column_widths(self):
+        """Return (x_positions, widths) lists matching COLUMNS order."""
+        fixed_total = sum(w for _, _, w in COLUMNS if w is not None)
+        fill_width = max(50, self.display_width - fixed_total)
+        widths = [fill_width if w is None else w for _, _, w in COLUMNS]
+        positions = []
+        x = 0
+        for w in widths:
+            positions.append(x)
+            x += w
+        return positions, widths
+
     async def __draw_header_row(self, y_offset):
-        """Draw header row with column labels."""
-        header_color = 0x848284  # Grey for header
-
-        # Define column widths
-        time_width = 50
-        platform_width = 30
-        train_class_width = 30
-        expected_width = 50
-
-        # Calculate destination width dynamically
-        destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
-
-        # Ensure minimum width
-        if destination_width < 50:
-             destination_width = 50
-
-        # Draw header labels
-        await textbox.draw_textbox(self.display, 'Time', 0, y_offset, time_width, 20, color=header_color, font='small')
-        await textbox.draw_textbox(self.display, 'Destination', time_width, y_offset, destination_width, 20, color=header_color, font='small', align='left')
-        await textbox.draw_textbox(self.display, 'Plt', time_width + destination_width, y_offset, platform_width, 20, color=header_color, font='small')
-        await textbox.draw_textbox(self.display, 'Cls', time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=header_color, font='small')
-        await textbox.draw_textbox(self.display, 'Exp', time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=header_color, font='small')
+        header_color = 0x848284
+        positions, widths = self._resolve_column_widths()
+        for i, (label, _, _) in enumerate(COLUMNS):
+            align = 'left' if widths[i] > 50 else 'center'
+            await textbox.draw_textbox(self.display, label, positions[i], y_offset, widths[i], 20, color=header_color, font='small', align=align)
 
     async def __draw_departure_row(self, departure_idx, y_offset):
-        idx = departure_idx * 7
-        if idx + 6 > len(self.departures) - 1:
+        idx = departure_idx * FIELDS_PER_DEPARTURE
+        if idx + FIELDS_PER_DEPARTURE > len(self.departures):
             return
 
-        scheduled = self.departures[idx] or ''
-        destination = self.departures[idx + 1] or ''
-        platform = self.departures[idx + 2]
         status = self.departures[idx + 3] or 'scheduled'
         delay_minutes = self.departures[idx + 4]
-        train_class = self.departures[idx + 5]
-        expected = self.departures[idx + 6]
-
         row_pen = get_color_for_train_status(status, delay_minutes)
 
-        # Define column widths and positions
-        time_width = 50
-        platform_width = 30
-        train_class_width = 30
-        expected_width = 50
-
-        # Calculate destination width dynamically
-        destination_width = self.display_width - (time_width + platform_width + train_class_width + expected_width)
-
-        # Ensure minimum width
-        if destination_width < 50:
-             destination_width = 50
-
-        # Draw each column using textbox
-        await textbox.draw_textbox(self.display, scheduled, 0, y_offset, time_width, 20, color=row_pen, font='small')
-        await textbox.draw_textbox(self.display, destination, time_width, y_offset, destination_width, 20, color=row_pen, font='small', align='left')
-        await textbox.draw_textbox(self.display, platform, time_width + destination_width, y_offset, platform_width, 20, color=row_pen, font='small')
-        await textbox.draw_textbox(self.display, train_class, time_width + destination_width + platform_width, y_offset, train_class_width, 20, color=row_pen, font='small')
-        await textbox.draw_textbox(self.display, expected, time_width + destination_width + platform_width + train_class_width, y_offset, expected_width, 20, color=row_pen, font='small')
+        positions, widths = self._resolve_column_widths()
+        for i, (_, field_offset, _) in enumerate(COLUMNS):
+            value = self.departures[idx + field_offset] or ''
+            align = 'left' if widths[i] > 50 else 'center'
+            await textbox.draw_textbox(self.display, value, positions[i], y_offset, widths[i], 20, color=row_pen, font='small', align=align)
 
     async def fetch_departures(self):
         try:
@@ -134,7 +123,7 @@ class TrainDisplay:
                 row_height = 17
                 available_height = self.display_height - self.start_y - row_height
                 max_rows = available_height // row_height
-                max_elements = max_rows * 7
+                max_elements = max_rows * FIELDS_PER_DEPARTURE
 
                 async for element in load_array(reader):
                     self.departures.append(element)
@@ -147,8 +136,7 @@ class TrainDisplay:
             gc.collect()
 
             self.departures_last_updated = utime.ticks_ms()
-            # Data format: [scheduled, destination, platform, status, delay_minutes, train_class, ...]
-            num_departures = len(self.departures) // 7
+            num_departures = len(self.departures) // FIELDS_PER_DEPARTURE
             print(f"Train data fetched: {num_departures} departures")
 
         except Exception as e:
