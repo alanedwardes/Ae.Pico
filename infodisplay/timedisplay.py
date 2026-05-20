@@ -25,6 +25,8 @@ class TimeDisplay:
         self._last_day_idx = -1
         self._last_second = -1
         self._last_tenth = -1
+        self._last_mday = -1
+        self._last_month = -1
     
     CREATION_PRIORITY = 1
     def create(provider):
@@ -88,17 +90,30 @@ class TimeDisplay:
             # Render only the time region
             self.display.update((0, 0, time_width, height))
 
-        # 2. Day Display
-        # Only update if day changed
-        if now[6] != self._last_day_idx:
+        # 2. Day / Date / Month Display
+        day_region_changed = (
+            now[6] != self._last_day_idx
+            or now[2] != self._last_mday
+            or now[1] != self._last_month
+        )
+        if day_region_changed:
             self._last_day_idx = now[6]
-            # Use direct access
-            day_text = self.DAYS[now[6]]
-            
-            self.display.rect(time_width, 0, date_seconds_width, section_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, day_text, time_width, 0, date_seconds_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align='left')
-            
-            # Render only the day region
+            self._last_mday = now[2]
+            self._last_month = now[1]
+
+            cal_x = time_width
+            cal_y = 0
+            cal_w = date_seconds_width
+            cal_h = section_height
+            row_h = cal_h // 2
+
+            day_date_text = self.DAYS[now[6]] + ' ' + str(now[2])
+            month_text = self.MONTHS[now[1] - 1]
+
+            self.display.rect(cal_x, cal_y, cal_w, cal_h, 0x000000, True)
+            await textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale)
+            await textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale)
+
             self.display.update((time_width, 0, date_seconds_width, section_height))
 
         # Helper vars for layout
