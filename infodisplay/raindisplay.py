@@ -214,7 +214,7 @@ class RainDisplay:
 
             idx = i * 4
             hour = self.weather_data[idx]
-            hour_number = 12 if hour == 0 else hour
+            hour_number = hour
             rate_int = self._rate_ints[i] if i < len(self._rate_ints) else int(self.weather_data[idx + 2])
 
             sx = key_width + (i * data_width) // denom
