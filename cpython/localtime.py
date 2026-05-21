@@ -5,13 +5,6 @@ import datetime as _dt
 class LocalTime:
     CREATION_PRIORITY = 1
 
-    def __init__(self):
-        self._utc_offset_seconds = self._compute_utc_offset()
-
-    def _compute_utc_offset(self):
-        offset = _dt.datetime.now().astimezone().utcoffset()
-        return int(offset.total_seconds())
-
     def create(provider):
         if 'time' in provider:
             return None
@@ -20,7 +13,8 @@ class LocalTime:
         return instance
 
     def utc_offset_seconds(self):
-        return self._utc_offset_seconds
+        offset = _dt.datetime.now().astimezone().utcoffset()
+        return int(offset.total_seconds())
 
     def local_time(self):
         return utime.localtime()
