@@ -10,12 +10,12 @@ import network
 
 def save_exception(file_name, exception):
     print("Exception %s: %s" % (exception.__class__.__name__, str(exception)))
-    
-    try:
-        with open(file_name, 'w') as file:
-            sys.print_exception(exception, file)
-    except:
-        print('Unable to write exception to flash')
+
+    # try:
+    #     with open(file_name, 'w') as file:
+    #         sys.print_exception(exception, file)
+    # except:
+    #     print('Unable to write exception to flash')
 
 def handle_factory_exception(exception):
     save_exception('factory.log', exception)
