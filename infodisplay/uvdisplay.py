@@ -58,7 +58,8 @@ class UvDisplay:
         if first_idx is None or last_idx is None:
             return True
         now = self.time.local_time()
-        current_time = now[3] + (now[4] / 60.0)
+        utc_offset_hours = self.time.utc_offset_seconds() // 3600
+        current_time = (now[3] - utc_offset_hours) % 24 + (now[4] / 60.0)
         if current_time < (first_idx - 1.0):
             return False
         if current_time > (last_idx + 1.0):
@@ -198,9 +199,8 @@ class UvDisplay:
                     
                 await textbox.draw_textbox(self.display, str(max_uv), tx, ty, peak_box_w, label_height, color=0xFFFFFF, font=font_name, align='center')
         # Draw current time vertical line
-        current_hour = now[3]
         current_minute = now[4]
-        current_time_decimal = current_hour + (current_minute / 60.0)
+        current_time_decimal = (now[3] - utc_offset_hours) % 24 + (current_minute / 60.0)
         
         if current_time_decimal < num_hours - 1:
             time_x = key_width + (current_time_decimal / denom) * data_width
