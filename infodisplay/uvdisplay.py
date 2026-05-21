@@ -1,5 +1,4 @@
 import asyncio
-import utime
 import gc
 import chart
 import colors
@@ -16,14 +15,14 @@ def _uv_color_fn(idx, value):
     return colors.get_color_for_uv(value)
 
 class UvDisplay:
-    def __init__(self, display, url, refresh_period_seconds, start_y, local_time=None):
+    def __init__(self, display, url, refresh_period_seconds, start_y, time):
         self.display = display
         self.url = url
         self.uv_data = []
         self._normalized_data = []
         self.refresh_period_seconds = refresh_period_seconds
         self.start_y = start_y
-        self.local_time = local_time or utime.localtime
+        self.time = time
 
         self.display_width, self.display_height = self.display.get_bounds()
 
@@ -32,14 +31,12 @@ class UvDisplay:
 
         self.tsf = asyncio.ThreadSafeFlag()
     
-    CREATION_PRIORITY = 1
+    CREATION_PRIORITY = 2
     def create(provider):
         config = provider['config']['uv']
         refresh_period = config.get('refresh_period_seconds', 300)
         y_separator = provider['config']['display'].get('y_separator', 70)
-        remote_time = provider.get('remotetime.RemoteTime')
-        local_time = remote_time.local_time if remote_time else None
-        return UvDisplay(provider['display'], config['url'], refresh_period, y_separator, local_time)
+        return UvDisplay(provider['display'], config['url'], refresh_period, y_separator, provider['time'])
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -60,7 +57,7 @@ class UvDisplay:
                 last_idx = i
         if first_idx is None or last_idx is None:
             return True
-        now = utime.localtime()
+        now = self.time.local_time()
         current_time = now[3] + (now[4] / 60.0)
         if current_time < (first_idx - 1.0):
             return False
@@ -146,10 +143,8 @@ class UvDisplay:
             y_pos = chart_y + chart_height - (uv_value / _MAX_UV) * chart_height
             self.display.rect(key_width, int(y_pos), data_width, 1, 0x424142, True)
 
-        # Compute UTC-to-local offset in whole hours for label display
-        now_utc = utime.localtime()
-        now_local = self.local_time()
-        utc_offset_hours = (now_local[3] - now_utc[3] + 24) % 24
+        now = self.time.local_time()
+        utc_offset_hours = self.time.utc_offset_seconds() // 3600
 
         # Draw hour labels at the bottom
         label_box_width = 30
@@ -203,7 +198,6 @@ class UvDisplay:
                     
                 await textbox.draw_textbox(self.display, str(max_uv), tx, ty, peak_box_w, label_height, color=0xFFFFFF, font=font_name, align='center')
         # Draw current time vertical line
-        now = utime.localtime()
         current_hour = now[3]
         current_minute = now[4]
         current_time_decimal = current_hour + (current_minute / 60.0)

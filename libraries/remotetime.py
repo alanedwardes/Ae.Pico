@@ -22,7 +22,7 @@ class RemoteTime:
         config = provider['config']['remotetime']
         tz = config.get('timezone', {})
 
-        return RemoteTime(
+        instance = RemoteTime(
             config['endpoint'],
             config['update_time_ms'],
             provider.get('nic'),
@@ -30,6 +30,8 @@ class RemoteTime:
             tz.get('dst_delegate'),
             config.get('write_initial_time', False)
         )
+        provider['time'] = instance
+        return instance
 
     async def start(self):
         while self.nic and not self.nic.isconnected():
@@ -79,18 +81,25 @@ class RemoteTime:
         seconds = t + carry
         return seconds, milliseconds
     
-    def local_time(self):
-        """Return current local time as a 9-tuple extending utime.localtime():
-        (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
-        Indices [0:8] are identical to utime.gmtime()/utime.localtime().
-        Index [8] adds milliseconds for sub-second display."""
+    def _current_utc(self):
         elapsed_ms = utime.ticks_diff(utime.ticks_ms(), self.last_update)
         total_ms = self.base_milliseconds + elapsed_ms
         carry, milliseconds = divmod(total_ms, 1000)
         seconds_utc = self.base_seconds + carry
         dst_offset = self.dst_delegate(seconds_utc) if self.dst_delegate else 0
-        local_seconds = seconds_utc + self.offset_seconds + dst_offset
-        tm = utime.gmtime(local_seconds)
+        return seconds_utc, milliseconds, self.offset_seconds + dst_offset
+
+    def utc_offset_seconds(self):
+        _, _, offset = self._current_utc()
+        return offset
+
+    def local_time(self):
+        """Return current local time as a 9-tuple extending utime.localtime():
+        (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
+        Indices [0:8] are identical to utime.gmtime()/utime.localtime().
+        Index [8] adds milliseconds for sub-second display."""
+        seconds_utc, milliseconds, local_offset = self._current_utc()
+        tm = utime.gmtime(seconds_utc + local_offset)
         return (tm[0], tm[1], tm[2], tm[3], tm[4], tm[5], tm[6], tm[7], milliseconds)
     
     async def update_time(self):

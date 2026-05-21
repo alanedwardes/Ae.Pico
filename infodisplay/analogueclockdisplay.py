@@ -1,13 +1,12 @@
 import math
-import utime
 import asyncio
 import gc
 import textbox
 
 class AnalogueClockDisplay:
-    def __init__(self, display, rtc, start_y):
+    def __init__(self, display, time, start_y):
         self.display = display
-        self.rtc = rtc
+        self.time = time
         
         self.display_width, self.display_height = self.display.get_bounds()
         
@@ -25,16 +24,11 @@ class AnalogueClockDisplay:
         self._last_minute = -1
         self._last_second = -1
 
-    CREATION_PRIORITY = 1
-    
+    CREATION_PRIORITY = 2
+
     def create(provider):
-        rtc = provider.get('remotetime.RemoteTime')
-        if not rtc:
-            print('Falling back to machine.RTC as remotetime.RemoteTime unavailable')
-            import machine
-            rtc = machine.RTC()
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return AnalogueClockDisplay(provider['display'], rtc, y_separator)
+        return AnalogueClockDisplay(provider['display'], provider['time'], y_separator)
 
     async def start(self):
         await self.activate()
@@ -58,11 +52,10 @@ class AnalogueClockDisplay:
             await asyncio.sleep(0.1)
 
     async def update(self):
-        now = self.rtc.datetime()
-        # datetime tuple on MicroPython: (year, month, day, weekday, hour, minute, second, subsecond)
-        hour = now[4]
-        minute = now[5]
-        second = now[6]
+        now = self.time.local_time()
+        hour = now[3]
+        minute = now[4]
+        second = now[5]
         
         if self._last_second == second and self._last_minute == minute and self._last_hour == hour:
             return

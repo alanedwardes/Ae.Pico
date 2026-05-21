@@ -1,5 +1,4 @@
 import math
-import utime
 import asyncio
 import gc
 import textbox
@@ -8,9 +7,9 @@ class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
     
-    def __init__(self, display, time_source, height):
+    def __init__(self, display, time, height):
         self.display = display
-        self.time_source = time_source
+        self.time = time
         self.height = height
         
         self.display_width, self.display_height = self.display.get_bounds()
@@ -28,23 +27,10 @@ class TimeDisplay:
         self._last_mday = -1
         self._last_month = -1
     
-    CREATION_PRIORITY = 1
+    CREATION_PRIORITY = 2
     def create(provider):
-        remote_time = provider.get('remotetime.RemoteTime')
-        if remote_time:
-            time_source = remote_time.local_time
-        else:
-            print('Falling back to machine.RTC as remotetime.RemoteTime unavailable')
-            import machine
-            rtc = machine.RTC()
-            # Adapt machine.RTC().datetime() to local_time() tuple format:
-            # RTC: (year, month, day, weekday, hour, minute, second, subseconds)
-            # local_time: (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
-            def time_source():
-                t = rtc.datetime()
-                return (t[0], t[1], t[2], t[4], t[5], t[6], t[3] - 1, 0, t[7])
         y_separator = provider['config']['display'].get('y_separator', 70)
-        return TimeDisplay(provider['display'], time_source, y_separator)
+        return TimeDisplay(provider['display'], provider['time'], y_separator)
     
     async def start(self):
         while True:
@@ -71,8 +57,7 @@ class TimeDisplay:
         # Font scale proportional to height
         font_scale = self.height / 70.0
 
-        now = self.time_source()
-        # local_time format: (year, month, mday, hour, minute, second, weekday, yearday, milliseconds)
+        now = self.time.local_time()
 
         # 1. HH:MM Display
         # Only re-format and re-draw if the minute has changed

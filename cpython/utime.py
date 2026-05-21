@@ -37,6 +37,14 @@ def ticks_add(t, delta):
 def ticks_diff(a, b):
     return ((a - b + MICROPY_PY_UTIME_TICKS_PERIOD // 2) & (MICROPY_PY_UTIME_TICKS_PERIOD - 1)) - MICROPY_PY_UTIME_TICKS_PERIOD // 2
 
-localtime = _time.gmtime
+def localtime(t=None):
+    if t is None:
+        now = _dt.datetime.now()
+        s = now.timetuple()
+        ms = now.microsecond // 1000
+    else:
+        s = _time.gmtime(t)
+        ms = 0
+    return (s.tm_year, s.tm_mon, s.tm_mday, s.tm_hour, s.tm_min, s.tm_sec, s.tm_wday, s.tm_yday, ms)
 
 del f

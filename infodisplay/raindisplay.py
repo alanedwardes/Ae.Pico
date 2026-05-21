@@ -1,5 +1,4 @@
 import asyncio
-import utime
 import gc
 import chart
 import colors
@@ -36,13 +35,13 @@ def wind_speed_to_beaufort(wind_speed_ms):
         return beaufort_rounded
 
 class RainDisplay:
-    def __init__(self, display, url, refresh_period_seconds, start_y, local_time=None):
+    def __init__(self, display, url, refresh_period_seconds, start_y, time):
         self.display = display
         self.url = url
         self.weather_data = []
         self.refresh_period_seconds = refresh_period_seconds
         self.start_y = start_y
-        self.local_time = local_time or utime.localtime
+        self.time = time
 
         self.display_width, self.display_height = self.display.get_bounds()
         # Cached, precomputed arrays to reduce per-frame allocations
@@ -54,14 +53,12 @@ class RainDisplay:
         # Pre-allocate HTTP request helper
         self._http_request = HttpRequest(url)
     
-    CREATION_PRIORITY = 1
+    CREATION_PRIORITY = 2
     def create(provider):
         config = provider['config']['rain']
         refresh_period = config.get('refresh_period_seconds', 300)
         y_separator = provider['config']['display'].get('y_separator', 70)
-        remote_time = provider.get('remotetime.RemoteTime')
-        local_time = remote_time.local_time if remote_time else None
-        return RainDisplay(provider['display'], config['url'], refresh_period, y_separator, local_time)
+        return RainDisplay(provider['display'], config['url'], refresh_period, y_separator, provider['time'])
     
     async def start(self):
         await asyncio.sleep(random.randint(5, 10))
@@ -106,7 +103,7 @@ class RainDisplay:
                 # Format: [rain_prob, rate_mmh, windSpeed10m, rain_prob, rate_mmh, windSpeed10m, ...]
                 # Store as flat array: [hour, rain_prob, rate_mmh, wind_speed, hour, rain_prob, rate_mmh, wind_speed, ...]
                 self.weather_data = []
-                current_hour = self.local_time()[3]  # Get current local hour
+                current_hour = self.time.local_time()[3]
                 element_buffer = []
                 hour_offset = 0
 
