@@ -69,8 +69,8 @@ class TemperatureDisplay:
             return
 
         current_temperature = round(float(self.temperature_data[0]))
-        minimum_temperature = round(float(self.temperature_data[1]))
-        maximum_temperature = round(float(self.temperature_data[2]))
+        minimum_temperature = min(round(float(self.temperature_data[1])), current_temperature)
+        maximum_temperature = max(round(float(self.temperature_data[2])), current_temperature)
         
         self.display.rect(self.display_width - self.height, 0, self.height, self.height, 0x000000, True)
         
