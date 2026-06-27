@@ -65,6 +65,8 @@ class Pin:
     OUT = 1
     PULL_UP = 1
     PULL_DOWN = 2
+    IRQ_RISING = 0x01
+    IRQ_FALLING = 0x02
     __pi = None
 
     def __init__(self, id, mode=-1, pull=-1, *, value=None, drive=0, alt=-1):
@@ -93,6 +95,20 @@ class Pin:
 
     def value(self, x=None):
         return self.init(value=x) if x is not None else Pin.__pi.read(self.__id)
+
+    def irq(self, handler, trigger=0x03, *, hard=False):
+        from pigpio import RISING_EDGE, FALLING_EDGE, EITHER_EDGE
+        if trigger == Pin.IRQ_RISING:
+            edge = RISING_EDGE
+        elif trigger == Pin.IRQ_FALLING:
+            edge = FALLING_EDGE
+        else:
+            edge = EITHER_EDGE
+        pin_self = self
+        def _cb(gpio, level, tick):
+            handler(pin_self)
+        # Hold a reference on the instance so pigpio doesn't garbage-collect the callback.
+        self._irq_cb = Pin.__pi.callback(self.__id, edge, _cb)
 
 def freq():
     return 0

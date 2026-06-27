@@ -6,35 +6,28 @@ class ThreadSafeFlag:
     def __init__(self):
         self._event = asyncio.Event()
         self._lock = threading.Lock()
-        self._waiting_task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def set(self):
-        """Set the flag. If there is a task waiting on the flag, it will be scheduled to run."""
+        """Set the flag from any thread. Uses call_soon_threadsafe when called from outside the event loop."""
         with self._lock:
+            loop = self._loop
+        if loop is not None:
+            loop.call_soon_threadsafe(self._event.set)
+        else:
             self._event.set()
 
     def clear(self):
-        """Clear the flag. This may be used to ensure that a possibly previously-set flag is clear before waiting for it."""
-        with self._lock:
-            self._event.clear()
+        """Clear the flag. Must be called from the event loop thread."""
+        self._event.clear()
 
     async def wait(self):
-        """Wait for the flag to be set. If the flag is already set then it returns immediately. 
+        """Wait for the flag to be set. If the flag is already set then it returns immediately.
         The flag is automatically reset upon return from wait.
-        
-        A flag may only be waited on by a single task at a time.
         """
         with self._lock:
-            if self._waiting_task is not None:
-                raise RuntimeError("Flag is already being waited on by another task")
-            self._waiting_task = asyncio.current_task()
-        
-        try:
-            await self._event.wait()
-            with self._lock:
-                self._event.clear()
-        finally:
-            with self._lock:
-                self._waiting_task = None
+            self._loop = asyncio.get_event_loop()
+        await self._event.wait()
+        self._event.clear()
 
 asyncio.ThreadSafeFlag = ThreadSafeFlag
