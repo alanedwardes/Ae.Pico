@@ -3,6 +3,7 @@ import threadsafeflag
 import sys
 sys.path.insert(1, '../libraries')
 sys.path.insert(1, '../infodisplay')
+sys.path.insert(1, '../sensor')
 
 import config
 import network
