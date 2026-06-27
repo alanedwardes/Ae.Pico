@@ -27,8 +27,9 @@ class PWM:
         self.__freq = 0
         self.__duty_u16 = 0
 
+        import os
         from pigpio import pi
-        self.pi = pi()
+        self.pi = pi(os.environ.get('PIGPIO_HOST', 'localhost'))
         self.dest = dest
         self.init(freq=freq, duty_u16=duty_u16, duty_ns=duty_ns, invert=invert)
 
@@ -73,8 +74,9 @@ class Pin:
         self.__id = id
 
         if Pin.__pi is None:
+            import os
             from pigpio import pi
-            Pin.__pi = pi()
+            Pin.__pi = pi(os.environ.get('PIGPIO_HOST', 'localhost'))
         self.init(mode=mode, pull=pull, value=value, drive=drive, alt=alt)
 
     def init(self, *, mode=-1, pull=-1, value=None, drive=0, alt=-1):
