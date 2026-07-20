@@ -6,6 +6,7 @@ from bitblt import blit_region, _as_ptr16, _as_ptr8
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
 _GLYPH_FMT = '<HHHHhhhB'
+_GLYPH_SIZE = struct.calcsize(_GLYPH_FMT)
 
 def _build_palette_bytes(tint_color, bytes_per_pixel):
     """Build a 256x1 palette as bytes for GS8 source, scaled to the destination bit depth."""
@@ -71,6 +72,7 @@ class BMFont:
     @classmethod
     def load(cls, path, load_kerning=False):
         font = cls()
+        glyph_count = 0  # number of chars actually written into _glyph_data so far
         with open(path, "r") as f:
             for i, line in enumerate(f):
                 if (i & 31) == 0:
@@ -90,6 +92,19 @@ class BMFont:
                     font.base = int(args.get("base", 0))
                     font.scale_w = int(args.get("scaleW", 0))
                     font.scale_h = int(args.get("scaleH", 0))
+                elif kind == "chars":
+                    # The .fnt format declares the total char count before
+                    # any "char" lines -- pre-allocate _glyph_data to its
+                    # final size ONCE instead of growing it one glyph at a
+                    # time via .extend(). This allocator has no in-place
+                    # grow: every .extend() call on a bytearray reallocates
+                    # and copies the WHOLE buffer so far, so loading an
+                    # N-glyph font the naive way costs N reallocations of
+                    # monotonically increasing size, each discarding the
+                    # previous (now-fragmenting) block.
+                    declared_count = int(args.get("count", 0))
+                    if declared_count > 0:
+                        font._glyph_data = bytearray(declared_count * _GLYPH_SIZE)
                 elif kind == "page":
                     pid = int(args.get("id", 0))
                     fname = cls._dequote(args.get("file", ""))
@@ -104,11 +119,20 @@ class BMFont:
                     yoffset = int(args.get("yoffset", 0))
                     xadvance = int(args.get("xadvance", 0))
                     page = int(args.get("page", 0))
-                    # pack and store glyph data; map code -> offset
-                    off = len(font._glyph_data)
-                    font._glyph_data.extend(struct.pack(_GLYPH_FMT,
-                        x, y, width, height, xoffset, yoffset, xadvance, page))
+                    # Write directly into the pre-sized buffer (no per-glyph
+                    # allocation). Falls back to .extend() only if the
+                    # "chars count=" line was missing/wrong and we've run
+                    # past the pre-allocated capacity -- rare, and no worse
+                    # than the old behavior for that case.
+                    off = glyph_count * _GLYPH_SIZE
+                    packed = struct.pack(_GLYPH_FMT,
+                        x, y, width, height, xoffset, yoffset, xadvance, page)
+                    if off + _GLYPH_SIZE <= len(font._glyph_data):
+                        font._glyph_data[off:off + _GLYPH_SIZE] = packed
+                    else:
+                        font._glyph_data.extend(packed)
                     font.chars[char_id] = off
+                    glyph_count += 1
                 elif kind == "kerning" and load_kerning:
                     first = int(args.get("first", 0))
                     second = int(args.get("second", 0))
