@@ -16,6 +16,10 @@ def _get_bmfont(font_name):
         _BM_FONT_CACHE[font_name] = (BMFont.load(font_path), [page_file])
     return _BM_FONT_CACHE[font_name]
 
+def get_font(font_name):
+    """Return the cached (BMFont, page_files) pair for a font name."""
+    return _get_bmfont(font_name)
+
 def clear_font_cache():
     """Clear font cache and close all open font files"""
     global _BM_FONT_CACHE

@@ -1,6 +1,20 @@
 import micropython
 from machine import PWM
 
+try:
+    import rp2
+    import time
+    from machine import mem32
+    _HAS_RP2_DMA = hasattr(rp2, 'DMA')
+except ImportError:
+    _HAS_RP2_DMA = False
+
+# PL022 SPI block (base address, TX DREQ) per SPI id, keyed by chip
+_SPI_TX_DMA_MAP = {
+    'RP2350': {0: (0x40080000, 24), 1: (0x40088000, 26)},
+    'RP2040': {0: (0x4003c000, 16), 1: (0x40040000, 18)},
+}
+
 # User orientation constants
 LANDSCAPE = 0
 REFLECT = 1
@@ -80,15 +94,33 @@ def _rgb565_swap_upscale_line(dest: ptr16, source: ptr16, src_offset: int, src_p
             d += 1
         s += 1; src_pixels -= 1
 
+def build_rgb332_888_lut():
+    """256-entry RGB332 -> RGB888 table (768 bytes) for _rgb332_to_888_line."""
+    lut = bytearray(256 * 3)
+    for c in range(256):
+        lut[c * 3] = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
+        lut[c * 3 + 1] = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
+        lut[c * 3 + 2] = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+    return lut
+
 @micropython.viper
 def _rgb332_to_888_line(dest: ptr8, source: ptr8, src_offset: int, pixels: int, lut: ptr8):
+    # lut must be the 768-byte table from build_rgb332_888_lut - Unrolled 4x
     s: int = src_offset
     d: int = 0
+    while pixels >= 4:
+        i: int = source[s] * 3
+        dest[d] = lut[i]; dest[d + 1] = lut[i + 1]; dest[d + 2] = lut[i + 2]
+        i = source[s + 1] * 3
+        dest[d + 3] = lut[i]; dest[d + 4] = lut[i + 1]; dest[d + 5] = lut[i + 2]
+        i = source[s + 2] * 3
+        dest[d + 6] = lut[i]; dest[d + 7] = lut[i + 1]; dest[d + 8] = lut[i + 2]
+        i = source[s + 3] * 3
+        dest[d + 9] = lut[i]; dest[d + 10] = lut[i + 1]; dest[d + 11] = lut[i + 2]
+        s += 4; d += 12; pixels -= 4
     while pixels:
-        c = source[s]
-        dest[d] = (c & 0xe0) | ((c & 0xe0) >> 3) | ((c & 0xe0) >> 6)
-        dest[d + 1] = ((c << 3) & 0xe0) | (c & 0x1c) | ((c >> 3) & 0x03)
-        dest[d + 2] = ((c << 6) & 0xc0) | ((c << 4) & 0x30) | ((c << 2) & 0x0c) | (c & 0x03)
+        i2: int = source[s] * 3
+        dest[d] = lut[i2]; dest[d + 1] = lut[i2 + 1]; dest[d + 2] = lut[i2 + 2]
         s += 1; d += 3; pixels -= 1
 
 @micropython.viper
@@ -171,6 +203,51 @@ class BacklightManager:
             self._pwm.freq(1000)
             self._pwm.duty_u16(int(brightness * 65535))
 
+class _SpiTxDma:
+    """DREQ-paced DMA from memory into an SPI TX FIFO.
+
+    The SPI peripheral throttles the DMA channel, so the panel sees
+    ordinary SPI waveforms. Raises on any board where the SPI block or
+    DREQ cannot be verified, so callers can fall back to blocking writes.
+    """
+    def __init__(self, spi):
+        import os
+        machine_name = os.uname().machine
+        for chip in _SPI_TX_DMA_MAP:
+            if chip in machine_name:
+                break
+        else:
+            raise OSError('unrecognised chip: ' + machine_name)
+        spi_id = int(str(spi).split('(', 1)[1].split(',', 1)[0])
+        base, dreq = _SPI_TX_DMA_MAP[chip][spi_id]
+        # ARM PL022 identity registers guard against a wrong base address
+        if (mem32[base + 0xFE0] & 0xFF) != 0x22 or (mem32[base + 0xFE4] & 0xFF) != 0x10:
+            raise OSError('not a PL022 SPI block')
+        self._dr = base + 0x008  # SSPDR
+        self._sr = base + 0x00C  # SSPSR (bit 4 = BSY)
+        self._dma = rp2.DMA()
+        self._ctrl = self._dma.pack_ctrl(size=0, inc_read=True, inc_write=False, treq_sel=dreq)
+        try:
+            # Self-test: a wrong DREQ never fires and the transfer stalls
+            self.start(b'\x00' * 8, 8)
+            t0 = time.ticks_us()
+            while self._dma.active():
+                if time.ticks_diff(time.ticks_us(), t0) > 20000:
+                    self._dma.active(0)
+                    raise OSError('SPI TX DREQ did not pace DMA')
+            while mem32[self._sr] & 0x10:  # let the test bytes leave the wire
+                pass
+        except Exception:
+            self._dma.close()
+            raise
+
+    def start(self, buf, length):
+        self._dma.config(read=buf, write=self._dr, count=length, ctrl=self._ctrl, trigger=True)
+
+    def wait(self):
+        while self._dma.active():
+            pass
+
 class SpiController:
     def __init__(self, spi, dc, cs, chunked_data=True):
         self.spi = spi
@@ -197,7 +274,8 @@ class SpiController:
             for byte in d:
                 self.dc(1)
                 self.cs(0)
-                self.spi.write(bytearray([byte]))
+                self._byte_buf[0] = byte
+                self.spi.write(self._byte_buf)
                 self.cs(1)
         else:
             self.dc(1)
@@ -254,8 +332,17 @@ class MipiDisplay:
         self._linebuf = bytearray(width * bpp)
         self._cmd_buf = bytearray(4)
         self._lut = None # To be initialized by subclass
-        
+
         self._spi_ctrl = SpiController(spi, dc, cs, chunked_data=chunked_command_data)
+
+        self._spi_dma = None
+        self._linebuf2 = None
+        if _HAS_RP2_DMA:
+            try:
+                self._spi_dma = _SpiTxDma(spi)
+                self._linebuf2 = bytearray(width * bpp)
+            except Exception:
+                self._spi_dma = None
 
     def render(self, fb, width, height, bbox):
         x, y, rw, rh = bbox
@@ -287,12 +374,33 @@ class MipiDisplay:
                 fb_ptr += width
                 for _ in range(scale):
                     self._spi.write(out_view)
-        else:
-            for _ in range(rh):
-                lb = self._linebuf
-                line_conv(lb, fb, fb_ptr, rw, lut)
+            return
+
+        dma = self._spi_dma
+        if dma is not None and rh > 1:
+            # Double-buffered: DMA line N to the panel while converting
+            # line N+1. The final line goes through blocking spi.write,
+            # which drains the FIFO and BSY so end_data() can raise CS.
+            buf_a = self._linebuf
+            buf_b = self._linebuf2
+            line_conv(buf_a, fb, fb_ptr, rw, lut)
+            fb_ptr += width
+            for _ in range(rh - 1):
+                dma.start(buf_a, write_len)
+                line_conv(buf_b, fb, fb_ptr, rw, lut)
                 fb_ptr += width
-                self._spi.write(out_view)
+                dma.wait()
+                buf_a, buf_b = buf_b, buf_a
+            if buf_a is not self._linebuf:
+                out_view = memoryview(buf_a)[:write_len]
+            self._spi.write(out_view)
+            return
+
+        for _ in range(rh):
+            lb = self._linebuf
+            line_conv(lb, fb, fb_ptr, rw, lut)
+            fb_ptr += width
+            self._spi.write(out_view)
 
     def _get_line_conv(self, scale):
         raise NotImplementedError

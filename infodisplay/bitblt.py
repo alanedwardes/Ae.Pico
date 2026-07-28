@@ -168,22 +168,26 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     if copy_width <= 0: return
 
     # 2. Format Detection
-    # 2. Format Detection
     if src_format is None:
         src_fmt = 1 if bytes_per_pixel == 2 else 6
     else:
         src_fmt = src_format
         
-    src_bpp = 2 if src_fmt == 1 else 1 
-    row_size = copy_width * src_bpp
-    
-    # 3. Buffer Management with Row Batching
-    if buffer is None or len(buffer) < row_size:
-        batch_buf = memoryview(bytearray(row_size))
-        rows_per_batch = 1
+    src_bpp = 2 if src_fmt == 1 else 1
+
+    # 3. Buffer Management: stream full-stride source rows and let the
+    # viper blitters skip the unneeded columns via s_off/s_stride. One
+    # seek per blit plus sequential reads, and at most two memoryview
+    # slices per call -- reading only the needed columns would cost a
+    # seek, a read and a fresh memoryview slice for every glyph row.
+    stride_bytes = src_row_bytes
+    if buffer is None or len(buffer) < stride_bytes:
+        batch_buf = memoryview(bytearray(stride_bytes))
     else:
-        batch_buf = memoryview(buffer)
-        rows_per_batch = len(batch_buf) // row_size
+        # Callers (textbox/Drawing scratch buffer) usually pass a
+        # memoryview already -- don't wrap it in another one per call
+        batch_buf = buffer if isinstance(buffer, memoryview) else memoryview(buffer)
+    rows_per_batch = len(batch_buf) // stride_bytes
 
     # Optimization: Cache dest_bpp and pointers once outside the loop
     if not hasattr(framebuffer, '_cached_bpp'):
@@ -192,53 +196,52 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
 
     p_dest = _as_ptr16(framebuffer) if dest_bpp == 2 else _as_ptr8(framebuffer)
     p_pal = _as_ptr16(palette) if (dest_bpp == 2 and palette is not None) else (_as_ptr8(palette) if palette is not None else None)
+    p_src = _as_ptr16(batch_buf) if src_bpp == 2 else _as_ptr8(batch_buf)
 
+    s_col = sx + left_clip              # first needed column, in pixels
+    s_stride = stride_bytes // src_bpp  # buffer row stride, in pixels
+
+    fh.seek(header_bytes + (sy + start_row) * stride_bytes)
+
+    d_off = (dy + start_row) * fb_width + dx + left_clip
+    view = None
+    view_len = -1
     current_row = start_row
     while current_row < end_row:
         this_batch_h = min(rows_per_batch, end_row - current_row)
-        
-        # Load batch rows from flash
-        current_pos = -1
-        for i in range(this_batch_h):
-            r_idx = current_row + i
-            src_offset = header_bytes + (sy + r_idx) * src_row_bytes + (sx + left_clip) * src_bpp
-            if current_pos != src_offset:
-                fh.seek(src_offset)
-            
-            target = batch_buf[i * row_size : (i + 1) * row_size]
-            if IS_MICROPYTHON:
-                fh.readinto(target)
-            else:
-                target[:row_size] = fh.read(row_size)
-            current_pos = src_offset + row_size
+        nbytes = this_batch_h * stride_bytes
+
+        # Load batch rows sequentially (no per-row seek: consecutive
+        # full-stride rows are contiguous in the file)
+        if nbytes == len(batch_buf):
+            target = batch_buf
+        else:
+            if view_len != nbytes:
+                view = batch_buf[:nbytes]
+                view_len = nbytes
+            target = view
+        if IS_MICROPYTHON:
+            fh.readinto(target)
+        else:
+            target[:nbytes] = fh.read(nbytes)
 
         # 4. Fast Path Dispatch
-        d_fb_x = dx + left_clip
-        d_fb_y = dy + current_row
-        
-        # 4. Fast Path Dispatch
-        d_fb_x = dx + left_clip
-        d_fb_y = dy + current_row
-        d_off = d_fb_y * fb_width + d_fb_x
-
         if dest_bpp == 2:
             if src_fmt == 6: # GS8 -> RGB565
-                p_src = _as_ptr8(batch_buf)
                 if p_pal is not None:
-                    _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal, key)
+                    _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
                 else:
-                    _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
+                    _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
             elif src_fmt == 1: # RGB565 -> RGB565
-                p_src = _as_ptr16(batch_buf)
-                _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
+                _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
         elif dest_bpp == 1:
             if src_fmt == 6: # 8-bit (GS8/RGB332) -> 8-bit
-                p_src = _as_ptr8(batch_buf)
                 if p_pal is not None:
-                    _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, p_pal, key)
+                    _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
                 else:
-                    _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, 0, copy_width, copy_width, this_batch_h, key)
+                    _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
         else:
             raise ValueError(f"Unsupported blit: dest_bpp={dest_bpp} src_fmt={src_fmt}")
 
+        d_off += this_batch_h * fb_width
         current_row += this_batch_h

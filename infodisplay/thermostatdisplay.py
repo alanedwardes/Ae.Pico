@@ -22,6 +22,10 @@ class ThermostatDisplay:
         self.prev_hvac_action = None
         self.prev_state = None
 
+        # Values shown by the last render, to skip redraws that would be
+        # pixel-identical (reset on activate so a fresh screen always draws)
+        self._rendered = None
+
         self.tsf = asyncio.ThreadSafeFlag()
     
     CREATION_PRIORITY = 1
@@ -74,7 +78,15 @@ class ThermostatDisplay:
         minimum_temperature = float(thermostat_entity['a']['min_temp'])
         maximum_temperature = float(thermostat_entity['a']['max_temp'])
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
-        
+
+        # HA pushes an entity update for ANY attribute change; a redraw
+        # costs a full lower-region SPI push, so skip it unless one of
+        # the values actually shown has changed
+        rendered = (current_target, current_temperature, minimum_temperature, maximum_temperature, hvac_action)
+        if rendered == self._rendered:
+            return
+        self._rendered = rendered
+
         self.display.rect(0, self.start_y, self.display_width, self.display_height - self.start_y, 0x000000, True)
         
         groove_color = 0x8A4018 if hvac_action == 'heating' else 0x424142
@@ -98,6 +110,9 @@ class ThermostatDisplay:
         self.display.update((0, self.start_y, self.display_width, self.display_height - self.start_y))
     
     async def activate(self):
+        # Another display owned the screen since the last render, so the
+        # first update after activation must always draw
+        self._rendered = None
         while True:
             await self.update()
             await self.tsf.wait()

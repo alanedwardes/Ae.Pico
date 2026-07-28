@@ -41,11 +41,17 @@ def _build_palette_bytes(tint_color, bytes_per_pixel):
 _PALETTE_CACHE = {}
 _PALETTE_CACHE_LIMIT = 16
 
+# Hoisted: building this tuple inline would allocate on every draw_text call
+_PAGE_CONTAINERS = (dict, list, tuple)
+
 def _resolve_palette(tint_color, bytes_per_pixel):
-    cache_key = (tint_color if isinstance(tint_color, int) else 0xFFFFFF, bytes_per_pixel)
+    tint = tint_color if isinstance(tint_color, int) else 0xFFFFFF
+    # int key instead of a tuple: fits a small int, so the cache-hit path
+    # (every draw_text call) doesn't allocate
+    cache_key = (tint << 1) | (bytes_per_pixel - 1)
     pal = _PALETTE_CACHE.get(cache_key)
     if pal is not None: return pal
-    pal = _build_palette_bytes(cache_key[0], cache_key[1])
+    pal = _build_palette_bytes(tint, bytes_per_pixel)
     if len(_PALETTE_CACHE) >= _PALETTE_CACHE_LIMIT:
         try: _PALETTE_CACHE.pop(next(iter(_PALETTE_CACHE)))
         except StopIteration: pass
@@ -150,12 +156,13 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
     # Resolve tinted palette for font rendering (GS8 -> Dest)
     palette = _resolve_palette(color, bytes_per_pixel)
 
-    if isinstance(page_files, dict):
+    # Dicts keyed by page id and lists/tuples index identically via
+    # pages[page], so pass them through rather than rebuilding a dict on
+    # every call (this runs per textbox line on the board).
+    if isinstance(page_files, _PAGE_CONTAINERS):
         pages = page_files
-    elif isinstance(page_files, (list, tuple)):
-        pages = {i: f for i, f in enumerate(page_files)}
     else:
-        pages = {0: page_files}
+        pages = (page_files,)
 
     # Optimization: pre-index glyph data for faster access
     glyph_data = font._glyph_data
@@ -196,21 +203,23 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
             dest_x = cx + xo
             dest_y = cy + yo
         
-        # Quick bounds check (rejection) before calling blit_region
+        # Quick bounds check (rejection) before calling blit_region.
+        # Positional args throughout: keyword calls build a dict per
+        # glyph in MicroPython, and this runs for every character drawn.
         if not clip:
             if dest_x >= display_width or dest_y >= display_height: pass
             elif dest_x + width <= 0 or dest_y + height <= 0: pass
             else:
-                blit_region(framebuffer, display_width, display_height, 1, 
+                blit_region(framebuffer, display_width, display_height, 1,
                             pages[page], 4, row_bytes,
                             src_x, src_y, width, height,
-                            dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
+                            dest_x, dest_y, linebuf, 6, palette, clip, 0)
         else:
             # Complex clipping case - let blit_region handle it
-            blit_region(framebuffer, display_width, display_height, 1, 
+            blit_region(framebuffer, display_width, display_height, 1,
                         pages[page], 4, row_bytes,
                         src_x, src_y, width, height,
-                        dest_x, dest_y, buffer=linebuf, src_format=6, palette=palette, clip=clip, key=0)
+                        dest_x, dest_y, linebuf, 6, palette, clip, 0)
         
         cx += (xa * scale_up) // scale_down if is_scaled else xa
         prev_id = code
@@ -229,6 +238,7 @@ def measure_text(font: BMFont, text: str, kerning=False):
     cx = 0
     cy = 0
     prev_id = None
+    glyph_data = font._glyph_data
 
     for ch in text:
         if ch == "\n":
@@ -243,7 +253,16 @@ def measure_text(font: BMFont, text: str, kerning=False):
             continue
         if prev_id is not None and kerning:
             cx += font.kerning.get((prev_id, code), 0)
-        _, _, width, height, xoffset, yoffset, xadvance, _ = struct.unpack_from(_GLYPH_FMT, font._glyph_data, off)
+        # Manual unpack (faster than struct in uPy, and allocation-free):
+        # <HHHHhhhB -- same layout as in draw_text
+        width = glyph_data[off+4] | (glyph_data[off+5] << 8)
+        height = glyph_data[off+6] | (glyph_data[off+7] << 8)
+        xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)
+        if xoffset > 32767: xoffset -= 65536
+        yoffset = glyph_data[off+10] | (glyph_data[off+11] << 8)
+        if yoffset > 32767: yoffset -= 65536
+        xadvance = glyph_data[off+12] | (glyph_data[off+13] << 8)
+        if xadvance > 32767: xadvance -= 65536
 
         glyph_left = cx + xoffset
         glyph_top = cy + yoffset

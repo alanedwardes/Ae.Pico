@@ -2,7 +2,7 @@ from time import sleep_ms
 import gc
 import micropython
 from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, get_window_coords, MipiDisplay, \
-    _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line
+    _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line, build_rgb332_888_lut
 
 # Display types
 GENERIC = (0, 0, 1, True, True) # Default (x, y, orientation, bgr, inv)
@@ -18,14 +18,18 @@ class ILI9488(MipiDisplay):
         self._rst = rst
         self._display = display
         
-        # Initialize Micro-LUT (128 bytes)
-        self._lut = bytearray(128)
-        for i in range(32):
-            val = (i << 3) | (i >> 2)
-            self._lut[i] = val       # R5
-            self._lut[i + 96] = val  # B5
-        for i in range(64):
-            self._lut[i + 32] = (i << 2) | (i >> 4) # G6
+        if source_color_mode == 'RGB332':
+            # Full 768-byte RGB332->888 table (only the 332 converter runs)
+            self._lut = build_rgb332_888_lut()
+        else:
+            # Initialize Micro-LUT (128 bytes)
+            self._lut = bytearray(128)
+            for i in range(32):
+                val = (i << 3) | (i >> 2)
+                self._lut[i] = val       # R5
+                self._lut[i + 96] = val  # B5
+            for i in range(64):
+                self._lut[i + 32] = (i << 2) | (i >> 4) # G6
             
         self._init(disp_mode, display[2], display[3:])
 

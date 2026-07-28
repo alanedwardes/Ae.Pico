@@ -30,8 +30,11 @@ class Drawing:
         self.fb = framebuf.FrameBuffer(self._framebuffer, width, height, self.mode)
         self.fb.fill(0)
         
-        # Pre-allocate a scratch buffer to reduce fragmentation during drawing operations
+        # Pre-allocate a scratch buffer to reduce fragmentation during drawing
+        # operations, and one memoryview over it so the per-call path
+        # (get_scratch_buffer runs per textbox draw) doesn't allocate
         self._scratch_buffer = bytearray(1024)
+        self._scratch_view = memoryview(self._scratch_buffer)
 
     @micropython.viper
     def pack(self, color24: int) -> int:
@@ -94,7 +97,7 @@ class Drawing:
         if required_size > len(self._scratch_buffer):
             # Fallback for unusually large requests
             return bytearray(required_size)
-        return memoryview(self._scratch_buffer)
+        return self._scratch_view
 
     @property
     def framebuffer(self):
