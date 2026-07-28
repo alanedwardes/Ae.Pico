@@ -14,7 +14,23 @@ if not IS_MICROPYTHON:
         @staticmethod
         def viper(f): return f
 
-    ptr32 = object
+    ptr8 = ptr16 = ptr32 = object
+
+    def _as_ptr8(obj):
+        if hasattr(obj, '_framebuffer'): return memoryview(obj._framebuffer).cast('B')
+        if hasattr(obj, '_buf'): return memoryview(obj._buf).cast('B')
+        return memoryview(obj).cast('B')
+
+    def _as_ptr16(obj):
+        if hasattr(obj, '_framebuffer'): return memoryview(obj._framebuffer).cast('H')
+        if hasattr(obj, '_buf'): return memoryview(obj._buf).cast('H')
+        return memoryview(obj).cast('H')
+else:
+    def _as_ptr8(obj):
+        if hasattr(obj, '_framebuffer'): return obj._framebuffer
+        if hasattr(obj, '_buf'): return obj._buf
+        return obj
+    _as_ptr16 = _as_ptr8
 
 def catmull_rom(p0, p1, p2, p3, t):
     return (
@@ -87,7 +103,8 @@ def draw_chart(x, y, width, height, points, step=1, smoothing=1.0):
 @micropython.viper
 def _curve_cols_viper(yfp: ptr32, npts: int, out: ptr32, ncols: int, y_origin: int, smoothing_fp: int):
     """Integer Catmull-Rom: fill out[0..ncols-1] with the curve's top y
-    per pixel column.
+    per pixel column, in 8.8 fixed point (screen-absolute, clamped
+    non-negative so ptr32 readers stay unsigned-safe).
 
     yfp holds npts+2 entries of 8.8 fixed-point (1-value)*height with the
     endpoints duplicated (so segment i reads yfp[i..i+3] without bounds
@@ -130,7 +147,9 @@ def _curve_cols_viper(yfp: ptr32, npts: int, out: ptr32, ncols: int, y_origin: i
         smooth = acc >> 1
         linear = p1 + (((p2 - p1) * t) >> 8)
         py = linear + (((smooth - linear) * smoothing_fp) >> 8)
-        out[c] = (py >> 8) + y_origin
+        if py < 0:
+            py = 0
+        out[c] = py + (y_origin << 8)
 
 
 # Reused across redraws (grown on demand) so computing a curve doesn't
@@ -141,7 +160,8 @@ _yfp_cache = None
 
 def _compute_curve(y, width, height, points, smoothing):
     """Run the fixed-point kernel; returns an array('i') whose first
-    width+1 entries are the curve's top y per pixel column."""
+    width+1 entries are the curve's top y per pixel column in 8.8 fixed
+    point (screen-absolute)."""
     global _cols_cache, _yfp_cache
     n = len(points)
     ncols = width + 1
@@ -189,7 +209,137 @@ def map_px_to_index(px, x, width, num_points):
     return index
 
 
-async def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
+# _RENDER_PARAMS layout (non-negative values only: read via ptr32,
+# unsigned on 64-bit builds):
+#  0 c0  1 c1     global column range [c0, c1)
+#  2 x            chart x origin (px)
+#  3 fbh  4 ybase (px; area fills down to ybase-1)
+#  5 has_line  6 rq (line half-height, Q8)  7 has_area
+#  8 bpp  9 fbw  10 stride (bytes)
+# 11..13 line r,g,b  14..16 area r,g,b
+# 17 line packed  18 area packed
+#
+# Scratch: only the single active display renders at a time
+_render_params = array('i', (0 for _ in range(19)))
+
+
+@micropython.viper
+def _render_cols_viper(dest8: ptr8, dest16: ptr16, cols: ptr32, p: ptr32):
+    """Columnar renderer with anti-aliased edges.
+
+    Per column the layer stack is closed-form: the area fill runs from
+    the curve down to the baseline (its top pixel gets the fractional
+    coverage the curve kernel provides), and the line is a vertical band
+    around the curve, extended to the previous column's y so steep
+    segments stay connected. Partial-coverage pixels read-modify-write
+    blend against whatever is already in the framebuffer, so the line's
+    lower fringe blends into the area fill and the upper into the
+    background regardless of which layers a caller enables.
+    """
+    c0 = int(p[0]); c1 = int(p[1]); x = int(p[2])
+    fbh = int(p[3]); ybase = int(p[4])
+    has_line = int(p[5]); rq = int(p[6]); has_area = int(p[7])
+    bpp = int(p[8]); fbw = int(p[9]); stride = int(p[10])
+
+    c = c0
+    while c < c1:
+        yq = int(cols[c])
+        xpix = x + c
+        if has_area != 0:
+            at = yq >> 8
+            if at < ybase:
+                cov = 256 - (yq & 255)
+                if at >= 0 and cov > 0:
+                    ia = 256 - cov
+                    if bpp == 2:
+                        o = at * fbw + xpix
+                        v = int(dest16[o])
+                        r = (((v >> 8) & 0xF8) * ia + int(p[14]) * cov) >> 8
+                        g = (((v >> 3) & 0xFC) * ia + int(p[15]) * cov) >> 8
+                        b = (((v << 3) & 0xF8) * ia + int(p[16]) * cov) >> 8
+                        dest16[o] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                    else:
+                        o = at * stride + xpix
+                        v = int(dest8[o])
+                        r = ((v & 0xE0) * ia + int(p[14]) * cov) >> 8
+                        g = (((v & 0x1C) << 3) * ia + int(p[15]) * cov) >> 8
+                        b = (((v & 0x03) << 6) * ia + int(p[16]) * cov) >> 8
+                        dest8[o] = (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
+                j = at + 1
+                if j < 0:
+                    j = 0
+                if bpp == 2:
+                    a_pack = int(p[18])
+                    o = j * fbw + xpix
+                    while j < ybase:
+                        dest16[o] = a_pack
+                        o += fbw
+                        j += 1
+                else:
+                    a_pack = int(p[18])
+                    o = j * stride + xpix
+                    while j < ybase:
+                        dest8[o] = a_pack
+                        o += stride
+                        j += 1
+        if has_line != 0:
+            lo = yq
+            hi = yq
+            if c > 0:
+                pq = int(cols[c - 1])
+                if pq < lo:
+                    lo = pq
+                elif pq > hi:
+                    hi = pq
+            lt = lo - rq
+            lb = hi + rq
+            jt = lt >> 8
+            jb = lb >> 8
+            # Fringe rows blend, interior rows overwrite
+            j = jt
+            while j <= jb:
+                if j == jt or j == jb:
+                    if jt == jb:
+                        cov = lb - lt
+                    elif j == jt:
+                        cov = 256 - (lt & 255)
+                    else:
+                        cov = lb & 255
+                else:
+                    cov = 256
+                if 0 <= j < fbh and cov > 0:
+                    if cov >= 256:
+                        if bpp == 2:
+                            dest16[j * fbw + xpix] = int(p[17])
+                        else:
+                            dest8[j * stride + xpix] = int(p[17])
+                    else:
+                        ia = 256 - cov
+                        if bpp == 2:
+                            o = j * fbw + xpix
+                            v = int(dest16[o])
+                            r = (((v >> 8) & 0xF8) * ia + int(p[11]) * cov) >> 8
+                            g = (((v >> 3) & 0xFC) * ia + int(p[12]) * cov) >> 8
+                            b = (((v << 3) & 0xF8) * ia + int(p[13]) * cov) >> 8
+                            dest16[o] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                        else:
+                            o = j * stride + xpix
+                            v = int(dest8[o])
+                            r = ((v & 0xE0) * ia + int(p[11]) * cov) >> 8
+                            g = (((v & 0x1C) << 3) * ia + int(p[12]) * cov) >> 8
+                            b = (((v & 0x03) << 6) * ia + int(p[13]) * cov) >> 8
+                            dest8[o] = (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
+                j += 1
+        c += 1
+
+
+def _pack_color(bpp, r, g, b):
+    if bpp == 2:
+        return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+    return (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
+
+
+async def _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, has_area, alpha_divisor, has_line, radius):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
     num_points = len(raw_values)
@@ -197,61 +347,52 @@ async def draw_segmented_area(display, x, y, width, height, raw_values, normaliz
         return
 
     cols = _compute_curve(y, width, height, normalized_values, smoothing)
-    baseline_y = y + height
     max_index = num_points - 1
     d = alpha_divisor if alpha_divisor > 1 else 1
 
-    # color_fn is assumed pure: it's only re-run when the data index
-    # under the column changes, not per column
-    last_index = -1
-    color = 0
-    last_c = None
-    for c in range(0, width + 1, step):
+    fbw, fbh = display.get_bounds()
+    bpp = display.bytes_per_pixel
+    p = _render_params
+    p[2] = x
+    p[3] = fbh
+    p[4] = y + height
+    p[5] = 1 if has_line else 0
+    p[6] = int(radius) << 8
+    p[7] = 1 if has_area else 0
+    p[8] = bpp
+    p[9] = fbw
+    p[10] = fbw * bpp
+    d8 = _as_ptr8(display)
+    d16 = _as_ptr16(display) if bpp == 2 else d8
+
+    # color_fn is assumed pure: one kernel call per run of columns
+    # sharing a data index, yielding to the scheduler between runs
+    c = 0
+    while c <= width:
         data_index = (c * max_index) // width
-        if data_index != last_index:
-            base = color_fn(data_index, raw_values[data_index])
-            # Dim RGB color by divisor
-            r = (base >> 16) & 0xFF
-            g = (base >> 8) & 0xFF
-            b = base & 0xFF
-            color = ((r // d) << 16) | ((g // d) << 8) | (b // d)
-            last_index = data_index
+        c_end = ((data_index + 1) * width + max_index - 1) // max_index
+        if c_end > width + 1:
+            c_end = width + 1
+        base = color_fn(data_index, raw_values[data_index])
+        r = (base >> 16) & 0xFF
+        g = (base >> 8) & 0xFF
+        b = base & 0xFF
+        p[0] = c
+        p[1] = c_end
+        p[11] = r; p[12] = g; p[13] = b
+        p[14] = r // d; p[15] = g // d; p[16] = b // d
+        p[17] = _pack_color(bpp, r, g, b)
+        p[18] = _pack_color(bpp, r // d, g // d, b // d)
+        _render_cols_viper(d8, d16, cols, p)
+        c = c_end
+        await asyncio.sleep(0)
 
-        top_y = cols[c]
-        rect_height = baseline_y - top_y
-        if rect_height > 0:
-            # Vertical strip of the area under the curve, covering any
-            # columns skipped by step
-            if last_c is None:
-                display.rect(x + c, top_y, 1, rect_height, color, True)
-            else:
-                display.rect(x + last_c + 1, top_y, c - last_c, rect_height, color, True)
-        last_c = c
 
-        # Yield often enough to keep other tasks live, but not per
-        # column -- the scheduler round-trip dwarfs the drawing
-        if (c & 15) == 15:
-            await asyncio.sleep(0)
+async def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
+    # step is accepted for API compatibility; the columnar kernel always
+    # renders every column
+    await _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, True, alpha_divisor, False, 0)
 
 
 async def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
-    if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
-        return
-    num_points = len(raw_values)
-    if width <= 0 or num_points < 2:
-        return
-
-    cols = _compute_curve(y, width, height, normalized_values, smoothing)
-    max_index = num_points - 1
-    r = int(radius)
-
-    last_index = -1
-    color = 0
-    for c in range(0, width + 1, step):
-        data_index = (c * max_index) // width
-        if data_index != last_index:
-            color = color_fn(data_index, raw_values[data_index])
-            last_index = data_index
-        display.ellipse(x + c, cols[c], r, r, color, True)
-        if (c & 15) == 15:
-            await asyncio.sleep(0)
+    await _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, False, 1, True, radius)
