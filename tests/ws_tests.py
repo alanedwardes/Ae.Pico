@@ -6,7 +6,7 @@ import ws
 
 class TestWebSockets(unittest.IsolatedAsyncioTestCase):
 
-    ENDPOINT = 'wss://c4x3tpp039.execute-api.eu-west-1.amazonaws.com/default'
+    ENDPOINT = 'wss://chat.alanedwardes.com/ws'
 
     async def test_connect(self):
         async with await ws.connect(self.ENDPOINT) as socket:
