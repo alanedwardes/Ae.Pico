@@ -354,8 +354,11 @@ class WebReplController:
 
     async def serve(self, method, path, headers, reader, writer):
         import webrepl
-        writer.send = writer.write
-        webrepl.send_html(writer)
+        writer.write(OK_STATUS)
+        writer.write(HTML_HEADER)
+        writer.write(HEADER_TERMINATOR)
+        writer.write(b'<base href="%s"></base>' % webrepl.static_host.encode('utf-8'))
+        writer.write(b'<script src="webrepl_content.js"></script>')
 
 class GPIOController:
     def route(self, method, path):
