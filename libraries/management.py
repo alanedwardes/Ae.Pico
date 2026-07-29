@@ -342,60 +342,20 @@ class DeleteController:
         writer.write(b'<p>Deleted %s</p>' % (filename))            
         writer.write(BACK_LINK)
         
-class ShellController:
-    def __init__(self):
-        self.clear()
-        
-    def clear(self):
-        self.shell_locals = {}
-        self.history = b''
-    
+class WebReplController:
     def route(self, method, path):
-        return path == b'/shell'
-    
+        return path == b'/webrepl'
+
     def widget(self):
-        return b' <form action="shell" method="post"><button>Shell</button></form>'
-    
+        import connectivity
+        repl_port = getattr(connectivity, 'repl_port', 8266)
+        ip = network.WLAN(network.STA_IF).ifconfig()[0]
+        return b' <a href="webrepl#%s:%i">WebREPL</a>' % (ip.encode('utf-8'), repl_port)
+
     async def serve(self, method, path, headers, reader, writer):
-        content_length = int(headers.get(b'content-length', '0'))
-        form = parse_form(await reader.readexactly(content_length))
-        command = form.get(b'command', '')
-        is_eval = form.get(b'eval', '') == b'on'
-        
-        if b'clear' in form:
-            self.clear()
-        
-        if command:
-            self.history += b'>> ' + command + b'\n'
-            try:
-                if is_eval:
-                    self.history += str(eval(command, {}, self.shell_locals)) + '\n'
-                else:
-                    exec(command, {}, self.shell_locals)
-                
-            except Exception as e:
-                self.history += str(e).encode('utf-8') + b'\n'
-        
-        writer.write(OK_STATUS)
-        writer.write(HTML_HEADER)
-        writer.write(HEADER_TERMINATOR)
-        writer.write(MINIMAL_CSS)
-        writer.write(b'<script>window.onload = () => {')
-        writer.write(b'document.getElementById("command").focus();')
-        writer.write(b'let h = document.getElementById("history");')
-        writer.write(b'h.scrollTop = h.scrollHeight;')
-        writer.write(b'}</script>')
-        writer.write(b'<pre>Locals: %s</pre>' % escape(str(self.shell_locals)))
-        writer.write(b'<form action="shell" method="post">')
-        writer.write(b'<p><textarea rows="16" cols="128" readonly id="history" name="history">%s</textarea></p>' % escape(self.history))
-        writer.write(b'<p>')
-        writer.write(b'<input type="text" id="command" name="command" size="64"/> <input type="checkbox" id="eval" name="eval" %s/>' % (b'checked' if is_eval else b''))
-        writer.write(b' <label for="eval">Statement</label>')
-        writer.write(b' <input type="submit" value="Execute"/>')
-        writer.write(b' <input type="submit" name="clear" value="Reset"/>')
-        writer.write(b'</p>')
-        writer.write(b'</form>')
-        writer.write(BACK_LINK)
+        import webrepl
+        writer.send = writer.write
+        webrepl.send_html(writer)
 
 class GPIOController:
     def route(self, method, path):
@@ -545,14 +505,14 @@ class ManagementServer:
         self.port = port
         self.controllers = [IndexController(self), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
-                            ResetController(), ShellController()]
+                            ResetController(), WebReplController()]
         self.authorization_header = None
         self.server = None
-    
+
     def set_credentials(self, username, password):
         encoded = binascii.b2a_base64(('%s:%s' % (username, password)).encode('utf-8'))
         self.authorization_header = b'Basic ' + encoded[:-1]
-        
+
     def create(provider):
         config = provider['config'].get('management', {})
         return ManagementServer(config.get('port', 80))
