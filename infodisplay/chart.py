@@ -222,6 +222,9 @@ def map_px_to_index(px, x, width, num_points):
 # Scratch: only the single active display renders at a time
 _render_params = array('i', (0 for _ in range(19)))
 
+# Guards _cols_cache/_yfp_cache/_render_params against concurrent draw_* calls.
+_render_lock = asyncio.Lock()
+
 
 @micropython.viper
 def _render_cols_viper(dest8: ptr8, dest16: ptr16, cols: ptr32, p: ptr32):
@@ -346,46 +349,47 @@ async def _render_columns(display, x, y, width, height, raw_values, normalized_v
     if width <= 0 or num_points < 2:
         return
 
-    cols = _compute_curve(y, width, height, normalized_values, smoothing)
-    max_index = num_points - 1
-    d = alpha_divisor if alpha_divisor > 1 else 1
+    async with _render_lock:
+        cols = _compute_curve(y, width, height, normalized_values, smoothing)
+        max_index = num_points - 1
+        d = alpha_divisor if alpha_divisor > 1 else 1
 
-    fbw, fbh = display.get_bounds()
-    bpp = display.bytes_per_pixel
-    p = _render_params
-    p[2] = x
-    p[3] = fbh
-    p[4] = y + height
-    p[5] = 1 if has_line else 0
-    p[6] = int(radius) << 8
-    p[7] = 1 if has_area else 0
-    p[8] = bpp
-    p[9] = fbw
-    p[10] = fbw * bpp
-    d8 = _as_ptr8(display)
-    d16 = _as_ptr16(display) if bpp == 2 else d8
+        fbw, fbh = display.get_bounds()
+        bpp = display.bytes_per_pixel
+        p = _render_params
+        p[2] = x
+        p[3] = fbh
+        p[4] = y + height
+        p[5] = 1 if has_line else 0
+        p[6] = int(radius) << 8
+        p[7] = 1 if has_area else 0
+        p[8] = bpp
+        p[9] = fbw
+        p[10] = fbw * bpp
+        d8 = _as_ptr8(display)
+        d16 = _as_ptr16(display) if bpp == 2 else d8
 
-    # color_fn is assumed pure: one kernel call per run of columns
-    # sharing a data index, yielding to the scheduler between runs
-    c = 0
-    while c <= width:
-        data_index = (c * max_index) // width
-        c_end = ((data_index + 1) * width + max_index - 1) // max_index
-        if c_end > width + 1:
-            c_end = width + 1
-        base = color_fn(data_index, raw_values[data_index])
-        r = (base >> 16) & 0xFF
-        g = (base >> 8) & 0xFF
-        b = base & 0xFF
-        p[0] = c
-        p[1] = c_end
-        p[11] = r; p[12] = g; p[13] = b
-        p[14] = r // d; p[15] = g // d; p[16] = b // d
-        p[17] = _pack_color(bpp, r, g, b)
-        p[18] = _pack_color(bpp, r // d, g // d, b // d)
-        _render_cols_viper(d8, d16, cols, p)
-        c = c_end
-        await asyncio.sleep(0)
+        # color_fn is assumed pure: one kernel call per run of columns
+        # sharing a data index, yielding to the scheduler between runs
+        c = 0
+        while c <= width:
+            data_index = (c * max_index) // width
+            c_end = ((data_index + 1) * width + max_index - 1) // max_index
+            if c_end > width + 1:
+                c_end = width + 1
+            base = color_fn(data_index, raw_values[data_index])
+            r = (base >> 16) & 0xFF
+            g = (base >> 8) & 0xFF
+            b = base & 0xFF
+            p[0] = c
+            p[1] = c_end
+            p[11] = r; p[12] = g; p[13] = b
+            p[14] = r // d; p[15] = g // d; p[16] = b // d
+            p[17] = _pack_color(bpp, r, g, b)
+            p[18] = _pack_color(bpp, r // d, g // d, b // d)
+            _render_cols_viper(d8, d16, cols, p)
+            c = c_end
+            await asyncio.sleep(0)
 
 
 async def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
