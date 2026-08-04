@@ -347,7 +347,10 @@ class WebReplController:
         return path == b'/webrepl'
 
     def widget(self):
-        import connectivity
+        try:
+            import connectivity
+        except ImportError:
+            connectivity = None
         repl_port = getattr(connectivity, 'repl_port', 8266)
         ip = network.WLAN(network.STA_IF).ifconfig()[0]
         return b' <a href="webrepl#%s:%i">WebREPL</a>' % (ip.encode('utf-8'), repl_port)
