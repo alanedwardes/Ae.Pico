@@ -178,9 +178,9 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         code = ord(ch)
         off = font.chars.get(code)
         if off is None: prev_id = None; continue
-        if prev_id is not None and kerning:
+        if prev_id is not None and kerning and font.kerning:
             cx += font.kerning.get((prev_id, code), 0)
-        
+
         # Unpack glyph data: manual unpack (faster than struct in uPy): <HHHHhhhB (15 bytes)
         # 0: src_x (H), 2: src_y (H), 4: width (H), 6: height (H), 8: xoffset (h), 10: yoffset (h), 12: xadvance (h), 14: page (B)
         src_x = glyph_data[off] | (glyph_data[off+1] << 8)
@@ -251,7 +251,7 @@ def measure_text(font: BMFont, text: str, kerning=False):
         if off is None:
             prev_id = None
             continue
-        if prev_id is not None and kerning:
+        if prev_id is not None and kerning and font.kerning:
             cx += font.kerning.get((prev_id, code), 0)
         # Manual unpack (faster than struct in uPy, and allocation-free):
         # <HHHHhhhB -- same layout as in draw_text
@@ -301,7 +301,7 @@ def measure_extend(font: BMFont, text: str, cx, prev_id, min_left, max_right, ke
         if off is None:
             prev_id = None
             continue
-        if prev_id is not None and kerning:
+        if prev_id is not None and kerning and font.kerning:
             cx += font.kerning.get((prev_id, code), 0)
         width = glyph_data[off+4] | (glyph_data[off+5] << 8)
         xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)

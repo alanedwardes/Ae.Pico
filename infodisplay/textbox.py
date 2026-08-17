@@ -40,6 +40,24 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
     wrapped_lines = []
     current_words = []
     cx, prev_id, min_left, max_right = 0, None, None, None
+
+    sp_off = font_obj.chars.get(0x20)
+    if sp_off is None:
+        sp_xadvance = 0
+        sp_xoffset = 0
+        sp_width = 0
+        sp_code = None
+    else:
+        gd = font_obj._glyph_data
+        sp_width = gd[sp_off+4] | (gd[sp_off+5] << 8)
+        sp_xoffset = gd[sp_off+8] | (gd[sp_off+9] << 8)
+        if sp_xoffset > 32767:
+            sp_xoffset -= 65536
+        sp_xadvance = gd[sp_off+12] | (gd[sp_off+13] << 8)
+        if sp_xadvance > 32767:
+            sp_xadvance -= 65536
+        sp_code = 0x20
+
     for i, word in enumerate(words):
         if i % 10 == 0:
             await asyncio.sleep(0)
@@ -47,8 +65,14 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
         if line_started_empty:
             t_cx, t_prev, t_min, t_max = measure_extend(font_obj, word, 0, None, None, None)
         else:
+            sl = cx + sp_xoffset
+            if min_left is None or sl < min_left:
+                min_left = sl
+            sr = sl + sp_width
+            if max_right is None or sr > max_right:
+                max_right = sr
             t_cx, t_prev, t_min, t_max = measure_extend(
-                font_obj, " " + word, cx, prev_id, min_left, max_right)
+                font_obj, word, cx + sp_xadvance, sp_code, min_left, max_right)
         line_width_pixels = 0 if t_min is None else (t_max - t_min) * scale
         if line_width_pixels <= max_width_pixels:
             current_words.append(word)
