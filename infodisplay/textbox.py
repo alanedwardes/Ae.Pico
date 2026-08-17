@@ -2,7 +2,7 @@ import math
 import random
 import asyncio
 
-from bmfont import BMFont, draw_text, measure_text
+from bmfont import BMFont, draw_text, measure_text, measure_extend
 from font8 import Font8
 
 _BM_FONT_CACHE = {}
@@ -39,16 +39,27 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
     words = text.split()
     wrapped_lines = []
     current_line = ""
+    cx, prev_id, min_left, max_right = 0, None, None, None
     for i, word in enumerate(words):
         if i % 10 == 0:
             await asyncio.sleep(0)
-        test_line = f"{current_line} {word}".strip()
-        line_width_pixels, _ = _measure_bmfont(font_obj, test_line, scale)
+        line_started_empty = not current_line
+        if line_started_empty:
+            t_cx, t_prev, t_min, t_max = measure_extend(font_obj, word, 0, None, None, None)
+        else:
+            t_cx, t_prev, t_min, t_max = measure_extend(
+                font_obj, " " + word, cx, prev_id, min_left, max_right)
+        line_width_pixels = 0 if t_min is None else (t_max - t_min) * scale
         if line_width_pixels <= max_width_pixels:
-            current_line = test_line
+            current_line = word if line_started_empty else f"{current_line} {word}"
+            cx, prev_id, min_left, max_right = t_cx, t_prev, t_min, t_max
         else:
             wrapped_lines.append(current_line)
             current_line = word
+            if line_started_empty:
+                cx, prev_id, min_left, max_right = t_cx, t_prev, t_min, t_max
+            else:
+                cx, prev_id, min_left, max_right = measure_extend(font_obj, word, 0, None, None, None)
     if current_line:
         wrapped_lines.append(current_line)
     return "\n".join(wrapped_lines)
