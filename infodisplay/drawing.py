@@ -35,6 +35,7 @@ class Drawing:
         # (get_scratch_buffer runs per textbox draw) doesn't allocate
         self._scratch_buffer = bytearray(1024)
         self._scratch_view = memoryview(self._scratch_buffer)
+        self._framebuffer_view = memoryview(self._framebuffer)
 
     @micropython.viper
     def pack(self, color24: int) -> int:
@@ -101,7 +102,7 @@ class Drawing:
 
     @property
     def framebuffer(self):
-        return memoryview(self._framebuffer)
+        return self._framebuffer_view
 
     def set_driver(self, driver):
         self._driver = driver
