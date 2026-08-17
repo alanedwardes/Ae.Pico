@@ -344,6 +344,39 @@ class MipiDisplay:
             except Exception:
                 self._spi_dma = None
 
+        self._ram_w = width
+        self._ram_h = height
+
+    def _window_coords(self, mode, x, y, rw, rh):
+        ram_w = int(self._ram_w); ram_h = int(self._ram_h)
+        win_w = int(self.width); win_h = int(self.height)
+        xo, yo = self._offset
+        portrait_bit, reflect_bit, usd_bit = 0x20, 0x40, 0x80
+        if mode & portrait_bit:
+            xo, yo = yo, xo
+            xs = x + xo
+            xe = xs + rw - 1
+            ys = y + yo
+            ye = ys + rh - 1
+            if mode & reflect_bit:
+                ys = ram_w - win_h - yo + y
+                ye = ys + rh - 1
+            if mode & usd_bit:
+                xs = ram_h - win_w - xo + x
+                xe = xs + rw - 1
+        else:
+            xs = x + xo
+            xe = xs + rw - 1
+            ys = y + yo
+            ye = ys + rh - 1
+            if mode & usd_bit:
+                ys = ram_h - win_h - yo + y
+                ye = ys + rh - 1
+            if mode & reflect_bit:
+                xs = ram_w - win_w - xo + x
+                xe = xs + rw - 1
+        return xs, xe, ys, ye
+
     def render(self, fb, width, height, bbox):
         x, y, rw, rh = bbox
         if x < 0 or y < 0 or rw <= 0 or rh <= 0: return

@@ -1,7 +1,7 @@
 from time import sleep_ms
 import gc
 import micropython
-from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, get_window_coords, MipiDisplay, \
+from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, MipiDisplay, \
     _rgb565_swap_line, _rgb565_swap_upscale_line, _rgb332_to_565_line
 
 # Display types
@@ -18,8 +18,9 @@ class ST7789(MipiDisplay):
                  scale=1, source_color_mode='RGB565'):
         
         super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, chunked_command_data=False)
-        
+
         self._offset = display[:2]
+        self._ram_w, self._ram_h = 240, 320
         self._spi_init = init_spi
         
         # Initialize RGB332 to 565 LUT (512 bytes)
@@ -66,8 +67,7 @@ class ST7789(MipiDisplay):
         self._wcmd(b"\x29") # DISPON
 
     def set_window(self, mode):
-        # ST7789 RAM is (typically) 240x320
-        xs, xe, ys, ye = get_window_coords(240, 320, self.width, self.height, self._offset[0], self._offset[1], mode, 0, 0, self.width, self.height)
+        xs, xe, ys, ye = self._window_coords(mode, 0, 0, self.width, self.height)
         self._cmd_buf[0] = xs >> 8
         self._cmd_buf[1] = xs & 0xFF
         self._cmd_buf[2] = xe >> 8
@@ -81,7 +81,7 @@ class ST7789(MipiDisplay):
         self._wcd(b"\x2b", self._cmd_buf)
 
     def _set_region_window(self, x, y, rw, rh):
-        xs, xe, ys, ye = get_window_coords(240, 320, self.width, self.height, self._offset[0], self._offset[1], self._current_mode, x, y, rw, rh)
+        xs, xe, ys, ye = self._window_coords(self._current_mode, x, y, rw, rh)
         self._cmd_buf[0] = xs >> 8
         self._cmd_buf[1] = xs & 0xFF
         self._cmd_buf[2] = xe >> 8

@@ -1,7 +1,7 @@
 from time import sleep_ms
 import gc
 import micropython
-from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, get_window_coords, MipiDisplay, \
+from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, MipiDisplay, \
     _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line, build_rgb332_888_lut
 
 # Display types
@@ -17,6 +17,7 @@ class ILI9488(MipiDisplay):
         self._offset = display[:2]
         self._rst = rst
         self._display = display
+        self._ram_w, self._ram_h = 320, 480
         
         if source_color_mode == 'RGB332':
             # Full 768-byte RGB332->888 table (only the 332 converter runs)
@@ -72,7 +73,7 @@ class ILI9488(MipiDisplay):
         self._wcd(b"\x36", int.to_bytes(mode, 1, "little"))
 
     def set_window(self, mode):
-        xs, xe, ys, ye = get_window_coords(320, 480, self.width, self.height, self._offset[0], self._offset[1], mode, 0, 0, self.width, self.height)
+        xs, xe, ys, ye = self._window_coords(mode, 0, 0, self.width, self.height)
         self._cmd_buf[0] = xs >> 8
         self._cmd_buf[1] = xs & 0xFF
         self._cmd_buf[2] = xe >> 8
@@ -88,7 +89,7 @@ class ILI9488(MipiDisplay):
         self._wcd_data(self._cmd_buf)
 
     def _set_region_window(self, x, y, rw, rh):
-        xs, xe, ys, ye = get_window_coords(320, 480, self.width, self.height, self._offset[0], self._offset[1], self._current_mode, x, y, rw, rh)
+        xs, xe, ys, ye = self._window_coords(self._current_mode, x, y, rw, rh)
         self._cmd_buf[0] = xs >> 8
         self._cmd_buf[1] = xs & 0xFF
         self._cmd_buf[2] = xe >> 8
