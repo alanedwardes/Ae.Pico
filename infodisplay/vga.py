@@ -7,6 +7,20 @@ import time
 from machine import Pin
 from rp2 import PIO, StateMachine, DMA, asm_pio
 
+_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 0])
+_vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
+
+
+@micropython.viper
+def _vsync_reset_irq_handler(dma_obj):
+    shared = ptr32(int(_vsync_reset_shared_addr))
+    shared[3] += 1
+    if shared[2] != 0:
+        ctrl_reg = ptr32(shared[0])
+        ctrl_reg[0] = shared[1]
+        shared[2] = 0
+        shared[4] += 1
+
 
 @micropython.viper
 def convert_row_565(dst: ptr32, source: ptr16, src_row_offset: int, src_width: int, out_words: int, idx_lut: ptr32, scratch: ptr16):
@@ -122,7 +136,8 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
                       idx_lut: ptr32, scratch: ptr16,
                       row_correctness: ptr32,
-                      pattern_log: ptr32, pattern_len: int):
+                      pattern_log: ptr32, pattern_len: int,
+                      irq_shared: ptr32):
     gpio_in = ptr32(sio_gpio_in_addr)
     ctrl_reg = ptr32(ch_ctrl_reg_addr)
     pixel_reg = ptr32(ch_pixel_reg_addr)
@@ -149,6 +164,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         displaying_table_idx = (next_table_idx - 1) % table_len
 
         if last_vsync_high == 1 and vsync_high == 0:
+            irq_shared[2] = 1
             lines_since_vsync = 0
             edge_reset_count += 1
             state[2] = edge_reset_count
@@ -268,7 +284,8 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
                       lut: ptr16, idx_lut: ptr32, scratch: ptr8,
                       row_correctness: ptr32,
-                      pattern_log: ptr32, pattern_len: int):
+                      pattern_log: ptr32, pattern_len: int,
+                      irq_shared: ptr32):
     gpio_in = ptr32(sio_gpio_in_addr)
     ctrl_reg = ptr32(ch_ctrl_reg_addr)
     pixel_reg = ptr32(ch_pixel_reg_addr)
@@ -295,6 +312,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         displaying_table_idx = (next_table_idx - 1) % table_len
 
         if last_vsync_high == 1 and vsync_high == 0:
+            irq_shared[2] = 1
             lines_since_vsync = 0
             edge_reset_count += 1
             state[2] = edge_reset_count
@@ -627,13 +645,8 @@ def make_vsync_prog(v_pulse_minus_1, pulse_level=0, idle_level=1):
     @asm_pio(sideset_init=set_init)
     def vsync_prog():
         pull(block)
-        mov(x, osr)
-        pull(block)
 
         wrap_target()
-
-        mov(isr, x)
-        push(noblock)
 
         set(y, v_pulse_minus_1)
         label("pulse_line")
@@ -661,7 +674,6 @@ TIMINGS = {
     '1024x768': dict(
         pixel_clock=65_000_000, h_sync=136, h_back_porch=160, h_active=1024, h_front_porch=24,
         v_pulse=6, v_back_porch=29, v_active=768, v_front_porch=3, sync_positive=False,
-        h_sync_max_deviation=2,
     ),
     '1280x960': dict(
         pixel_clock=108_000_000, h_sync=112, h_back_porch=312, h_active=1280, h_front_porch=96,
@@ -683,7 +695,6 @@ class VGA:
     VSYNC_PIN_MASK = 1 << 17
     PIXEL_CLOCK = 25_175_000
     DREQ_PIO0_TX0 = 0
-    DREQ_PIO0_RX0 = 4
     DMA_BASE = 0x50000000
     DMA_CH_STRIDE = 0x40
     DMA_AL3_READ_ADDR_TRIG_OFFSET = 0x3C
@@ -825,7 +836,7 @@ class VGA:
             max_flat_deviation=self._h_sync_max_deviation)
         self.hsync_deviation_cycles = hsync_deviation_cycles
         hsync_sm = StateMachine(0, hsync_prog, freq=self.PIXEL_CLOCK, set_base=Pin(self._hsync_pin))
-        color_prog, color_back_porch_deviation_cycles = make_color_prog(self.H_SYNC, self.H_BACK_PORCH)
+        color_prog, color_back_porch_deviation_cycles = make_color_prog(self.H_SYNC, self.H_BACK_PORCH, max_flat_deviation=0)
         self.color_back_porch_deviation_cycles = color_back_porch_deviation_cycles
         color_sm = StateMachine(1, color_prog, freq=self.PIXEL_CLOCK, out_base=Pin(self._color_base_pin))
         vsync_sm = StateMachine(2, make_vsync_prog(self.V_PULSE - 1, self._pulse_level, self._idle_level), freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
@@ -836,10 +847,8 @@ class VGA:
 
         ch_pixel = DMA()
         ch_ctrl = DMA()
-        ch_vreset = DMA()
         self._ch_pixel = ch_pixel
         self._ch_ctrl = ch_ctrl
-        self._ch_vreset = ch_vreset
         feed()
 
         ch_pixel_al3_trig_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + self.DMA_AL3_READ_ADDR_TRIG_OFFSET
@@ -853,11 +862,7 @@ class VGA:
                                        treq_sel=0x3F,
                                        chain_to=ch_ctrl.channel,
                                        ring_sel=False, ring_size=ring_size_bits,
-                                       high_pri=True)
-        ctrl_vreset = ch_vreset.pack_ctrl(size=2, inc_read=False, inc_write=False,
-                                           treq_sel=self.DREQ_PIO0_RX0 + 2,
-                                           chain_to=ch_vreset.channel,
-                                           high_pri=True)
+                                       high_pri=True, irq_quiet=False)
 
         ch_pixel.config(read=pool_addrs[0], write=color_sm, count=words_per_line, ctrl=ctrl_pixel, trigger=False)
         ch_ctrl.config(read=table_addr, write=ch_pixel_al3_trig_addr, count=1, ctrl=ctrl_ctrl, trigger=False)
@@ -869,13 +874,14 @@ class VGA:
 
         unconditional_line_advances_before_active = self.V_PULSE + self.V_BACK_PORCH
         start_idx_landing_on_0_at_active = (-unconditional_line_advances_before_active) % table_len
+        _vsync_reset_shared[0] = ch_ctrl_read_addr_reg
+        _vsync_reset_shared[1] = table_addr + start_idx_landing_on_0_at_active * 4
+        _vsync_reset_shared[2] = 0
+        ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
-        vsync_sm.put(table_addr + start_idx_landing_on_0_at_active * 4)
         vsync_sm.put(self.V_IDLE - 1)
         feed()
 
-        ch_vreset.config(read=vsync_sm, write=ch_ctrl_read_addr_reg, count=10_000_000, ctrl=ctrl_vreset, trigger=True)
-        feed()
         ch_ctrl.active(1)
         hsync_sm.active(1)
         feed()
@@ -918,12 +924,14 @@ class VGA:
                 idx_lut_addr, scratch_addr,
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
+                _vsync_reset_shared_addr,
             ))
         else:
             _thread.start_new_thread(core1_loop_viper_332, common_args + (
                 uctypes.addressof(self._rgb332_lut), idx_lut_addr, scratch_addr,
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
+                _vsync_reset_shared_addr,
             ))
 
     def start(self, wdt=None):
@@ -1000,10 +1008,10 @@ class VGA:
         self._hsync_sm.active(0)
         self._color_sm.active(0)
         self._vsync_sm.active(0)
+        self._ch_ctrl.irq(handler=None)
         CHAN_ABORT = self.DMA_BASE + 0x444
-        abort_mask = (1 << self._ch_pixel.channel) | (1 << self._ch_ctrl.channel) | (1 << self._ch_vreset.channel)
+        abort_mask = (1 << self._ch_pixel.channel) | (1 << self._ch_ctrl.channel)
         machine.mem32[CHAN_ABORT] = abort_mask
         self._ch_ctrl.active(0)
         self._ch_pixel.active(0)
-        self._ch_vreset.active(0)
         self._started = False
