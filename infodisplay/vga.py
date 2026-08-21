@@ -579,7 +579,7 @@ def solve_color_back_porch(loop_target, max_flat_deviation=4):
 
 
 def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
-    back_porch_loop_target = h_sync + h_back_porch - 1
+    back_porch_loop_target = h_sync + h_back_porch - 9
     kind, params, deviation = solve_color_back_porch(back_porch_loop_target, max_flat_deviation)
 
     if kind == 'flat':
@@ -708,6 +708,7 @@ class VGA:
     V_FRONT_PORCH = 10
     POOL_SIZE = 8
     MARGIN = POOL_SIZE // 2
+    VSYNC_RESET_IRQ_DISPATCH_LATENCY_LINES = 7
 
     def __init__(self, framebuffer, width, height, hsync_pin=16, color_base_pin=0, vsync_pin=17,
                  source_color_mode='RGB565', timing=None,
@@ -872,7 +873,7 @@ class VGA:
         color_sm.put(words_per_line - 1)
         feed()
 
-        unconditional_line_advances_before_active = self.V_PULSE + self.V_BACK_PORCH
+        unconditional_line_advances_before_active = self.V_BACK_PORCH - self.VSYNC_RESET_IRQ_DISPATCH_LATENCY_LINES
         start_idx_landing_on_0_at_active = (-unconditional_line_advances_before_active) % table_len
         _vsync_reset_shared[0] = ch_ctrl_read_addr_reg
         _vsync_reset_shared[1] = table_addr + start_idx_landing_on_0_at_active * 4
@@ -978,7 +979,7 @@ class VGA:
             feed, table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
         buf_stride_bytes = WORDS_PER_LINE * 4
-        active_start_offset = self.V_PULSE + self.V_BACK_PORCH
+        active_start_offset = self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
         feed()
