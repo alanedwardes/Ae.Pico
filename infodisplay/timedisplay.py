@@ -18,10 +18,11 @@ class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
-    def __init__(self, display, time, height):
+    def __init__(self, display, time, height, show_milliseconds):
         self.display = display
         self.time = time
         self.height = height
+        self.show_milliseconds = show_milliseconds
 
         self.display_width, self.display_height = self.display.get_bounds()
         self.display_half_width = self.display_width * 0.5
@@ -48,10 +49,15 @@ class TimeDisplay:
         self.date_seconds_width = available_width - self.time_width
         # Font scale proportional to height
         self.font_scale = height / 70.0
-        self.sec_width = int(36 * self.font_scale)
         self.sec_x = self.time_width
-        self.ms_x = self.sec_x + self.sec_width
-        self.ms_width = self.date_seconds_width - self.sec_width
+        if self.show_milliseconds:
+            self.sec_width = int(36 * self.font_scale)
+            self.ms_x = self.sec_x + self.sec_width
+            self.ms_width = self.date_seconds_width - self.sec_width
+        else:
+            self.sec_width = self.date_seconds_width
+            self.ms_x = self.sec_x + self.sec_width
+            self.ms_width = 0
 
         # Pre-built update regions (a fresh tuple per tick is avoidable churn)
         self._time_region = (0, 0, self.time_width, height)
@@ -67,14 +73,21 @@ class TimeDisplay:
 
     CREATION_PRIORITY = 2
     def create(provider):
-        y_separator = provider['config']['display'].get('y_separator', 70)
-        return TimeDisplay(provider['display'], provider['time'], y_separator)
+        display_config = provider['config']['display']
+        y_separator = display_config.get('y_separator', 70)
+        show_milliseconds = display_config.get('show_milliseconds', True)
+        return TimeDisplay(provider['display'], provider['time'], y_separator, show_milliseconds)
 
     async def start(self):
-        while True:
-            await self.update()
-            # Update frequently for milliseconds (approx 20fps)
-            await asyncio.sleep(0.05)
+        if not self.show_milliseconds:
+            while True:
+                await self.update()
+                await asyncio.sleep(1)
+        else:
+            while True:
+                await self.update()
+                # Update frequently for milliseconds (approx 20fps)
+                await asyncio.sleep(0.05)
 
     def _build_tenth_cells(self):
         """Pre-render '0'-'9' for the tenths box.
@@ -194,11 +207,14 @@ class TimeDisplay:
             else:
                 sec_text = "00" # Safety fallback
 
+            sec_align = 'left' if self.show_milliseconds else 'center'
             self.display.rect(self.sec_x, section_height, self.sec_width, section_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, sec_text, self.sec_x, section_height, self.sec_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align='left')
+            await textbox.draw_textbox(self.display, sec_text, self.sec_x, section_height, self.sec_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align=sec_align)
             self.display.update(self._sec_region)
 
         # 4. Milliseconds (Tenths) Display
+        if not self.show_milliseconds:
+            return
         tenth = (now[8] // 100) % 10 # Ensure 0-9 range
         if tenth != self._last_tenth:
             self._last_tenth = tenth
