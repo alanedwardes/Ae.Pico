@@ -5,21 +5,59 @@ import machine
 import _thread
 import time
 from machine import Pin
+from micropython import const
 from rp2 import PIO, StateMachine, DMA, asm_pio
 
-_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 0])
+_VSR_CH_CTRL_READ_ADDR_REGISTER = const(0)
+_VSR_RESET_TARGET_TABLE_ADDR = const(1)
+_VSR_RESET_PENDING = const(2)
+_VSR_HANDLER_CALL_COUNT = const(3)
+_VSR_RESET_WRITE_COUNT = const(4)
+_VSR_READ_ADDR_AT_EDGE_DETECTED = const(5)
+_VSR_LATEST_HANDLER_DISPATCH_LATENCY_LINES = const(6)
+_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES = const(7)
+_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES = const(8)
+
+_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 0, 0, 0, 2147483647, 0])
 _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 
 
 @micropython.viper
 def _vsync_reset_irq_handler(dma_obj):
     shared = ptr32(int(_vsync_reset_shared_addr))
-    shared[3] += 1
-    if shared[2] != 0:
-        ctrl_reg = ptr32(shared[0])
-        ctrl_reg[0] = shared[1]
-        shared[2] = 0
-        shared[4] += 1
+    shared[_VSR_HANDLER_CALL_COUNT] += 1
+    if shared[_VSR_RESET_PENDING] != 0:
+        ctrl_reg = ptr32(shared[_VSR_CH_CTRL_READ_ADDR_REGISTER])
+        handler_dispatch_latency_lines = (ctrl_reg[0] - shared[_VSR_READ_ADDR_AT_EDGE_DETECTED]) >> 2
+        shared[_VSR_LATEST_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
+        if handler_dispatch_latency_lines < shared[_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES]:
+            shared[_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
+        if handler_dispatch_latency_lines > shared[_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES]:
+            shared[_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
+        ctrl_reg[0] = shared[_VSR_RESET_TARGET_TABLE_ADDR]
+        shared[_VSR_RESET_PENDING] = 0
+        shared[_VSR_RESET_WRITE_COUNT] += 1
+
+
+_CS_REFILL_CALL_COUNT = const(0)
+_CS_STOP_REQUESTED = const(1)
+_CS_VSYNC_EDGE_COUNT = const(2)
+_CS_MIN_REFILL_MARGIN_BUFFERS = const(3)
+_CS_REFILL_TARGET_COLLISION_COUNT = const(4)
+_CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT = const(5)
+_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE = const(6)
+_CS_PREFILL_BURST_INCOMPLETE_COUNT = const(7)
+
+_RC_MISMATCH_COUNT = const(0)
+_RC_CHECKED_COUNT = const(1)
+_RC_FIRST_MISMATCH_SEEN = const(2)
+_RC_FIRST_MISMATCH_LINES_INTO_ACTIVE = const(3)
+_RC_FIRST_MISMATCH_CURRENT_ROW = const(4)
+_RC_FIRST_MISMATCH_DISPLAYING_BUFFER = const(5)
+_RC_FIRST_MISMATCH_STORED_ROW = const(6)
+_RC_FIRST_MISMATCH_TABLE_IDX = const(7)
+_RC_MAX_ABS_ROW_DELTA = const(8)
+_RC_LARGE_ROW_DELTA_COUNT = const(9)
 
 
 @micropython.viper
@@ -131,7 +169,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                       active_start_offset: int, v_active: int,
                       sio_gpio_in_addr: int, vsync_pin_mask: int,
                       frame_log: ptr32, log_len: int,
-                      ch_pixel_reg_addr: int, pool_base_addr: int, buf_stride_bytes: int,
+                      ch_pixel_reg_addr: int, pool_base_addr: int, buffer_stride_bytes: int,
                       margin_target: int,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
                       idx_lut: ptr32, scratch: ptr16,
@@ -158,16 +196,17 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     exact_ratio = 1 if v_active % src_height == 0 else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
-    while state[1] == 0:
+    while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
         displaying_table_idx = (next_table_idx - 1) % table_len
 
         if last_vsync_high == 1 and vsync_high == 0:
-            irq_shared[2] = 1
+            irq_shared[_VSR_READ_ADDR_AT_EDGE_DETECTED] = ctrl_reg[0]
+            irq_shared[_VSR_RESET_PENDING] = 1
             lines_since_vsync = 0
             edge_reset_count += 1
-            state[2] = edge_reset_count
+            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
             need_log = 1
             prefill_next = 0
         last_vsync_high = vsync_high
@@ -181,7 +220,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_565(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buf_stride_bytes // 4, idx_lut, scratch)
+                convert_row_565(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buffer_stride_bytes // 4, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             continue
@@ -191,7 +230,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if need_log == 1:
             if prefill_next < pool_size:
                 prefill_incomplete_count += 1
-                state[7] = prefill_incomplete_count
+                state[_CS_PREFILL_BURST_INCOMPLETE_COUNT] = prefill_incomplete_count
             frame_log[(frame_count % log_len) * 2] = lines_into_active
             frame_log[(frame_count % log_len) * 2 + 1] = displaying_table_idx
             frame_count += 1
@@ -200,7 +239,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         current_row = (lines_into_active * src_height) // v_active
         displaying_buffer = (displaying_table_idx * pool_size) // table_len
         if lines_into_active >= settle_threshold:
-            row_correctness[pool_size + 1] += 1
+            row_correctness[pool_size + _RC_CHECKED_COUNT] += 1
             row_delta = current_row - row_correctness[displaying_buffer]
             if pattern_pos < pattern_len:
                 slot = pattern_pos * 4
@@ -210,20 +249,20 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                 pattern_log[slot + 3] = row_correctness[displaying_buffer]
                 pattern_pos += 1
             if row_delta != 0:
-                row_correctness[pool_size] += 1
+                row_correctness[pool_size + _RC_MISMATCH_COUNT] += 1
                 if row_delta < 0:
                     row_delta = -row_delta
-                if row_delta > row_correctness[pool_size + 8]:
-                    row_correctness[pool_size + 8] = row_delta
+                if row_delta > row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA]:
+                    row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA] = row_delta
                 if row_delta > 2:
-                    row_correctness[pool_size + 9] += 1
-                if row_correctness[pool_size + 2] == 0:
-                    row_correctness[pool_size + 2] = 1
-                    row_correctness[pool_size + 3] = lines_into_active
-                    row_correctness[pool_size + 4] = current_row
-                    row_correctness[pool_size + 5] = displaying_buffer
-                    row_correctness[pool_size + 6] = row_correctness[displaying_buffer]
-                    row_correctness[pool_size + 7] = displaying_table_idx
+                    row_correctness[pool_size + _RC_LARGE_ROW_DELTA_COUNT] += 1
+                if row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] == 0:
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] = 1
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_LINES_INTO_ACTIVE] = lines_into_active
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_CURRENT_ROW] = current_row
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_DISPLAYING_BUFFER] = displaying_buffer
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_STORED_ROW] = row_correctness[displaying_buffer]
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_TABLE_IDX] = displaying_table_idx
         safe_buffer = (displaying_buffer - margin_target) % pool_size
         if exact_ratio:
             delta = (safe_buffer - current_row) % pool_size
@@ -246,28 +285,28 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
             tail_call_count += 1
 
         pixel_read_addr = pixel_reg[0]
-        actual_buf = (pixel_read_addr - pool_base_addr) // buf_stride_bytes
-        if actual_buf < 0 or actual_buf >= pool_size:
+        actual_buffer = (pixel_read_addr - pool_base_addr) // buffer_stride_bytes
+        if actual_buffer < 0 or actual_buffer >= pool_size:
             out_of_range_count += 1
         else:
-            margin = (actual_buf - safe_buffer) % pool_size
+            margin = (actual_buffer - safe_buffer) % pool_size
             if margin < min_margin:
                 min_margin = margin
-                state[6] = lines_into_active
+                state[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = lines_into_active
             if margin == 0:
                 collision_count += 1
-        state[3] = min_margin
-        state[4] = collision_count
-        state[5] = out_of_range_count
+        state[_CS_MIN_REFILL_MARGIN_BUFFERS] = min_margin
+        state[_CS_REFILL_TARGET_COLLISION_COUNT] = collision_count
+        state[_CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT] = out_of_range_count
 
-        if actual_buf != safe_buffer:
+        if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_565(ptr32(dst_addr), fb, src_offset, src_width, buf_stride_bytes // 4, idx_lut, scratch)
+            convert_row_565(ptr32(dst_addr), fb, src_offset, src_width, buffer_stride_bytes // 4, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
 
         call_count += 1
-        state[0] = call_count
+        state[_CS_REFILL_CALL_COUNT] = call_count
     done[0] = 1
 
 
@@ -279,7 +318,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                       active_start_offset: int, v_active: int,
                       sio_gpio_in_addr: int, vsync_pin_mask: int,
                       frame_log: ptr32, log_len: int,
-                      ch_pixel_reg_addr: int, pool_base_addr: int, buf_stride_bytes: int,
+                      ch_pixel_reg_addr: int, pool_base_addr: int, buffer_stride_bytes: int,
                       margin_target: int,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
                       lut: ptr16, idx_lut: ptr32, scratch: ptr8,
@@ -306,16 +345,17 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     exact_ratio = 1 if v_active % src_height == 0 else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
-    while state[1] == 0:
+    while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
         displaying_table_idx = (next_table_idx - 1) % table_len
 
         if last_vsync_high == 1 and vsync_high == 0:
-            irq_shared[2] = 1
+            irq_shared[_VSR_READ_ADDR_AT_EDGE_DETECTED] = ctrl_reg[0]
+            irq_shared[_VSR_RESET_PENDING] = 1
             lines_since_vsync = 0
             edge_reset_count += 1
-            state[2] = edge_reset_count
+            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
             need_log = 1
             prefill_next = 0
         last_vsync_high = vsync_high
@@ -329,7 +369,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_332(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buf_stride_bytes // 4, lut, idx_lut, scratch)
+                convert_row_332(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buffer_stride_bytes // 4, lut, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             continue
@@ -339,7 +379,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if need_log == 1:
             if prefill_next < pool_size:
                 prefill_incomplete_count += 1
-                state[7] = prefill_incomplete_count
+                state[_CS_PREFILL_BURST_INCOMPLETE_COUNT] = prefill_incomplete_count
             frame_log[(frame_count % log_len) * 2] = lines_into_active
             frame_log[(frame_count % log_len) * 2 + 1] = displaying_table_idx
             frame_count += 1
@@ -348,7 +388,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         current_row = (lines_into_active * src_height) // v_active
         displaying_buffer = (displaying_table_idx * pool_size) // table_len
         if lines_into_active >= settle_threshold:
-            row_correctness[pool_size + 1] += 1
+            row_correctness[pool_size + _RC_CHECKED_COUNT] += 1
             row_delta = current_row - row_correctness[displaying_buffer]
             if pattern_pos < pattern_len:
                 slot = pattern_pos * 4
@@ -358,20 +398,20 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                 pattern_log[slot + 3] = row_correctness[displaying_buffer]
                 pattern_pos += 1
             if row_delta != 0:
-                row_correctness[pool_size] += 1
+                row_correctness[pool_size + _RC_MISMATCH_COUNT] += 1
                 if row_delta < 0:
                     row_delta = -row_delta
-                if row_delta > row_correctness[pool_size + 8]:
-                    row_correctness[pool_size + 8] = row_delta
+                if row_delta > row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA]:
+                    row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA] = row_delta
                 if row_delta > 2:
-                    row_correctness[pool_size + 9] += 1
-                if row_correctness[pool_size + 2] == 0:
-                    row_correctness[pool_size + 2] = 1
-                    row_correctness[pool_size + 3] = lines_into_active
-                    row_correctness[pool_size + 4] = current_row
-                    row_correctness[pool_size + 5] = displaying_buffer
-                    row_correctness[pool_size + 6] = row_correctness[displaying_buffer]
-                    row_correctness[pool_size + 7] = displaying_table_idx
+                    row_correctness[pool_size + _RC_LARGE_ROW_DELTA_COUNT] += 1
+                if row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] == 0:
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] = 1
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_LINES_INTO_ACTIVE] = lines_into_active
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_CURRENT_ROW] = current_row
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_DISPLAYING_BUFFER] = displaying_buffer
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_STORED_ROW] = row_correctness[displaying_buffer]
+                    row_correctness[pool_size + _RC_FIRST_MISMATCH_TABLE_IDX] = displaying_table_idx
         safe_buffer = (displaying_buffer - margin_target) % pool_size
         if exact_ratio:
             delta = (safe_buffer - current_row) % pool_size
@@ -394,28 +434,28 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
             tail_call_count += 1
 
         pixel_read_addr = pixel_reg[0]
-        actual_buf = (pixel_read_addr - pool_base_addr) // buf_stride_bytes
-        if actual_buf < 0 or actual_buf >= pool_size:
+        actual_buffer = (pixel_read_addr - pool_base_addr) // buffer_stride_bytes
+        if actual_buffer < 0 or actual_buffer >= pool_size:
             out_of_range_count += 1
         else:
-            margin = (actual_buf - safe_buffer) % pool_size
+            margin = (actual_buffer - safe_buffer) % pool_size
             if margin < min_margin:
                 min_margin = margin
-                state[6] = lines_into_active
+                state[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = lines_into_active
             if margin == 0:
                 collision_count += 1
-        state[3] = min_margin
-        state[4] = collision_count
-        state[5] = out_of_range_count
+        state[_CS_MIN_REFILL_MARGIN_BUFFERS] = min_margin
+        state[_CS_REFILL_TARGET_COLLISION_COUNT] = collision_count
+        state[_CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT] = out_of_range_count
 
-        if actual_buf != safe_buffer:
+        if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_332(ptr32(dst_addr), fb, src_offset, src_width, buf_stride_bytes // 4, lut, idx_lut, scratch)
+            convert_row_332(ptr32(dst_addr), fb, src_offset, src_width, buffer_stride_bytes // 4, lut, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
 
         call_count += 1
-        state[0] = call_count
+        state[_CS_REFILL_CALL_COUNT] = call_count
     done[0] = 1
 
 
@@ -578,8 +618,11 @@ def solve_color_back_porch(loop_target, max_flat_deviation=4):
     raise ValueError('no flat or nested loop hits color back-porch target=%d' % loop_target)
 
 
+COLOR_PROG_BACK_PORCH_PIPELINE_LATENCY_CYCLES = 9
+
+
 def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
-    back_porch_loop_target = h_sync + h_back_porch - 9
+    back_porch_loop_target = h_sync + h_back_porch - COLOR_PROG_BACK_PORCH_PIPELINE_LATENCY_CYCLES
     kind, params, deviation = solve_color_back_porch(back_porch_loop_target, max_flat_deviation)
 
     if kind == 'flat':
@@ -707,8 +750,8 @@ class VGA:
     V_ACTIVE = 480
     V_FRONT_PORCH = 10
     POOL_SIZE = 8
-    MARGIN = POOL_SIZE // 2
-    VSYNC_RESET_IRQ_DISPATCH_LATENCY_LINES = 7
+    REFILL_MARGIN_BUFFERS = POOL_SIZE // 2
+    VSYNC_RESET_WRITE_LATENCY_LINES = 7
 
     def __init__(self, framebuffer, width, height, hsync_pin=16, color_base_pin=0, vsync_pin=17,
                  source_color_mode='RGB565', timing=None,
@@ -853,7 +896,7 @@ class VGA:
         feed()
 
         ch_pixel_al3_trig_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + self.DMA_AL3_READ_ADDR_TRIG_OFFSET
-        ch_ctrl_read_addr_reg = self.DMA_BASE + ch_ctrl.channel * self.DMA_CH_STRIDE + 0x00
+        ch_ctrl_reg_addr = self.DMA_BASE + ch_ctrl.channel * self.DMA_CH_STRIDE + 0x00
 
         ctrl_pixel = ch_pixel.pack_ctrl(size=2, inc_read=True, inc_write=False,
                                          treq_sel=self.DREQ_PIO0_TX0 + 1,
@@ -873,11 +916,11 @@ class VGA:
         color_sm.put(words_per_line - 1)
         feed()
 
-        unconditional_line_advances_before_active = self.V_BACK_PORCH - self.VSYNC_RESET_IRQ_DISPATCH_LATENCY_LINES
+        unconditional_line_advances_before_active = self.V_BACK_PORCH - self.VSYNC_RESET_WRITE_LATENCY_LINES
         start_idx_landing_on_0_at_active = (-unconditional_line_advances_before_active) % table_len
-        _vsync_reset_shared[0] = ch_ctrl_read_addr_reg
-        _vsync_reset_shared[1] = table_addr + start_idx_landing_on_0_at_active * 4
-        _vsync_reset_shared[2] = 0
+        _vsync_reset_shared[_VSR_CH_CTRL_READ_ADDR_REGISTER] = ch_ctrl_reg_addr
+        _vsync_reset_shared[_VSR_RESET_TARGET_TABLE_ADDR] = table_addr + start_idx_landing_on_0_at_active * 4
+        _vsync_reset_shared[_VSR_RESET_PENDING] = 0
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
         vsync_sm.put(self.V_IDLE - 1)
@@ -887,7 +930,6 @@ class VGA:
         hsync_sm.active(1)
         feed()
 
-        ch_ctrl_reg_addr = self.DMA_BASE + ch_ctrl.channel * self.DMA_CH_STRIDE + 0x00
         ch_pixel_reg_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + 0x00
         return ch_ctrl_reg_addr, ch_pixel_reg_addr
 
@@ -904,7 +946,7 @@ class VGA:
 
     def _start_core1_thread(self, pool_addr_arr, ch_ctrl_reg_addr, table_addr, table_len, pool_size,
                              src_width, src_height, active_start_offset, ch_pixel_reg_addr,
-                             pool_base_addr, buf_stride_bytes, log_len, tail_log_len, tail_threshold,
+                             pool_base_addr, buffer_stride_bytes, log_len, tail_log_len, tail_threshold,
                              idx_lut_addr, scratch_addr, pattern_len):
         row_correctness_addr = uctypes.addressof(self.row_correctness)
         pattern_log_addr = uctypes.addressof(self.pattern_log)
@@ -916,8 +958,8 @@ class VGA:
             active_start_offset, self.V_ACTIVE,
             self.SIO_GPIO_IN, self.VSYNC_PIN_MASK,
             self.frame_log, log_len,
-            ch_pixel_reg_addr, pool_base_addr, buf_stride_bytes,
-            self.MARGIN,
+            ch_pixel_reg_addr, pool_base_addr, buffer_stride_bytes,
+            self.REFILL_MARGIN_BUFFERS,
             self.tail_log, tail_log_len, tail_threshold,
         )
         if self._is_rgb565:
@@ -978,7 +1020,7 @@ class VGA:
         ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
             feed, table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
-        buf_stride_bytes = WORDS_PER_LINE * 4
+        buffer_stride_bytes = WORDS_PER_LINE * 4
         active_start_offset = self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
@@ -986,7 +1028,7 @@ class VGA:
 
         self._start_core1_thread(
             pool_addr_arr, ch_ctrl_reg_addr, table_addr, TABLE_LEN, POOL_SIZE, SRC_WIDTH, SRC_HEIGHT,
-            active_start_offset, ch_pixel_reg_addr, pool_addrs[0], buf_stride_bytes,
+            active_start_offset, ch_pixel_reg_addr, pool_addrs[0], buffer_stride_bytes,
             LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, idx_lut_addr, scratch_addr, PATTERN_LEN)
         feed()
 
@@ -1002,7 +1044,7 @@ class VGA:
     def stop(self):
         if not self._started:
             return
-        self._core1_state[1] = 1
+        self._core1_state[_CS_STOP_REQUESTED] = 1
         stop_wait_start = time.ticks_ms()
         while self._core1_done[0] == 0 and time.ticks_diff(time.ticks_ms(), stop_wait_start) < 2000:
             time.sleep_ms(10)
