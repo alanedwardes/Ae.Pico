@@ -84,8 +84,7 @@ class UvDisplay:
             import gc
             gc.collect()
 
-            # Pre-compute normalized values (avoids list comprehension per update)
-            self._normalized_data = [uv / _MAX_UV for uv in self.uv_data]
+            self._normalized_data = [min(256, int(uv / _MAX_UV * 256)) for uv in self.uv_data]
 
             self.tsf.set()
                 

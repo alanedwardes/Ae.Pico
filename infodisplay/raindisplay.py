@@ -147,7 +147,7 @@ class RainDisplay:
 
                     r_int = int(rain_prob)
                     self._r_values.append(r_int)
-                    self._normalized_r.append(r_int / 100)
+                    self._normalized_r.append((r_int * 256) // 100)
                     self._beaufort_values.append(wind_speed_to_beaufort(wind_speed))
 
                     # Precompute integer mm/h to avoid float formatting during render

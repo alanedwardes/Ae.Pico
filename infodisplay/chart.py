@@ -9,10 +9,13 @@ except ImportError:
     IS_MICROPYTHON = False
 
 if not IS_MICROPYTHON:
-    # CPython mocking logic for simulator
     class micropython:
         @staticmethod
         def viper(f): return f
+        @staticmethod
+        def heap_lock(): pass
+        @staticmethod
+        def heap_unlock(): pass
 
     ptr8 = ptr16 = ptr32 = object
 
@@ -158,10 +161,12 @@ def _curve_cols_viper(yfp: ptr32, npts: int, out: ptr32, ncols: int, y_origin: i
 _cols_cache = None
 _yfp_cache = None
 
-def _compute_curve(y, width, height, points, smoothing):
+def _compute_curve(y, width, height, points, smoothing_fp):
     """Run the fixed-point kernel; returns an array('i') whose first
     width+1 entries are the curve's top y per pixel column in 8.8 fixed
-    point (screen-absolute)."""
+    point (screen-absolute). points are integer Q8 normalized values
+    (0..256, 256 = full scale) and smoothing_fp is Q8 (smoothing*256);
+    the whole body is allocation-free."""
     global _cols_cache, _yfp_cache
     n = len(points)
     ncols = width + 1
@@ -176,16 +181,17 @@ def _compute_curve(y, width, height, points, smoothing):
         yfp = array('i', (0 for _ in range(n + 2)))
         _yfp_cache = yfp
 
-    # 8.8 fixed point, clamped non-negative: viper reads these through
-    # ptr32, which is unsigned on 64-bit builds
-    hfp = height * 256.0
-    for k in range(n):
-        v = int(hfp - points[k] * hfp)
-        yfp[k + 1] = v if v > 0 else 0
-    yfp[0] = yfp[1]
-    yfp[n + 1] = yfp[n]
-
-    _curve_cols_viper(yfp, n, cols, ncols, y, int(smoothing * 256))
+    micropython.heap_lock()
+    try:
+        hfp = height << 8
+        for k in range(n):
+            v = hfp - (points[k] * height)
+            yfp[k + 1] = v if v > 0 else 0
+        yfp[0] = yfp[1]
+        yfp[n + 1] = yfp[n]
+        _curve_cols_viper(yfp, n, cols, ncols, y, smoothing_fp)
+    finally:
+        micropython.heap_unlock()
     return cols
 
 
@@ -336,12 +342,6 @@ def _render_cols_viper(dest8: ptr8, dest16: ptr16, cols: ptr32, p: ptr32):
         c += 1
 
 
-def _pack_color(bpp, r, g, b):
-    if bpp == 2:
-        return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-    return (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6)
-
-
 async def _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, has_area, alpha_divisor, has_line, radius):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
@@ -350,7 +350,7 @@ async def _render_columns(display, x, y, width, height, raw_values, normalized_v
         return
 
     async with _render_lock:
-        cols = _compute_curve(y, width, height, normalized_values, smoothing)
+        cols = _compute_curve(y, width, height, normalized_values, int(smoothing * 256))
         max_index = num_points - 1
         d = alpha_divisor if alpha_divisor > 1 else 1
 
@@ -385,9 +385,13 @@ async def _render_columns(display, x, y, width, height, raw_values, normalized_v
             p[1] = c_end
             p[11] = r; p[12] = g; p[13] = b
             p[14] = r // d; p[15] = g // d; p[16] = b // d
-            p[17] = _pack_color(bpp, r, g, b)
-            p[18] = _pack_color(bpp, r // d, g // d, b // d)
-            _render_cols_viper(d8, d16, cols, p)
+            p[17] = display.pack((r << 16) | (g << 8) | b)
+            p[18] = display.pack(((r // d) << 16) | ((g // d) << 8) | (b // d))
+            micropython.heap_lock()
+            try:
+                _render_cols_viper(d8, d16, cols, p)
+            finally:
+                micropython.heap_unlock()
             c = c_end
             await asyncio.sleep(0)
 
