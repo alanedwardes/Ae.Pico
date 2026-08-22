@@ -714,6 +714,10 @@ TIMINGS = {
         pixel_clock=40_000_000, h_sync=128, h_back_porch=88, h_active=800, h_front_porch=40,
         v_pulse=4, v_back_porch=23, v_active=600, v_front_porch=1, sync_positive=True,
     ),
+    '800x600@56': dict(
+        pixel_clock=36_000_000, h_sync=72, h_back_porch=128, h_active=800, h_front_porch=24,
+        v_pulse=2, v_back_porch=22, v_active=600, v_front_porch=1, sync_positive=True,
+    ),
     '1024x768': dict(
         pixel_clock=65_000_000, h_sync=136, h_back_porch=160, h_active=1024, h_front_porch=24,
         v_pulse=6, v_back_porch=29, v_active=768, v_front_porch=3, sync_positive=False,
