@@ -506,6 +506,9 @@ def solve_hsync_segment(segment_total, max_flat_deviation=0):
     raise ValueError('no flat or nested loop hits segment_total=%d exactly' % segment_total)
 
 
+HSYNC_PROG_LOOP_HEAD_IRQ_CYCLES = 2
+
+
 def make_hsync_prog(pulse_total, idle_total, pulse_level=0, idle_level=1, max_flat_deviation=0):
     pulse_kind, pulse_params, pulse_dev = solve_hsync_segment(pulse_total, max_flat_deviation)
     idle_kind, idle_params, idle_dev = solve_hsync_segment(idle_total, max_flat_deviation)
@@ -894,7 +897,7 @@ class VGA:
     def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
         hsync_prog, hsync_deviation_cycles = make_hsync_prog(
-            self.H_SYNC, H_TOTAL - self.H_SYNC, self._pulse_level, self._idle_level,
+            self.H_SYNC, H_TOTAL - self.H_SYNC - HSYNC_PROG_LOOP_HEAD_IRQ_CYCLES, self._pulse_level, self._idle_level,
             max_flat_deviation=self._h_sync_max_deviation)
         self.hsync_deviation_cycles = hsync_deviation_cycles
         hsync_sm = StateMachine(0, hsync_prog, freq=self.PIXEL_CLOCK, set_base=Pin(self._hsync_pin))
