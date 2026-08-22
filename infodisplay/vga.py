@@ -707,8 +707,12 @@ def make_vsync_prog(v_pulse_minus_1, pulse_level=0, idle_level=1):
 
 TIMINGS = {
     '640x480': dict(
-        pixel_clock=25_175_000, h_sync=96, h_back_porch=48, h_active=640, h_front_porch=16,
-        v_pulse=2, v_back_porch=33, v_active=480, v_front_porch=10, sync_positive=False,
+        pixel_clock=25_175_000,
+        h_sync=96, h_front_porch=8, h_back_porch=40, h_active=640,
+        h_border_left=8, h_border_right=8,
+        v_pulse=2, v_front_porch=2, v_back_porch=25, v_active=480,
+        v_border_top=8, v_border_bottom=8,
+        sync_positive=False,
     ),
     '800x600': dict(
         pixel_clock=40_000_000, h_sync=128, h_back_porch=88, h_active=800, h_front_porch=40,
@@ -761,6 +765,7 @@ class VGA:
                  source_color_mode='RGB565', timing=None,
                  pixel_clock=None, h_sync=None, h_back_porch=None, h_active=None, h_front_porch=None,
                  v_pulse=None, v_back_porch=None, v_active=None, v_front_porch=None,
+                 h_border_left=None, h_border_right=None, v_border_top=None, v_border_bottom=None,
                  sync_positive=None, h_sync_max_deviation=None):
         if timing is not None:
             if timing not in TIMINGS:
@@ -775,10 +780,19 @@ class VGA:
             if v_back_porch is None: v_back_porch = preset.get('v_back_porch')
             if v_active is None: v_active = preset.get('v_active')
             if v_front_porch is None: v_front_porch = preset.get('v_front_porch')
+            if h_border_left is None: h_border_left = preset.get('h_border_left')
+            if h_border_right is None: h_border_right = preset.get('h_border_right')
+            if v_border_top is None: v_border_top = preset.get('v_border_top')
+            if v_border_bottom is None: v_border_bottom = preset.get('v_border_bottom')
             if sync_positive is None: sync_positive = preset.get('sync_positive')
             if h_sync_max_deviation is None: h_sync_max_deviation = preset.get('h_sync_max_deviation')
         if sync_positive is None: sync_positive = False
         if h_sync_max_deviation is None: h_sync_max_deviation = 0
+        if h_border_left or h_border_right or v_border_top or v_border_bottom:
+            h_back_porch = (h_back_porch or 0) + (h_border_left or 0)
+            h_front_porch = (h_front_porch or 0) + (h_border_right or 0)
+            v_back_porch = (v_back_porch or 0) + (v_border_top or 0)
+            v_front_porch = (v_front_porch or 0) + (v_border_bottom or 0)
         self._h_sync_max_deviation = h_sync_max_deviation
         self.width = width
         self.height = height
@@ -877,7 +891,7 @@ class VGA:
         self._raw = raw
         return aligned_addr, ring_size_bits
 
-    def _start_video_pipeline(self, feed, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
+    def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
         hsync_prog, hsync_deviation_cycles = make_hsync_prog(
             self.H_SYNC, H_TOTAL - self.H_SYNC, self._pulse_level, self._idle_level,
@@ -891,13 +905,11 @@ class VGA:
         self._hsync_sm = hsync_sm
         self._color_sm = color_sm
         self._vsync_sm = vsync_sm
-        feed()
 
         ch_pixel = DMA()
         ch_ctrl = DMA()
         self._ch_pixel = ch_pixel
         self._ch_ctrl = ch_ctrl
-        feed()
 
         ch_pixel_al3_trig_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + self.DMA_AL3_READ_ADDR_TRIG_OFFSET
         ch_ctrl_reg_addr = self.DMA_BASE + ch_ctrl.channel * self.DMA_CH_STRIDE + 0x00
@@ -914,11 +926,9 @@ class VGA:
 
         ch_pixel.config(read=pool_addrs[0], write=color_sm, count=words_per_line, ctrl=ctrl_pixel, trigger=False)
         ch_ctrl.config(read=table_addr, write=ch_pixel_al3_trig_addr, count=1, ctrl=ctrl_ctrl, trigger=False)
-        feed()
 
         color_sm.active(1)
         color_sm.put(words_per_line - 1)
-        feed()
 
         unconditional_line_advances_before_active = self.V_BACK_PORCH - self.VSYNC_RESET_WRITE_LATENCY_LINES
         start_idx_landing_on_0_at_active = (-unconditional_line_advances_before_active) % table_len
@@ -928,11 +938,9 @@ class VGA:
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
         vsync_sm.put(self.V_IDLE - 1)
-        feed()
 
         ch_ctrl.active(1)
         hsync_sm.active(1)
-        feed()
 
         ch_pixel_reg_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + 0x00
         return ch_ctrl_reg_addr, ch_pixel_reg_addr
@@ -981,16 +989,12 @@ class VGA:
                 _vsync_reset_shared_addr,
             ))
 
-    def start(self, wdt=None):
+    def start(self):
         if self._started:
             return
         self._started = True
 
         assert machine.freq() == 240_000_000
-
-        def feed():
-            if wdt is not None:
-                wdt.feed()
 
         POOL_SIZE = self.POOL_SIZE
         SRC_WIDTH = self.width
@@ -1004,37 +1008,29 @@ class VGA:
             'in fixed POOL_SIZE-row groups')
 
         TABLE_LEN = self._compute_table_len(POOL_SIZE, SRC_HEIGHT)
-        feed()
 
         pool_addrs, pool_addr_arr = self._alloc_scanline_pool(POOL_SIZE, WORDS_PER_LINE)
-        feed()
 
         idx_lut_addr = self._build_index_lut(SRC_WIDTH, WORDS_PER_LINE)
-        feed()
 
         scratch_addr = self._alloc_scratch_row(SRC_WIDTH)
-        feed()
 
         self._prefill_pool(pool_addrs, POOL_SIZE, SRC_WIDTH, WORDS_PER_LINE, idx_lut_addr, scratch_addr)
-        feed()
 
         table_addr, ring_size_bits = self._build_scanout_table(TABLE_LEN, POOL_SIZE, pool_addrs)
-        feed()
 
         ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
-            feed, table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
+            table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
         buffer_stride_bytes = WORDS_PER_LINE * 4
         active_start_offset = self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
-        feed()
 
         self._start_core1_thread(
             pool_addr_arr, ch_ctrl_reg_addr, table_addr, TABLE_LEN, POOL_SIZE, SRC_WIDTH, SRC_HEIGHT,
             active_start_offset, ch_pixel_reg_addr, pool_addrs[0], buffer_stride_bytes,
             LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, idx_lut_addr, scratch_addr, PATTERN_LEN)
-        feed()
 
     def render(self, fb, width, height, bbox):
         pass
