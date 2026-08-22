@@ -11,15 +11,13 @@ from rp2 import PIO, StateMachine, DMA, asm_pio
 
 _VSR_CH_CTRL_READ_ADDR_REGISTER = const(0)
 _VSR_RESET_TARGET_TABLE_ADDR = const(1)
-_VSR_RESET_PENDING = const(2)
-_VSR_HANDLER_CALL_COUNT = const(3)
-_VSR_RESET_WRITE_COUNT = const(4)
-_VSR_READ_ADDR_AT_EDGE_DETECTED = const(5)
-_VSR_LATEST_HANDLER_DISPATCH_LATENCY_LINES = const(6)
-_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES = const(7)
-_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES = const(8)
+_VSR_RESET_LINE_IDX = const(2)
+_VSR_LINE_IDX = const(3)
+_VSR_V_TOTAL = const(4)
+_VSR_HANDLER_CALL_COUNT = const(5)
+_VSR_RESET_WRITE_COUNT = const(6)
 
-_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 0, 0, 0, 2147483647, 0])
+_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 1, 0, 0])
 _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 
 
@@ -27,16 +25,14 @@ _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 def _vsync_reset_irq_handler(dma_obj):
     shared = ptr32(int(_vsync_reset_shared_addr))
     shared[_VSR_HANDLER_CALL_COUNT] += 1
-    if shared[_VSR_RESET_PENDING] != 0:
-        ctrl_reg = ptr32(shared[_VSR_CH_CTRL_READ_ADDR_REGISTER])
-        handler_dispatch_latency_lines = (ctrl_reg[0] - shared[_VSR_READ_ADDR_AT_EDGE_DETECTED]) >> 2
-        shared[_VSR_LATEST_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
-        if handler_dispatch_latency_lines < shared[_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES]:
-            shared[_VSR_MIN_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
-        if handler_dispatch_latency_lines > shared[_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES]:
-            shared[_VSR_MAX_HANDLER_DISPATCH_LATENCY_LINES] = handler_dispatch_latency_lines
+    line_idx = shared[_VSR_LINE_IDX] + 1
+    if line_idx >= shared[_VSR_V_TOTAL]:
+        line_idx = 0
+    shared[_VSR_LINE_IDX] = line_idx
+
+    ctrl_reg = ptr32(shared[_VSR_CH_CTRL_READ_ADDR_REGISTER])
+    if line_idx == shared[_VSR_RESET_LINE_IDX]:
         ctrl_reg[0] = shared[_VSR_RESET_TARGET_TABLE_ADDR]
-        shared[_VSR_RESET_PENDING] = 0
         shared[_VSR_RESET_WRITE_COUNT] += 1
 
 
@@ -182,7 +178,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     pixel_reg = ptr32(ch_pixel_reg_addr)
     last_table_idx = -1
     last_vsync_high = 1
-    lines_since_vsync = 0
+    last_lines_since_vsync = irq_shared[_VSR_LINE_IDX]
     call_count = 0
     edge_reset_count = 0
     frame_count = 0
@@ -199,22 +195,22 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     pattern_pos = 0
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
+        if last_vsync_high == 1 and vsync_high == 0:
+            edge_reset_count += 1
+            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+        last_vsync_high = vsync_high
+
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
         displaying_table_idx = (next_table_idx - 1) % table_len
 
-        if last_vsync_high == 1 and vsync_high == 0:
-            irq_shared[_VSR_READ_ADDR_AT_EDGE_DETECTED] = ctrl_reg[0]
-            irq_shared[_VSR_RESET_PENDING] = 1
-            lines_since_vsync = 0
-            edge_reset_count += 1
-            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+        lines_since_vsync = irq_shared[_VSR_LINE_IDX]
+        if lines_since_vsync < last_lines_since_vsync:
             need_log = 1
             prefill_next = 0
-        last_vsync_high = vsync_high
+        last_lines_since_vsync = lines_since_vsync
 
         if displaying_table_idx == last_table_idx:
             continue
-        lines_since_vsync += (displaying_table_idx - last_table_idx) % table_len
         last_table_idx = displaying_table_idx
 
         lines_into_active = lines_since_vsync - active_start_offset
@@ -331,7 +327,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     pixel_reg = ptr32(ch_pixel_reg_addr)
     last_table_idx = -1
     last_vsync_high = 1
-    lines_since_vsync = 0
+    last_lines_since_vsync = irq_shared[_VSR_LINE_IDX]
     call_count = 0
     edge_reset_count = 0
     frame_count = 0
@@ -348,22 +344,22 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     pattern_pos = 0
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
+        if last_vsync_high == 1 and vsync_high == 0:
+            edge_reset_count += 1
+            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+        last_vsync_high = vsync_high
+
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
         displaying_table_idx = (next_table_idx - 1) % table_len
 
-        if last_vsync_high == 1 and vsync_high == 0:
-            irq_shared[_VSR_READ_ADDR_AT_EDGE_DETECTED] = ctrl_reg[0]
-            irq_shared[_VSR_RESET_PENDING] = 1
-            lines_since_vsync = 0
-            edge_reset_count += 1
-            state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+        lines_since_vsync = irq_shared[_VSR_LINE_IDX]
+        if lines_since_vsync < last_lines_since_vsync:
             need_log = 1
             prefill_next = 0
-        last_vsync_high = vsync_high
+        last_lines_since_vsync = lines_since_vsync
 
         if displaying_table_idx == last_table_idx:
             continue
-        lines_since_vsync += (displaying_table_idx - last_table_idx) % table_len
         last_table_idx = displaying_table_idx
 
         lines_into_active = lines_since_vsync - active_start_offset
@@ -839,7 +835,9 @@ class VGA:
     DMA_AL3_READ_ADDR_TRIG_OFFSET = 0x3C
     POOL_SIZE = 8
     REFILL_MARGIN_BUFFERS = POOL_SIZE // 2
-    VSYNC_RESET_WRITE_LATENCY_LINES = 7
+    DMA_READ_ADDR_WRITE_LATENCY_LINES = 1
+    IRQ_DISPATCH_JITTER_MARGIN_LINES = 1
+    RESET_ANCHOR_LEAD_LINES = DMA_READ_ADDR_WRITE_LATENCY_LINES + IRQ_DISPATCH_JITTER_MARGIN_LINES
 
     _dt = _timing_preset('640x480')
     PIXEL_CLOCK = _dt['pixel_clock']
@@ -1028,11 +1026,14 @@ class VGA:
         color_sm.active(1)
         color_sm.put(words_per_line - 1)
 
-        unconditional_line_advances_before_active = self.V_BACK_PORCH - self.VSYNC_RESET_WRITE_LATENCY_LINES
-        start_idx_landing_on_0_at_active = (-unconditional_line_advances_before_active) % table_len
+        reset_line_idx = (self.V_PULSE + self.V_BACK_PORCH - self.RESET_ANCHOR_LEAD_LINES) % self.V_TOTAL
         _vsync_reset_shared[_VSR_CH_CTRL_READ_ADDR_REGISTER] = ch_ctrl_reg_addr
-        _vsync_reset_shared[_VSR_RESET_TARGET_TABLE_ADDR] = table_addr + start_idx_landing_on_0_at_active * 4
-        _vsync_reset_shared[_VSR_RESET_PENDING] = 0
+        _vsync_reset_shared[_VSR_RESET_TARGET_TABLE_ADDR] = table_addr
+        _vsync_reset_shared[_VSR_RESET_LINE_IDX] = reset_line_idx
+        _vsync_reset_shared[_VSR_LINE_IDX] = -1
+        _vsync_reset_shared[_VSR_V_TOTAL] = self.V_TOTAL
+        _vsync_reset_shared[_VSR_HANDLER_CALL_COUNT] = 0
+        _vsync_reset_shared[_VSR_RESET_WRITE_COUNT] = 0
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
         vsync_sm.put(self.V_IDLE - 1)
@@ -1046,8 +1047,8 @@ class VGA:
     def _alloc_diagnostics(self, pool_size):
         log_len = 64
         self.frame_log = array.array('i', bytearray(log_len * 2 * 4))
-        tail_log_len = 40
-        tail_threshold = 450
+        tail_log_len = 500
+        tail_threshold = 0
         self.tail_log = array.array('i', bytearray(tail_log_len * 5 * 4))
         self.row_correctness = array.array('i', bytearray((pool_size + 10) * 4))
         pattern_len = 400
@@ -1119,7 +1120,7 @@ class VGA:
             table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
         buffer_stride_bytes = WORDS_PER_LINE * 4
-        active_start_offset = self.V_BACK_PORCH
+        active_start_offset = self.V_PULSE + self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
 
