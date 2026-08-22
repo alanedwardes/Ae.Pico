@@ -8,7 +8,6 @@ except ImportError:
     IS_MICROPYTHON = False
 
 if not IS_MICROPYTHON:
-    # CPython Mocking logic for simulator
     class micropython:
         @staticmethod
         def viper(f): return f
@@ -16,6 +15,10 @@ if not IS_MICROPYTHON:
         def native(f): return f
         @staticmethod
         def const(x): return x
+        @staticmethod
+        def heap_lock(): pass
+        @staticmethod
+        def heap_unlock(): pass
     
     ptr8 = ptr16 = ptr32 = object
 
@@ -33,7 +36,6 @@ if not IS_MICROPYTHON:
         if hasattr(obj, '_buf'): return memoryview(obj._buf).cast('B')
         return memoryview(obj).cast('B')
 else:
-    # MicroPython: Handle wrappers or return raw objects for Viper
     def _as_ptr16(obj):
         if hasattr(obj, '_framebuffer'): return obj._framebuffer
         if hasattr(obj, '_buf'): return obj._buf
@@ -42,8 +44,6 @@ else:
         if hasattr(obj, '_framebuffer'): return obj._framebuffer
         if hasattr(obj, '_buf'): return obj._buf
         return obj
-
-# --- Optimized Viper Paths ---
 
 @micropython.viper
 def _blit_rect_gs8_to_rgb565_viper(dest: ptr16, d_off: int, d_stride: int,
@@ -141,25 +141,24 @@ def _blit_rect_gs8_to_8bit_palette_viper(dest: ptr8, d_off: int, d_stride: int,
                 if val != key:
                     dest[d_p + x] = palette[val]
 
-# --- Main Blit API ---
+_scratch_buf = None
+_scratch_view = None
 
 def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
                 sx, sy, sw, sh, dx, dy, buffer=None, src_format=None, palette=None, clip=None, key=-1):
     """ Standard high-performance blit from flash to framebuffer. """
     if sw <= 0 or sh <= 0: return
-        
-    # 1. Coordinate Clipping
+
     min_x, min_y = 0, 0
     max_x, max_y = fb_width, fb_height
     if clip:
         cx, cy, cw, ch = clip
         min_x, min_y = max(min_x, cx), max(min_y, cy)
         max_x, max_y = min(max_x, cx + cw), min(max_y, cy + ch)
-        
+
     if dx >= max_x or dy >= max_y: return
     if dx + sw <= min_x or dy + sh <= min_y: return
 
-    # Clipping to region
     start_row = max(0, min_y - dy)
     end_row = min(sh, max_y - dy)
     left_clip = max(0, min_x - dx)
@@ -167,29 +166,26 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     copy_width = sw - left_clip - right_clip
     if copy_width <= 0: return
 
-    # 2. Format Detection
     if src_format is None:
         src_fmt = 1 if bytes_per_pixel == 2 else 6
     else:
         src_fmt = src_format
-        
+
     src_bpp = 2 if src_fmt == 1 else 1
 
-    # 3. Buffer Management: stream full-stride source rows and let the
-    # viper blitters skip the unneeded columns via s_off/s_stride. One
-    # seek per blit plus sequential reads, and at most two memoryview
-    # slices per call -- reading only the needed columns would cost a
-    # seek, a read and a fresh memoryview slice for every glyph row.
     stride_bytes = src_row_bytes
-    if buffer is None or len(buffer) < stride_bytes:
-        batch_buf = memoryview(bytearray(stride_bytes))
+    if buffer is not None and isinstance(buffer, memoryview) and len(buffer) >= stride_bytes:
+        batch_buf = buffer
+    elif buffer is not None and len(buffer) >= stride_bytes:
+        batch_buf = memoryview(buffer)
     else:
-        # Callers (textbox/Drawing scratch buffer) usually pass a
-        # memoryview already -- don't wrap it in another one per call
-        batch_buf = buffer if isinstance(buffer, memoryview) else memoryview(buffer)
+        global _scratch_buf, _scratch_view
+        if _scratch_buf is None or len(_scratch_buf) < stride_bytes:
+            _scratch_buf = bytearray(stride_bytes)
+            _scratch_view = memoryview(_scratch_buf)
+        batch_buf = _scratch_view
     rows_per_batch = len(batch_buf) // stride_bytes
 
-    # Optimization: Cache dest_bpp and pointers once outside the loop
     if not hasattr(framebuffer, '_cached_bpp'):
         framebuffer._cached_bpp = framebuffer.bytes_per_pixel if hasattr(framebuffer, 'bytes_per_pixel') else 2
     dest_bpp = framebuffer._cached_bpp
@@ -198,50 +194,42 @@ def blit_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_by
     p_pal = _as_ptr16(palette) if (dest_bpp == 2 and palette is not None) else (_as_ptr8(palette) if palette is not None else None)
     p_src = _as_ptr16(batch_buf) if src_bpp == 2 else _as_ptr8(batch_buf)
 
-    s_col = sx + left_clip              # first needed column, in pixels
-    s_stride = stride_bytes // src_bpp  # buffer row stride, in pixels
+    s_col = sx + left_clip
+    s_stride = stride_bytes // src_bpp
 
     fh.seek(header_bytes + (sy + start_row) * stride_bytes)
 
     d_off = (dy + start_row) * fb_width + dx + left_clip
-    view = None
-    view_len = -1
     current_row = start_row
     while current_row < end_row:
         this_batch_h = min(rows_per_batch, end_row - current_row)
         nbytes = this_batch_h * stride_bytes
 
-        # Load batch rows sequentially (no per-row seek: consecutive
-        # full-stride rows are contiguous in the file)
-        if nbytes == len(batch_buf):
-            target = batch_buf
-        else:
-            if view_len != nbytes:
-                view = batch_buf[:nbytes]
-                view_len = nbytes
-            target = view
         if IS_MICROPYTHON:
-            fh.readinto(target)
+            fh.readinto(batch_buf, nbytes)
         else:
-            target[:nbytes] = fh.read(nbytes)
+            batch_buf[:nbytes] = fh.read(nbytes)
 
-        # 4. Fast Path Dispatch
-        if dest_bpp == 2:
-            if src_fmt == 6: # GS8 -> RGB565
-                if p_pal is not None:
-                    _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
-                else:
-                    _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
-            elif src_fmt == 1: # RGB565 -> RGB565
-                _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
-        elif dest_bpp == 1:
-            if src_fmt == 6: # 8-bit (GS8/RGB332) -> 8-bit
-                if p_pal is not None:
-                    _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
-                else:
-                    _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
-        else:
-            raise ValueError(f"Unsupported blit: dest_bpp={dest_bpp} src_fmt={src_fmt}")
+        micropython.heap_lock()
+        try:
+            if dest_bpp == 2:
+                if src_fmt == 6:
+                    if p_pal is not None:
+                        _blit_rect_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
+                    else:
+                        _blit_rect_gs8_to_rgb565_direct_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
+                elif src_fmt == 1:
+                    _blit_rect_rgb565_to_rgb565_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
+            elif dest_bpp == 1:
+                if src_fmt == 6:
+                    if p_pal is not None:
+                        _blit_rect_gs8_to_8bit_palette_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, p_pal, key)
+                    else:
+                        _blit_rect_8bit_to_8bit_viper(p_dest, d_off, fb_width, p_src, s_col, s_stride, copy_width, this_batch_h, key)
+            else:
+                raise ValueError(f"Unsupported blit: dest_bpp={dest_bpp} src_fmt={src_fmt}")
+        finally:
+            micropython.heap_unlock()
 
         d_off += this_batch_h * fb_width
         current_row += this_batch_h
