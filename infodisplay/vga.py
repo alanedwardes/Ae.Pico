@@ -193,7 +193,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     prefill_next = pool_size
     prefill_incomplete_count = 0
     entries_per_buffer = table_len // pool_size
-    exact_ratio = 1 if v_active % src_height == 0 else 0
+    exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
     while state[_CS_STOP_REQUESTED] == 0:
@@ -342,7 +342,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     prefill_next = pool_size
     prefill_incomplete_count = 0
     entries_per_buffer = table_len // pool_size
-    exact_ratio = 1 if v_active % src_height == 0 else 0
+    exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
     while state[_CS_STOP_REQUESTED] == 0:
