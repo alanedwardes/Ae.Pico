@@ -1,6 +1,7 @@
 import array
 import uctypes
 import micropython
+from collections import namedtuple
 import machine
 import _thread
 import time
@@ -708,72 +709,119 @@ def make_vsync_prog(v_pulse_minus_1, pulse_level=0, idle_level=1):
     return vsync_prog
 
 
-TIMINGS = {
-    '640x480': dict(
-        pixel_clock=25_175_000,
-        h_sync=96, h_front_porch=8, h_back_porch=40, h_active=640,
-        h_border_left=8, h_border_right=8,
-        v_pulse=2, v_front_porch=2, v_back_porch=25, v_active=480,
-        v_border_top=8, v_border_bottom=8,
-        sync_positive=False,
-    ),
-    '800x600': dict(
-        pixel_clock=40_000_000, h_sync=128, h_back_porch=88, h_active=800, h_front_porch=40,
-        v_pulse=4, v_back_porch=23, v_active=600, v_front_porch=1, sync_positive=True,
-    ),
-    '800x600@56': dict(
-        pixel_clock=36_000_000, h_sync=72, h_back_porch=128, h_active=800, h_front_porch=24,
-        v_pulse=2, v_back_porch=22, v_active=600, v_front_porch=1, sync_positive=True,
-    ),
-    '1024x768': dict(
-        pixel_clock=65_000_000, h_sync=136, h_back_porch=160, h_active=1024, h_front_porch=24,
-        v_pulse=6, v_back_porch=29, v_active=768, v_front_porch=3, sync_positive=False,
-    ),
-    '1280x960': dict(
-        pixel_clock=108_000_000, h_sync=112, h_back_porch=312, h_active=1280, h_front_porch=96,
-        v_pulse=3, v_back_porch=36, v_active=960, v_front_porch=1, sync_positive=True,
-    ),
-    '1280x1024': dict(
-        pixel_clock=108_000_000, h_sync=112, h_back_porch=248, h_active=1280, h_front_porch=48,
-        v_pulse=3, v_back_porch=38, v_active=1024, v_front_porch=1, sync_positive=True,
-    ),
-    '1280x720': dict(
-        pixel_clock=74_250_000, h_sync=40, h_back_porch=220, h_active=1280, h_front_porch=110,
-        v_pulse=5, v_back_porch=20, v_active=720, v_front_porch=5, sync_positive=True,
-    ),
-}
+VgaTiming = namedtuple('VgaTiming', ('name', 'pixel_clock', 'h_sync', 'h_back_porch', 'h_active', 'h_front_porch', 'v_pulse', 'v_back_porch', 'v_active', 'v_front_porch', 'h_sync_positive', 'v_sync_positive', 'h_border_left', 'h_border_right', 'v_border_top', 'v_border_bottom'))
+
+_TIMINGS = (
+    VgaTiming(name='640x350@85', pixel_clock=31_500_000, h_sync=64, h_back_porch=96, h_active=640, h_front_porch=32, v_pulse=3, v_back_porch=60, v_active=350, v_front_porch=32, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='640x400@85', pixel_clock=31_500_000, h_sync=64, h_back_porch=96, h_active=640, h_front_porch=32, v_pulse=3, v_back_porch=41, v_active=400, v_front_porch=1, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='640x480', pixel_clock=25_175_000, h_sync=96, h_back_porch=40, h_active=640, h_front_porch=8, v_pulse=2, v_back_porch=25, v_active=480, v_front_porch=2, h_sync_positive=False, v_sync_positive=False, h_border_left=8, h_border_right=8, v_border_top=8, v_border_bottom=8),
+    VgaTiming(name='640x480@72', pixel_clock=31_500_000, h_sync=40, h_back_porch=120, h_active=640, h_front_porch=16, v_pulse=3, v_back_porch=20, v_active=480, v_front_porch=1, h_sync_positive=False, v_sync_positive=False, h_border_left=8, h_border_right=8, v_border_top=8, v_border_bottom=8),
+    VgaTiming(name='640x480@75', pixel_clock=31_500_000, h_sync=64, h_back_porch=120, h_active=640, h_front_porch=16, v_pulse=3, v_back_porch=16, v_active=480, v_front_porch=1, h_sync_positive=False, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='640x480@85', pixel_clock=36_000_000, h_sync=56, h_back_porch=80, h_active=640, h_front_porch=56, v_pulse=3, v_back_porch=25, v_active=480, v_front_porch=1, h_sync_positive=False, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='720x400@85', pixel_clock=35_500_000, h_sync=72, h_back_porch=108, h_active=720, h_front_porch=36, v_pulse=3, v_back_porch=42, v_active=400, v_front_porch=1, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600@56', pixel_clock=36_000_000, h_sync=72, h_back_porch=128, h_active=800, h_front_porch=24, v_pulse=2, v_back_porch=22, v_active=600, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600', pixel_clock=40_000_000, h_sync=128, h_back_porch=88, h_active=800, h_front_porch=40, v_pulse=4, v_back_porch=23, v_active=600, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600@72', pixel_clock=50_000_000, h_sync=120, h_back_porch=64, h_active=800, h_front_porch=56, v_pulse=6, v_back_porch=23, v_active=600, v_front_porch=37, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600@75', pixel_clock=49_500_000, h_sync=80, h_back_porch=160, h_active=800, h_front_porch=16, v_pulse=3, v_back_porch=21, v_active=600, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600@85', pixel_clock=56_250_000, h_sync=64, h_back_porch=152, h_active=800, h_front_porch=32, v_pulse=3, v_back_porch=27, v_active=600, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='800x600@120RB', pixel_clock=73_250_000, h_sync=32, h_back_porch=80, h_active=800, h_front_porch=48, v_pulse=4, v_back_porch=29, v_active=600, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='848x480', pixel_clock=33_750_000, h_sync=112, h_back_porch=112, h_active=848, h_front_porch=16, v_pulse=8, v_back_porch=23, v_active=480, v_front_porch=6, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1024x768', pixel_clock=65_000_000, h_sync=136, h_back_porch=160, h_active=1024, h_front_porch=24, v_pulse=6, v_back_porch=29, v_active=768, v_front_porch=3, h_sync_positive=False, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1024x768@70', pixel_clock=75_000_000, h_sync=136, h_back_porch=144, h_active=1024, h_front_porch=24, v_pulse=6, v_back_porch=29, v_active=768, v_front_porch=3, h_sync_positive=False, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1024x768@75', pixel_clock=78_750_000, h_sync=96, h_back_porch=176, h_active=1024, h_front_porch=16, v_pulse=3, v_back_porch=28, v_active=768, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1024x768@85', pixel_clock=94_500_000, h_sync=96, h_back_porch=208, h_active=1024, h_front_porch=48, v_pulse=3, v_back_porch=36, v_active=768, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1024x768@120RB', pixel_clock=115_500_000, h_sync=32, h_back_porch=80, h_active=1024, h_front_porch=48, v_pulse=4, v_back_porch=38, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1152x864@75', pixel_clock=108_000_000, h_sync=128, h_back_porch=256, h_active=1152, h_front_porch=64, v_pulse=3, v_back_porch=32, v_active=864, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x720', pixel_clock=74_250_000, h_sync=40, h_back_porch=220, h_active=1280, h_front_porch=110, v_pulse=5, v_back_porch=20, v_active=720, v_front_porch=5, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x768', pixel_clock=79_500_000, h_sync=128, h_back_porch=192, h_active=1280, h_front_porch=64, v_pulse=7, v_back_porch=20, v_active=768, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x768@60RB', pixel_clock=68_250_000, h_sync=32, h_back_porch=80, h_active=1280, h_front_porch=48, v_pulse=7, v_back_porch=12, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x768@75', pixel_clock=102_250_000, h_sync=128, h_back_porch=208, h_active=1280, h_front_porch=80, v_pulse=7, v_back_porch=27, v_active=768, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x768@85', pixel_clock=117_500_000, h_sync=136, h_back_porch=216, h_active=1280, h_front_porch=80, v_pulse=7, v_back_porch=31, v_active=768, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x768@120RB', pixel_clock=140_250_000, h_sync=32, h_back_porch=80, h_active=1280, h_front_porch=48, v_pulse=7, v_back_porch=35, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x800', pixel_clock=83_500_000, h_sync=128, h_back_porch=200, h_active=1280, h_front_porch=72, v_pulse=6, v_back_porch=22, v_active=800, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x800@60RB', pixel_clock=71_000_000, h_sync=32, h_back_porch=80, h_active=1280, h_front_porch=48, v_pulse=6, v_back_porch=14, v_active=800, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x800@75', pixel_clock=106_500_000, h_sync=128, h_back_porch=208, h_active=1280, h_front_porch=80, v_pulse=6, v_back_porch=29, v_active=800, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x800@85', pixel_clock=122_500_000, h_sync=136, h_back_porch=216, h_active=1280, h_front_porch=80, v_pulse=6, v_back_porch=34, v_active=800, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x800@120RB', pixel_clock=146_250_000, h_sync=32, h_back_porch=80, h_active=1280, h_front_porch=48, v_pulse=6, v_back_porch=38, v_active=800, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x960', pixel_clock=108_000_000, h_sync=112, h_back_porch=312, h_active=1280, h_front_porch=96, v_pulse=3, v_back_porch=36, v_active=960, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x960@85', pixel_clock=148_500_000, h_sync=160, h_back_porch=224, h_active=1280, h_front_porch=64, v_pulse=3, v_back_porch=47, v_active=960, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x1024', pixel_clock=108_000_000, h_sync=112, h_back_porch=248, h_active=1280, h_front_porch=48, v_pulse=3, v_back_porch=38, v_active=1024, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1280x1024@75', pixel_clock=135_000_000, h_sync=144, h_back_porch=248, h_active=1280, h_front_porch=16, v_pulse=3, v_back_porch=38, v_active=1024, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1360x768', pixel_clock=85_500_000, h_sync=112, h_back_porch=256, h_active=1360, h_front_porch=64, v_pulse=6, v_back_porch=18, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1360x768@120RB', pixel_clock=148_250_000, h_sync=32, h_back_porch=80, h_active=1360, h_front_porch=48, v_pulse=5, v_back_porch=37, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1400x1050', pixel_clock=121_750_000, h_sync=144, h_back_porch=232, h_active=1400, h_front_porch=88, v_pulse=4, v_back_porch=32, v_active=1050, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1400x1050@60RB', pixel_clock=101_000_000, h_sync=32, h_back_porch=80, h_active=1400, h_front_porch=48, v_pulse=4, v_back_porch=23, v_active=1050, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1440x900', pixel_clock=106_500_000, h_sync=152, h_back_porch=232, h_active=1440, h_front_porch=80, v_pulse=6, v_back_porch=25, v_active=900, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1440x900@60RB', pixel_clock=88_750_000, h_sync=32, h_back_porch=80, h_active=1440, h_front_porch=48, v_pulse=6, v_back_porch=17, v_active=900, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1440x900@75', pixel_clock=136_750_000, h_sync=152, h_back_porch=248, h_active=1440, h_front_porch=96, v_pulse=6, v_back_porch=33, v_active=900, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1600x900', pixel_clock=108_000_000, h_sync=80, h_back_porch=96, h_active=1600, h_front_porch=24, v_pulse=3, v_back_porch=96, v_active=900, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1680x1050', pixel_clock=146_250_000, h_sync=176, h_back_porch=280, h_active=1680, h_front_porch=104, v_pulse=6, v_back_porch=30, v_active=1050, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1680x1050@60RB', pixel_clock=119_000_000, h_sync=32, h_back_porch=80, h_active=1680, h_front_porch=48, v_pulse=6, v_back_porch=21, v_active=1050, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1920x1080', pixel_clock=148_500_000, h_sync=44, h_back_porch=148, h_active=1920, h_front_porch=88, v_pulse=5, v_back_porch=36, v_active=1080, v_front_porch=4, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+)
+
+
+def _timing_preset(name):
+    for entry in _TIMINGS:
+        if entry.name == name:
+            preset = {
+                'pixel_clock': entry.pixel_clock,
+                'h_sync': entry.h_sync,
+                'h_front_porch': entry.h_front_porch,
+                'h_back_porch': entry.h_back_porch,
+                'h_active': entry.h_active,
+                'v_pulse': entry.v_pulse,
+                'v_front_porch': entry.v_front_porch,
+                'v_back_porch': entry.v_back_porch,
+                'v_active': entry.v_active,
+            }
+            if entry.h_sync_positive == entry.v_sync_positive:
+                preset['sync_positive'] = entry.h_sync_positive
+            else:
+                preset['h_sync_positive'] = entry.h_sync_positive
+                preset['v_sync_positive'] = entry.v_sync_positive
+            if entry.h_border_left:
+                preset['h_border_left'] = entry.h_border_left
+                preset['h_border_right'] = entry.h_border_right
+            if entry.v_border_top:
+                preset['v_border_top'] = entry.v_border_top
+                preset['v_border_bottom'] = entry.v_border_bottom
+            return preset
+    raise ValueError('unknown timing preset %r - known: %s' % (name, sorted(e.name for e in _TIMINGS)))
+
 
 
 class VGA:
     SIO_GPIO_IN = 0xd0000004
     VSYNC_PIN_MASK = 1 << 17
-    PIXEL_CLOCK = 25_175_000
     DREQ_PIO0_TX0 = 0
     DMA_BASE = 0x50000000
     DMA_CH_STRIDE = 0x40
     DMA_AL3_READ_ADDR_TRIG_OFFSET = 0x3C
-    H_SYNC = 96
-    H_BACK_PORCH = 48
-    H_ACTIVE = 640
-    H_FRONT_PORCH = 16
-    V_PULSE = 2
-    V_BACK_PORCH = 33
-    V_ACTIVE = 480
-    V_FRONT_PORCH = 10
     POOL_SIZE = 8
     REFILL_MARGIN_BUFFERS = POOL_SIZE // 2
     VSYNC_RESET_WRITE_LATENCY_LINES = 7
+
+    _dt = _timing_preset('640x480')
+    PIXEL_CLOCK = _dt['pixel_clock']
+    H_SYNC = _dt['h_sync']
+    H_BACK_PORCH = _dt['h_back_porch'] + _dt.get('h_border_left', 0)
+    H_ACTIVE = _dt['h_active']
+    H_FRONT_PORCH = _dt['h_front_porch'] + _dt.get('h_border_right', 0)
+    V_PULSE = _dt['v_pulse']
+    V_BACK_PORCH = _dt['v_back_porch'] + _dt.get('v_border_top', 0)
+    V_ACTIVE = _dt['v_active']
+    V_FRONT_PORCH = _dt['v_front_porch'] + _dt.get('v_border_bottom', 0)
+    del _dt
 
     def __init__(self, framebuffer, width, height, hsync_pin=16, color_base_pin=0, vsync_pin=17,
                  source_color_mode='RGB565', timing=None,
                  pixel_clock=None, h_sync=None, h_back_porch=None, h_active=None, h_front_porch=None,
                  v_pulse=None, v_back_porch=None, v_active=None, v_front_porch=None,
                  h_border_left=None, h_border_right=None, v_border_top=None, v_border_bottom=None,
-                 sync_positive=None, h_sync_max_deviation=None):
+                 sync_positive=None, h_sync_positive=None, v_sync_positive=None, h_sync_max_deviation=None):
         if timing is not None:
-            if timing not in TIMINGS:
-                raise ValueError('unknown timing preset %r - known: %s' % (timing, sorted(TIMINGS)))
-            preset = TIMINGS[timing]
+            preset = _timing_preset(timing)
             if pixel_clock is None: pixel_clock = preset.get('pixel_clock')
             if h_sync is None: h_sync = preset.get('h_sync')
             if h_back_porch is None: h_back_porch = preset.get('h_back_porch')
@@ -787,8 +835,14 @@ class VGA:
             if h_border_right is None: h_border_right = preset.get('h_border_right')
             if v_border_top is None: v_border_top = preset.get('v_border_top')
             if v_border_bottom is None: v_border_bottom = preset.get('v_border_bottom')
+            if h_sync_positive is None: h_sync_positive = preset.get('h_sync_positive')
+            if v_sync_positive is None: v_sync_positive = preset.get('v_sync_positive')
             if sync_positive is None: sync_positive = preset.get('sync_positive')
             if h_sync_max_deviation is None: h_sync_max_deviation = preset.get('h_sync_max_deviation')
+        if h_sync_positive is None: h_sync_positive = sync_positive
+        if v_sync_positive is None: v_sync_positive = sync_positive
+        if h_sync_positive is None: h_sync_positive = False
+        if v_sync_positive is None: v_sync_positive = False
         if sync_positive is None: sync_positive = False
         if h_sync_max_deviation is None: h_sync_max_deviation = 0
         if h_border_left or h_border_right or v_border_top or v_border_bottom:
@@ -824,8 +878,10 @@ class VGA:
         if v_front_porch is not None: self.V_FRONT_PORCH = v_front_porch
         self.V_TOTAL = self.V_PULSE + self.V_BACK_PORCH + self.V_ACTIVE + self.V_FRONT_PORCH
         self.V_IDLE = self.V_TOTAL - self.V_PULSE
-        self._pulse_level = 1 if sync_positive else 0
-        self._idle_level = 0 if sync_positive else 1
+        self._h_pulse_level = 1 if h_sync_positive else 0
+        self._h_idle_level = 0 if h_sync_positive else 1
+        self._v_pulse_level = 1 if v_sync_positive else 0
+        self._v_idle_level = 0 if v_sync_positive else 1
 
         if not self._is_rgb565:
             self._rgb332_lut = array.array('H', bytearray(256 * 2))
@@ -897,14 +953,14 @@ class VGA:
     def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
         hsync_prog, hsync_deviation_cycles = make_hsync_prog(
-            self.H_SYNC, H_TOTAL - self.H_SYNC - HSYNC_PROG_LOOP_HEAD_IRQ_CYCLES, self._pulse_level, self._idle_level,
+            self.H_SYNC, H_TOTAL - self.H_SYNC - HSYNC_PROG_LOOP_HEAD_IRQ_CYCLES, self._h_pulse_level, self._h_idle_level,
             max_flat_deviation=self._h_sync_max_deviation)
         self.hsync_deviation_cycles = hsync_deviation_cycles
         hsync_sm = StateMachine(0, hsync_prog, freq=self.PIXEL_CLOCK, set_base=Pin(self._hsync_pin))
         color_prog, color_back_porch_deviation_cycles = make_color_prog(self.H_SYNC, self.H_BACK_PORCH, max_flat_deviation=0)
         self.color_back_porch_deviation_cycles = color_back_porch_deviation_cycles
         color_sm = StateMachine(1, color_prog, freq=self.PIXEL_CLOCK, out_base=Pin(self._color_base_pin))
-        vsync_sm = StateMachine(2, make_vsync_prog(self.V_PULSE - 1, self._pulse_level, self._idle_level), freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
+        vsync_sm = StateMachine(2, make_vsync_prog(self.V_PULSE - 1, self._v_pulse_level, self._v_idle_level), freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
         self._hsync_sm = hsync_sm
         self._color_sm = color_sm
         self._vsync_sm = vsync_sm
