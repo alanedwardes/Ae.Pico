@@ -1,0 +1,33 @@
+name: MicroPython checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  MICROPYTHON_REF: v1.28.0
+
+jobs:
+  micropython-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+
+      - name: cache micropython unix port
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/micropython
+          key: micropython-unix-${{ env.MICROPYTHON_REF }}
+
+      - name: build and run checks
+        run: |
+          if [ ! -x ~/micropython/ports/unix/build-standard/micropython ]; then
+            sudo apt-get update
+            sudo apt-get install -y build-essential libffi-dev git pkg-config
+            bash tests/micropython/setup.sh
+          fi
+          bash tests/micropython/run.sh tests/micropython/chart_heaplock_check.py
