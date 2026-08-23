@@ -1,18 +1,6 @@
-import math
 import asyncio
 import gc
-import framebuf
 import textbox
-
-from bmfont import draw_text, measure_text
-
-class _Cell:
-    """Minimal offscreen render target compatible with bmfont.draw_text
-    (which finds the pixel buffer via the _framebuffer attribute)."""
-    def __init__(self, w, h, bytes_per_pixel, mode):
-        self.bytes_per_pixel = bytes_per_pixel
-        self._framebuffer = bytearray(w * h * bytes_per_pixel)
-        self.fb = framebuf.FrameBuffer(self._framebuffer, w, h, mode)
 
 class TimeDisplay:
     MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -65,12 +53,6 @@ class TimeDisplay:
         self._sec_region = (self.sec_x, self.section_height, self.sec_width, self.section_height)
         self._ms_region = (self.ms_x, self.section_height, self.ms_width, self.section_height)
 
-        # Prerendered '0'-'9' cells for the tenths box, built lazily on
-        # first render (fonts load from flash on first use)
-        self._tenth_cells = None
-        self._tenth_x = 0
-        self._tenth_y = 0
-
     CREATION_PRIORITY = 2
     def create(provider):
         display_config = provider['config']['display']
@@ -88,65 +70,6 @@ class TimeDisplay:
                 await self.update()
                 # Update frequently for milliseconds (approx 20fps)
                 await asyncio.sleep(0.05)
-
-    def _build_tenth_cells(self):
-        """Pre-render '0'-'9' for the tenths box.
-
-        The tenths digit redraws at 10 Hz forever, and rendering it
-        through textbox costs a measure, glyph reads from the font page
-        and ~1.5KB of allocation per tick. A prerendered cell makes the
-        tick a single allocation-free C blit. Placement math mirrors
-        textbox.draw_textbox(align='left', valign='center') exactly so
-        output is pixel-identical (guarded by timedisplay_check.py).
-        """
-        font, pages = textbox.get_font('small')
-        s = max(0.000001, float(self.font_scale))
-        if s < 1.0:
-            up, down = 1, max(1, int(round(1.0 / s)))
-        else:
-            up, down = max(1, int(round(s))), 1
-
-        box_x, box_y = self.ms_x, self.section_height
-        box_w, box_h = self.ms_width, self.section_height
-        line_h = (font.line_height * up) // down
-        origin_y = math.floor(box_y + (box_h - line_h) * 0.5)
-
-        # Union of the ten digits' ink boxes in screen coords: every cell
-        # is this size, so blitting a new digit fully covers the old one
-        top = None
-        bottom = None
-        right = box_x
-        for d in range(10):
-            w, h, mx, my = measure_text(font, self._tenth_numbers[d])
-            my_s = origin_y + (my * up) // down
-            if top is None or my_s < top: top = my_s
-            if bottom is None or my_s + h > bottom: bottom = my_s + h
-            if box_x + w > right: right = box_x + w
-        if top is None:
-            return None
-        ux = box_x
-        uy = max(top, box_y)
-        cw = min(right, box_x + box_w) - ux
-        ch = min(bottom, box_y + box_h) - uy
-        if cw <= 0 or ch <= 0:
-            return None  # box too small to prerender; keep the textbox path
-
-        bpp = self.display.bytes_per_pixel
-        mode = self.display.mode
-        clip = (box_x - ux, box_y - uy, box_w, box_h)
-        linebuf = self.display.get_scratch_buffer(font.scale_w)
-        cells = []
-        for d in range(10):
-            w, h, mx, my = measure_text(font, self._tenth_numbers[d])
-            cell = _Cell(cw, ch, bpp, mode)
-            origin_x = math.floor(box_x - (mx * up) // down) - ux
-            draw_text(cell, cw, ch, font, pages, self._tenth_numbers[d],
-                      origin_x, origin_y - uy,
-                      True, up, down, 0xFFFFFF, linebuf, clip)
-            cells.append(cell)
-        self._tenth_x = ux
-        self._tenth_y = uy
-        return cells
 
     async def update(self):
         height = self.height
@@ -215,12 +138,5 @@ class TimeDisplay:
         if tenth != self._last_tenth:
             self._last_tenth = tenth
 
-            if self._tenth_cells is None:
-                # () = build declined (box too small): don't retry per tick
-                self._tenth_cells = self._build_tenth_cells() or ()
-
-            if self._tenth_cells:
-                self.display.blit(self._tenth_cells[tenth].fb, self._tenth_x, self._tenth_y)
-            else:
-                await textbox.draw_textbox(self.display, self._tenth_numbers[tenth], self.ms_x, section_height, self.ms_width, section_height, color=0xFFFFFF, font='small', scale=font_scale, align='left', background=0x000000)
+            await textbox.draw_textbox(self.display, self._tenth_numbers[tenth], self.ms_x, section_height, self.ms_width, section_height, color=0xFFFFFF, font='small', scale=font_scale, align='left', background=0x000000)
             self.display.update(self._ms_region)

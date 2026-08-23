@@ -513,7 +513,7 @@ class MemoryController:
         return path == b'/memory'
 
     def widget(self):
-        return b' <form action="memory" method="get"><button>Memory</button></form>'
+        return b' <a href="memory">Memory</a>'
 
     async def serve(self, method, path, headers, reader, writer):
         writer.write(OK_STATUS)
