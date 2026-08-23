@@ -30,9 +30,6 @@ class StartupDisplay:
     async def update(self):
         y_start = self.start_y
         
-        # Clear the display area
-        self.display.rect(0, y_start, self.display_width, self.display_height - y_start, 0x000000, True)
-        
         y = y_start + 10
         x = 10
         width = self.display_width - 20
@@ -44,7 +41,7 @@ class StartupDisplay:
         except Exception:
             ip = "?"
         
-        await textbox.draw_textbox(self.display, f"IP: {ip}", x, y, width, line_height, color=0xFFFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"IP: {ip}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
         y += line_height
         
         # Hostname
@@ -53,7 +50,7 @@ class StartupDisplay:
         except Exception:
             hostname = "?"
             
-        await textbox.draw_textbox(self.display, f"Host: {hostname}", x, y, width, line_height, color=0xFFFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"Host: {hostname}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
         y += line_height
         
         # SSID
@@ -62,7 +59,7 @@ class StartupDisplay:
         except Exception:
             ssid = "?"
             
-        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", x, y, width, line_height, color=0xFFFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
         y += line_height
 
         # MAC Address
@@ -72,7 +69,7 @@ class StartupDisplay:
         except Exception:
             mac = "?"
             
-        await textbox.draw_textbox(self.display, f"MAC: {mac}", x, y, width, line_height, color=0xFFFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"MAC: {mac}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
         y += line_height
         
         # Signal Strength
@@ -81,7 +78,7 @@ class StartupDisplay:
         except Exception:
             rssi = "?"
             
-        await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFFFF, font='small', align='left')
+        await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
         
         # Update proper region
         self.display.update((0, y_start, self.display_width, self.display_height - y_start))

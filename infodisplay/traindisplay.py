@@ -97,7 +97,7 @@ class TrainDisplay:
         positions, widths = self._resolve_column_widths()
         for i, (label, _, _) in enumerate(COLUMNS):
             align = 'left' if widths[i] > 50 else 'center'
-            await textbox.draw_textbox(self.display, label, positions[i], y_offset, widths[i], 20, color=header_color, font='small', align=align)
+            await textbox.draw_textbox(self.display, label, positions[i], y_offset, widths[i], 20, color=header_color, background=0x000000, font='small', align=align)
 
     async def __draw_departure_row(self, departure_idx, y_offset):
         idx = departure_idx * FIELDS_PER_DEPARTURE
@@ -112,7 +112,7 @@ class TrainDisplay:
         for i, (_, field_offset, _) in enumerate(COLUMNS):
             value = self.departures[idx + field_offset] or ''
             align = 'left' if widths[i] > 50 else 'center'
-            await textbox.draw_textbox(self.display, value, positions[i], y_offset, widths[i], 20, color=row_pen, font='small', align=align)
+            await textbox.draw_textbox(self.display, value, positions[i], y_offset, widths[i], 20, color=row_pen, background=0x000000, font='small', align=align)
 
     async def fetch_departures(self):
         try:
@@ -148,9 +148,6 @@ class TrainDisplay:
         available_height = self.display_height - self.start_y - row_height
         max_rows = available_height // row_height
 
-        # Clear header area
-        self.display.rect(0, y_start, self.display_width, row_height, 0x000000, True)
-
         await self.__draw_header_row(y_start)
 
         # Update header
@@ -162,9 +159,6 @@ class TrainDisplay:
         # Draw departure rows
         for row in range(max_rows):
             row_start = y_start + row_height + row * row_height
-
-            # Clear this row
-            self.display.rect(0, row_start, self.display_width, row_height, 0x000000, True)
 
             await self.__draw_departure_row(row, row_start)
 
