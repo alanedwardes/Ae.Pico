@@ -193,6 +193,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
+    content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         if last_vsync_high == 1 and vsync_high == 0:
@@ -217,7 +218,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_565(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buffer_stride_bytes // 4, idx_lut, scratch)
+                convert_row_565(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             continue
@@ -299,7 +300,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_565(ptr32(dst_addr), fb, src_offset, src_width, buffer_stride_bytes // 4, idx_lut, scratch)
+            convert_row_565(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
 
         call_count += 1
@@ -342,6 +343,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
+    content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         if last_vsync_high == 1 and vsync_high == 0:
@@ -366,7 +368,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_332(ptr32(pf_dst_addr), fb, prefill_next * src_width, src_width, buffer_stride_bytes // 4, lut, idx_lut, scratch)
+                convert_row_332(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, lut, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             continue
@@ -448,7 +450,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_332(ptr32(dst_addr), fb, src_offset, src_width, buffer_stride_bytes // 4, lut, idx_lut, scratch)
+            convert_row_332(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, lut, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
 
         call_count += 1
@@ -618,7 +620,8 @@ def solve_color_back_porch(loop_target, max_flat_deviation=4):
     raise ValueError('no flat or nested loop hits color back-porch target=%d' % loop_target)
 
 
-COLOR_PROG_BACK_PORCH_PIPELINE_LATENCY_CYCLES = 9
+COLOR_PROG_BACK_PORCH_PIPELINE_LATENCY_CYCLES = 8
+COLOR_PROG_LINE_COUNT_WORDS = const(1)
 
 
 def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
@@ -628,11 +631,8 @@ def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
     if kind == 'flat':
         bx, bd = params
 
-        @asm_pio(out_init=(PIO.OUT_LOW,) * 16, out_shiftdir=PIO.SHIFT_RIGHT)
+        @asm_pio(out_init=(PIO.OUT_LOW,) * 16, out_shiftdir=PIO.SHIFT_RIGHT, autopull=True, pull_thresh=32)
         def color_prog():
-            pull(block)
-            mov(isr, osr)
-
             wrap_target()
 
             wait(1, irq, 0)
@@ -640,10 +640,8 @@ def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
             label("a_p1")
             jmp(x_dec, "a_p1")          [bd]
 
-            mov(x, isr)
+            out(x, 32)
             label("pxloop")
-            pull(block)
-            out(pins, 16)
             out(pins, 16)
             jmp(x_dec, "pxloop")
 
@@ -654,11 +652,8 @@ def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
 
     box, bod, bix, bid = params
 
-    @asm_pio(out_init=(PIO.OUT_LOW,) * 16, out_shiftdir=PIO.SHIFT_RIGHT)
+    @asm_pio(out_init=(PIO.OUT_LOW,) * 16, out_shiftdir=PIO.SHIFT_RIGHT, autopull=True, pull_thresh=32)
     def color_prog():
-        pull(block)
-        mov(isr, osr)
-
         wrap_target()
 
         wait(1, irq, 0)
@@ -669,10 +664,8 @@ def make_color_prog(h_sync, h_back_porch, max_flat_deviation=4):
         jmp(y_dec, "a_p1_inner")    [bid]
         jmp(x_dec, "a_p1_outer")    [bod]
 
-        mov(x, isr)
+        out(x, 32)
         label("pxloop")
-        pull(block)
-        out(pins, 16)
         out(pins, 16)
         jmp(x_dec, "pxloop")
 
@@ -750,7 +743,7 @@ _TIMINGS = (
     VgaTiming(name='1360x768', pixel_clock=85_500_000, h_sync=112, h_back_porch=256, h_active=1360, h_front_porch=64, v_pulse=6, v_back_porch=18, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1360x768@120RB', pixel_clock=148_250_000, h_sync=32, h_back_porch=80, h_active=1360, h_front_porch=48, v_pulse=5, v_back_porch=37, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1366x768@60', pixel_clock=85_500_000, h_sync=143, h_back_porch=213, h_active=1366, h_front_porch=70, v_pulse=3, v_back_porch=24, v_active=768, v_front_porch=3, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
-    VgaTiming(name='1366x768@60RB', pixel_clock=72_000_000, h_sync=56, h_back_porch=64, h_active=1366, h_front_porch=14, v_pulse=3, v_back_porch=28, v_active=768, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1366x768@60RB', pixel_clock=72_000_000, h_sync=56, h_back_porch=64, h_active=1366, h_front_porch=14, v_pulse=3, v_back_porch=28, v_active=768, v_front_porch=1, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1400x1050', pixel_clock=121_750_000, h_sync=144, h_back_porch=232, h_active=1400, h_front_porch=88, v_pulse=4, v_back_porch=32, v_active=1050, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1400x1050@60RB', pixel_clock=101_000_000, h_sync=32, h_back_porch=80, h_active=1400, h_front_porch=48, v_pulse=4, v_back_porch=23, v_active=1050, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1400x1050@75', pixel_clock=156_000_000, h_sync=144, h_back_porch=248, h_active=1400, h_front_porch=104, v_pulse=4, v_back_porch=42, v_active=1050, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
@@ -761,7 +754,7 @@ _TIMINGS = (
     VgaTiming(name='1440x900@75', pixel_clock=136_750_000, h_sync=152, h_back_porch=248, h_active=1440, h_front_porch=96, v_pulse=6, v_back_porch=33, v_active=900, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1440x900@85', pixel_clock=157_000_000, h_sync=152, h_back_porch=256, h_active=1440, h_front_porch=104, v_pulse=6, v_back_porch=39, v_active=900, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1440x900@120RB', pixel_clock=182_750_000, h_sync=32, h_back_porch=80, h_active=1440, h_front_porch=48, v_pulse=6, v_back_porch=44, v_active=900, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
-    VgaTiming(name='1600x900@60RB', pixel_clock=108_000_000, h_sync=80, h_back_porch=96, h_active=1600, h_front_porch=24, v_pulse=3, v_back_porch=96, v_active=900, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='1600x900@60RB', pixel_clock=108_000_000, h_sync=80, h_back_porch=96, h_active=1600, h_front_porch=24, v_pulse=3, v_back_porch=96, v_active=900, v_front_porch=1, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1600x1200@60', pixel_clock=162_000_000, h_sync=192, h_back_porch=304, h_active=1600, h_front_porch=64, v_pulse=3, v_back_porch=46, v_active=1200, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1600x1200@65', pixel_clock=175_500_000, h_sync=192, h_back_porch=304, h_active=1600, h_front_porch=64, v_pulse=3, v_back_porch=46, v_active=1200, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1600x1200@70', pixel_clock=189_000_000, h_sync=192, h_back_porch=304, h_active=1600, h_front_porch=64, v_pulse=3, v_back_porch=46, v_active=1200, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
@@ -788,7 +781,7 @@ _TIMINGS = (
     VgaTiming(name='1920x1440@60', pixel_clock=234_000_000, h_sync=208, h_back_porch=344, h_active=1920, h_front_porch=128, v_pulse=3, v_back_porch=56, v_active=1440, v_front_porch=1, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1920x1440@75', pixel_clock=297_000_000, h_sync=224, h_back_porch=352, h_active=1920, h_front_porch=144, v_pulse=3, v_back_porch=56, v_active=1440, v_front_porch=1, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='1920x1440@120RB', pixel_clock=380_500_000, h_sync=32, h_back_porch=80, h_active=1920, h_front_porch=48, v_pulse=4, v_back_porch=78, v_active=1440, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
-    VgaTiming(name='2048x1152@60RB', pixel_clock=162_000_000, h_sync=80, h_back_porch=96, h_active=2048, h_front_porch=26, v_pulse=3, v_back_porch=44, v_active=1152, v_front_porch=1, h_sync_positive=True, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
+    VgaTiming(name='2048x1152@60RB', pixel_clock=162_000_000, h_sync=80, h_back_porch=96, h_active=2048, h_front_porch=26, v_pulse=3, v_back_porch=44, v_active=1152, v_front_porch=1, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='2560x1600@60RB', pixel_clock=268_500_000, h_sync=32, h_back_porch=80, h_active=2560, h_front_porch=48, v_pulse=6, v_back_porch=37, v_active=1600, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='2560x1600@60', pixel_clock=348_500_000, h_sync=280, h_back_porch=472, h_active=2560, h_front_porch=192, v_pulse=6, v_back_porch=49, v_active=1600, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='2560x1600@75', pixel_clock=443_250_000, h_sync=280, h_back_porch=488, h_active=2560, h_front_porch=208, v_pulse=6, v_back_porch=63, v_active=1600, v_front_porch=3, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
@@ -936,9 +929,13 @@ class VGA:
         return table_len
 
     def _alloc_scanline_pool(self, pool_size, words_per_line):
-        pool = array.array('I', bytearray(pool_size * words_per_line * 4))
+        stride_words = words_per_line + COLOR_PROG_LINE_COUNT_WORDS
+        pool = array.array('I', bytearray(pool_size * stride_words * 4))
         pool_addr = uctypes.addressof(pool)
-        pool_addrs = [pool_addr + b * words_per_line * 4 for b in range(pool_size)]
+        pool_addrs = [pool_addr + b * stride_words * 4 for b in range(pool_size)]
+        count_word = 2 * words_per_line - 1
+        for b in range(pool_size):
+            pool[b * stride_words] = count_word
         pool_addr_arr = array.array('I', pool_addrs)
         self._pool = pool
         return pool_addrs, pool_addr_arr
@@ -966,12 +963,12 @@ class VGA:
         if self._is_rgb565:
             for b in range(pool_size):
                 src_offset = b * src_width
-                convert_row_565(pool_addrs[b], fb_addr, src_offset, src_width, words_per_line, idx_lut_addr, scratch_addr)
+                convert_row_565(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, src_width, words_per_line, idx_lut_addr, scratch_addr)
         else:
             lut_addr = uctypes.addressof(self._rgb332_lut)
             for b in range(pool_size):
                 src_offset = b * src_width
-                convert_row_332(pool_addrs[b], fb_addr, src_offset, src_width, words_per_line, lut_addr, idx_lut_addr, scratch_addr)
+                convert_row_332(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, src_width, words_per_line, lut_addr, idx_lut_addr, scratch_addr)
 
     def _build_scanout_table(self, table_len, pool_size, pool_addrs):
         addr_table_bytes = table_len * 4
@@ -1020,11 +1017,10 @@ class VGA:
                                        ring_sel=False, ring_size=ring_size_bits,
                                        high_pri=True, irq_quiet=False)
 
-        ch_pixel.config(read=pool_addrs[0], write=color_sm, count=words_per_line, ctrl=ctrl_pixel, trigger=False)
+        ch_pixel.config(read=pool_addrs[0], write=color_sm, count=words_per_line + COLOR_PROG_LINE_COUNT_WORDS, ctrl=ctrl_pixel, trigger=False)
         ch_ctrl.config(read=table_addr, write=ch_pixel_al3_trig_addr, count=1, ctrl=ctrl_ctrl, trigger=False)
 
         color_sm.active(1)
-        color_sm.put(words_per_line - 1)
 
         reset_line_idx = (self.V_PULSE + self.V_BACK_PORCH - self.RESET_ANCHOR_LEAD_LINES) % self.V_TOTAL
         _vsync_reset_shared[_VSR_CH_CTRL_READ_ADDR_REGISTER] = ch_ctrl_reg_addr
@@ -1119,7 +1115,7 @@ class VGA:
         ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
             table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
-        buffer_stride_bytes = WORDS_PER_LINE * 4
+        buffer_stride_bytes = (WORDS_PER_LINE + COLOR_PROG_LINE_COUNT_WORDS) * 4
         active_start_offset = self.V_PULSE + self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
