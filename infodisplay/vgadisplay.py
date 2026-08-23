@@ -88,6 +88,17 @@ class VgaStatsController:
             writer.write(b'<option value="%s"%s>%s</option>' % (encoded_name, selected, encoded_name))
         writer.write(b'</select> <button>Apply</button></form>')
 
+    def _write_power_form(self, writer, stats):
+        running = stats is not None
+        status = b'Started' if running else b'Stopped'
+        status_class = b'' if running else b' class="bad"'
+        stop_disabled = b' disabled' if not running else b''
+        start_disabled = b' disabled' if running else b''
+        writer.write(b'<form method="post" action="vgastats"><p%s>Signal: %s</p>'
+                     b'<button name="power" value="stop"%s>Stop</button> '
+                     b'<button name="power" value="start"%s>Start</button></form>'
+                     % (status_class, status, stop_disabled, start_disabled))
+
     def _write_expected_actual_row(self, writer, label, expected, actual, ok):
         css_class = b'' if ok else b' class="bad"'
         writer.write(b'<tr%s><td>%s</td><td>%i</td><td>%i</td></tr>' % (css_class, label, expected, actual))
@@ -152,6 +163,15 @@ class VgaStatsController:
                     self.vga.set_timing(timing.decode('utf-8'))
                 except ValueError as e:
                     error = str(e)
+            power = form.get(b'power')
+            if power in (b'stop', b'start'):
+                try:
+                    if power == b'stop':
+                        self.vga.stop()
+                    else:
+                        self.vga.start()
+                except Exception as e:
+                    error = str(e)
 
         stats = self.vga.stats()
 
@@ -163,6 +183,7 @@ class VgaStatsController:
         writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}.bad{color:#c00;font-weight:bold;}</style>')
         writer.write(b'<h1>VGA Stats</h1>')
         self._write_timing_form(writer)
+        self._write_power_form(writer, stats)
         if error:
             writer.write(b'<p class="bad">%s</p>' % error.encode('utf-8'))
 
