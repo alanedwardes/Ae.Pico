@@ -149,7 +149,13 @@ class HassWs:
         # Change types: https://github.com/home-assistant/core/blob/9428127021325b9f7500e03a9627929840bfa2e4/homeassistant/components/websocket_api/messages.py#L11-L17
         if 'a' in event:
             for entity_id in event['a']:
-                self.entities[entity_id] = event['a'][entity_id]
+                new_state = event['a'][entity_id]
+                existing = self.entities.get(entity_id)
+                if existing is None:
+                    self.entities[entity_id] = new_state
+                else:
+                    existing.clear()
+                    existing.update(new_state)
                 self._execute_callback(self.entity_callbacks.get(entity_id, None), entity_id, self.entities[entity_id])
         elif 'c' in event:
             for entity_id in event['c']:
