@@ -968,6 +968,7 @@ class VGA:
             raise ValueError('h_active must be a multiple of 4 - timing %r has h_active=%d' % (timing, resolved['h_active']))
 
         was_started = self._started
+        previous_timing = self.timing_name
         if was_started:
             self.stop()
 
@@ -975,7 +976,13 @@ class VGA:
         self.timing_name = timing
 
         if was_started:
-            self.start()
+            try:
+                self.start()
+            except Exception as e:
+                self._apply_timing(_resolve_timing(timing=previous_timing))
+                self.timing_name = previous_timing
+                self.start()
+                raise ValueError('switch to %r failed (%s), reverted to %r' % (timing, e, previous_timing))
 
     def _compute_table_len(self, pool_size, src_height):
         raw_table_len = pool_size * self.V_ACTIVE // src_height
