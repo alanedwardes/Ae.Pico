@@ -521,16 +521,18 @@ class MemoryController:
         writer.write(b'Content-Disposition: attachment; filename="memory.bin"' + HEADER_TERMINATOR)
         writer.write(HEADER_TERMINATOR)
 
-        word_bytes = bytearray(4)
+        chunk = bytearray(DEFAULT_CHUNKSIZE)
         addr = SRAM_BASE
-        while addr < SRAM_BASE + SRAM_LENGTH:
-            value = machine.mem32[addr]
-            word_bytes[0] = value
-            word_bytes[1] = value >> 8
-            word_bytes[2] = value >> 16
-            word_bytes[3] = value >> 24
-            writer.write(word_bytes)
-            addr += 4
+        end = SRAM_BASE + SRAM_LENGTH
+        while addr < end:
+            for i in range(0, DEFAULT_CHUNKSIZE, 4):
+                value = machine.mem32[addr]
+                chunk[i] = value
+                chunk[i + 1] = value >> 8
+                chunk[i + 2] = value >> 16
+                chunk[i + 3] = value >> 24
+                addr += 4
+            writer.write(chunk)
             await writer.drain()
 
 class ManagementServer:
