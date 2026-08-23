@@ -68,9 +68,9 @@ class TemperatureDisplay:
         if len(self.temperature_data) < 3:
             return
 
-        current_temperature = round(float(self.temperature_data[0]))
-        minimum_temperature = min(round(float(self.temperature_data[1])), current_temperature)
-        maximum_temperature = max(round(float(self.temperature_data[2])), current_temperature)
+        current_temperature = float(self.temperature_data[0])
+        minimum_temperature = min(float(self.temperature_data[1]), current_temperature)
+        maximum_temperature = max(float(self.temperature_data[2]), current_temperature)
         
         self.display.rect(self.display_width - self.height, 0, self.height, self.height, 0x000000, True)
         
@@ -83,7 +83,8 @@ class TemperatureDisplay:
         primary_scale = size[1] * 0.06
         primary_height = size[1]
         font_scale = self.height / 70.0
-        current_temp_str = f"{abs(current_temperature) if current_temperature == 0 else current_temperature:.0f}°"
+        displayed_current = round(current_temperature)
+        current_temp_str = f"{abs(displayed_current) if displayed_current == 0 else displayed_current:.0f}°"
         await textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=white_pen, font='regular', scale=font_scale)
         
         # Draw min/max labels under the gauge
@@ -95,8 +96,10 @@ class TemperatureDisplay:
         text_scale = max(1, math.ceil(size[1] * 0.02))
         text_height = 8 * text_scale
         text_size_y = text_height + 4
-        min_temp_str = f"{abs(minimum_temperature) if minimum_temperature == 0 else minimum_temperature:.0f}°"
-        max_temp_str = f"{abs(maximum_temperature) if maximum_temperature == 0 else maximum_temperature:.0f}°"
+        displayed_minimum = round(minimum_temperature)
+        displayed_maximum = round(maximum_temperature)
+        min_temp_str = f"{abs(displayed_minimum) if displayed_minimum == 0 else displayed_minimum:.0f}°"
+        max_temp_str = f"{abs(displayed_maximum) if displayed_maximum == 0 else displayed_maximum:.0f}°"
         await textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
         await textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
 

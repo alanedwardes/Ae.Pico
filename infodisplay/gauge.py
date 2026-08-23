@@ -31,6 +31,10 @@ if not IS_MICROPYTHON:
     class micropython:
         @staticmethod
         def viper(f): return f
+        @staticmethod
+        def heap_lock(): pass
+        @staticmethod
+        def heap_unlock(): pass
 
     ptr8 = ptr16 = ptr32 = object
 
