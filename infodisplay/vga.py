@@ -883,6 +883,19 @@ def _resolve_timing(timing=None,
 
 
 
+def _warn_fast_path_missed(timing_name, requested_width, fast_path_width, requested_height, pool_size, v_active):
+    max_safe_height = (v_active // pool_size) * pool_size
+    nearest_height = ((requested_height + pool_size // 2) // pool_size) * pool_size
+    if nearest_height > max_safe_height:
+        nearest_height = max_safe_height
+    if nearest_height < pool_size:
+        nearest_height = pool_size
+    label = timing_name if timing_name else '%dx%d' % (fast_path_width * 2, v_active)
+    print('Warning: framebuffer width %d misses the fast-path width %d for %s; '
+          'using the index-LUT row path. Closest fast-path framebuffer: %dx%d.'
+          % (requested_width, fast_path_width, label, fast_path_width, nearest_height))
+
+
 class VGA:
     SIO_GPIO_IN = 0xd0000004
     DREQ_PIO0_TX0 = 0
@@ -1200,6 +1213,9 @@ class VGA:
         assert self.H_ACTIVE % 4 == 0
         WORDS_PER_LINE = self.H_ACTIVE // 4
         self._words_per_line = WORDS_PER_LINE
+        fast_path_width = WORDS_PER_LINE * 2
+        if SRC_WIDTH != fast_path_width:
+            _warn_fast_path_missed(self.timing_name, SRC_WIDTH, fast_path_width, SRC_HEIGHT, POOL_SIZE, self.V_ACTIVE)
         assert SRC_HEIGHT % POOL_SIZE == 0, (
             'SRC_HEIGHT must be a multiple of POOL_SIZE - the pool of '
             'scanline buffers cycles through the whole framebuffer height '
