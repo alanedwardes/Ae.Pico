@@ -700,6 +700,19 @@ def make_vsync_prog(v_pulse_minus_1, pulse_level=0, idle_level=1):
 
 VgaTiming = namedtuple('VgaTiming', ('name', 'pixel_clock', 'h_sync', 'h_back_porch', 'h_active', 'h_front_porch', 'v_pulse', 'v_back_porch', 'v_active', 'v_front_porch', 'h_sync_positive', 'v_sync_positive', 'h_border_left', 'h_border_right', 'v_border_top', 'v_border_bottom'))
 
+VGA_STATS_FIELDS = (
+    'refill_call_count', 'vsync_edge_count', 'pool_size', 'refill_margin_target_buffers',
+    'min_refill_margin_buffers', 'min_refill_margin_lines_into_active',
+    'refill_target_collision_count', 'displaying_buffer_out_of_range_count',
+    'prefill_burst_incomplete_count', 'row_correctness_checked_count',
+    'row_correctness_mismatch_count', 'row_correctness_max_abs_row_delta',
+    'row_correctness_large_row_delta_count', 'row_correctness_first_mismatch_seen',
+    'row_correctness_first_mismatch_lines_into_active', 'row_correctness_first_mismatch_current_row',
+    'row_correctness_first_mismatch_displaying_buffer', 'row_correctness_first_mismatch_stored_row',
+    'row_correctness_first_mismatch_table_idx',
+)
+VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
+
 _TIMINGS = (
     VgaTiming(name='640x350@85', pixel_clock=31_500_000, h_sync=64, h_back_porch=96, h_active=640, h_front_porch=32, v_pulse=3, v_back_porch=60, v_active=350, v_front_porch=32, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
     VgaTiming(name='640x400@85', pixel_clock=31_500_000, h_sync=64, h_back_porch=96, h_active=640, h_front_porch=32, v_pulse=3, v_back_porch=41, v_active=400, v_front_porch=1, h_sync_positive=False, v_sync_positive=True, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
@@ -1167,3 +1180,31 @@ class VGA:
         self._ch_ctrl.active(0)
         self._ch_pixel.active(0)
         self._started = False
+
+    def stats(self):
+        if not self._started:
+            return None
+        state = self._core1_state
+        row_correctness = self.row_correctness
+        pool_size = self.POOL_SIZE
+        return VgaStats(
+            refill_call_count=state[_CS_REFILL_CALL_COUNT],
+            vsync_edge_count=state[_CS_VSYNC_EDGE_COUNT],
+            pool_size=pool_size,
+            refill_margin_target_buffers=self.REFILL_MARGIN_BUFFERS,
+            min_refill_margin_buffers=state[_CS_MIN_REFILL_MARGIN_BUFFERS],
+            min_refill_margin_lines_into_active=state[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE],
+            refill_target_collision_count=state[_CS_REFILL_TARGET_COLLISION_COUNT],
+            displaying_buffer_out_of_range_count=state[_CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT],
+            prefill_burst_incomplete_count=state[_CS_PREFILL_BURST_INCOMPLETE_COUNT],
+            row_correctness_checked_count=row_correctness[pool_size + _RC_CHECKED_COUNT],
+            row_correctness_mismatch_count=row_correctness[pool_size + _RC_MISMATCH_COUNT],
+            row_correctness_max_abs_row_delta=row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA],
+            row_correctness_large_row_delta_count=row_correctness[pool_size + _RC_LARGE_ROW_DELTA_COUNT],
+            row_correctness_first_mismatch_seen=row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN],
+            row_correctness_first_mismatch_lines_into_active=row_correctness[pool_size + _RC_FIRST_MISMATCH_LINES_INTO_ACTIVE],
+            row_correctness_first_mismatch_current_row=row_correctness[pool_size + _RC_FIRST_MISMATCH_CURRENT_ROW],
+            row_correctness_first_mismatch_displaying_buffer=row_correctness[pool_size + _RC_FIRST_MISMATCH_DISPLAYING_BUFFER],
+            row_correctness_first_mismatch_stored_row=row_correctness[pool_size + _RC_FIRST_MISMATCH_STORED_ROW],
+            row_correctness_first_mismatch_table_idx=row_correctness[pool_size + _RC_FIRST_MISMATCH_TABLE_IDX],
+        )
