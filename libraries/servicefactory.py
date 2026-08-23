@@ -33,6 +33,8 @@ class ServiceFactory:
                 print("Fatal error instantiating %s: %s" % (componentName, str(e)))
                 self.exception_handler and self.exception_handler(e)
 
+            gc.collect()
+
             if not component:
                 #print("Component %s has no default export" % componentName)
                 continue

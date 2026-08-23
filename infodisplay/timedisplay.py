@@ -55,28 +55,6 @@ class TimeDisplay:
         self._sec_region = (self.sec_x, self.section_height, self.sec_width, self.section_height)
         self._ms_region = (self.ms_x, self.section_height, self.ms_width, self.section_height)
 
-        self._sec_font, self._sec_pages = textbox.get_font('regular')
-        self._ms_font, self._ms_pages = textbox.get_font('small')
-        self._linebuf = self.display.get_scratch_buffer(max(self._sec_font.scale_w, self._ms_font.scale_w))
-
-        s = max(0.000001, float(self.font_scale))
-        if s < 1.0:
-            self._scale_up = 1
-            self._scale_down = max(1, int(round(1.0 / s)))
-        else:
-            self._scale_up = max(1, int(round(s)))
-            self._scale_down = 1
-
-        sec_align_fraction = 0.5 * (1 - self.show_milliseconds)
-        self._sec_origin_x = self._precompute_origin_x(self._padded_numbers, self._sec_font, self.sec_x, self.sec_width, sec_align_fraction)
-        self._sec_origin_y = self._precompute_origin_y(self._sec_font, self.section_height, self.section_height)
-
-        self._ms_origin_x = self._precompute_origin_x(self._tenth_numbers, self._ms_font, self.ms_x, self.ms_width, 0.0)
-        self._ms_origin_y = self._precompute_origin_y(self._ms_font, self.section_height, self.section_height)
-
-        self._sec_clip = (int(self.sec_x), int(self.section_height), int(self.sec_width), int(self.section_height))
-        self._ms_clip = (int(self.ms_x), int(self.section_height), int(self.ms_width), int(self.section_height))
-
     def _precompute_origin_x(self, strings, font, x, width, align_fraction):
         scale_up, scale_down = self._scale_up, self._scale_down
         origins = []
@@ -99,6 +77,28 @@ class TimeDisplay:
         return TimeDisplay(provider['display'], provider['time'], y_separator, show_milliseconds)
 
     async def start(self):
+        self._sec_font, self._sec_pages = textbox.get_font('regular')
+        self._ms_font, self._ms_pages = textbox.get_font('small')
+        self._linebuf = self.display.get_scratch_buffer(max(self._sec_font.scale_w, self._ms_font.scale_w))
+
+        s = max(0.000001, float(self.font_scale))
+        if s < 1.0:
+            self._scale_up = 1
+            self._scale_down = max(1, int(round(1.0 / s)))
+        else:
+            self._scale_up = max(1, int(round(s)))
+            self._scale_down = 1
+
+        sec_align_fraction = 0.5 * (1 - self.show_milliseconds)
+        self._sec_origin_x = self._precompute_origin_x(self._padded_numbers, self._sec_font, self.sec_x, self.sec_width, sec_align_fraction)
+        self._sec_origin_y = self._precompute_origin_y(self._sec_font, self.section_height, self.section_height)
+
+        self._ms_origin_x = self._precompute_origin_x(self._tenth_numbers, self._ms_font, self.ms_x, self.ms_width, 0.0)
+        self._ms_origin_y = self._precompute_origin_y(self._ms_font, self.section_height, self.section_height)
+
+        self._sec_clip = (int(self.sec_x), int(self.section_height), int(self.sec_width), int(self.section_height))
+        self._ms_clip = (int(self.ms_x), int(self.section_height), int(self.ms_width), int(self.section_height))
+
         if not self.show_milliseconds:
             while True:
                 await self.update()
