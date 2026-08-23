@@ -1,4 +1,5 @@
 import array
+import gc
 import uctypes
 import micropython
 from collections import namedtuple
@@ -702,6 +703,7 @@ VgaTiming = namedtuple('VgaTiming', ('name', 'pixel_clock', 'h_sync', 'h_back_po
 
 VGA_STATS_FIELDS = (
     'refill_call_count', 'vsync_edge_count',
+    'pixel_clock', 'h_active', 'v_pulse', 'v_back_porch', 'prefill_window_lines',
     'src_width', 'src_height', 'v_active', 'table_len', 'entries_per_buffer', 'exact_row_ratio',
     'pool_size', 'refill_margin_target_buffers',
     'min_refill_margin_buffers', 'min_refill_margin_lines_into_active',
@@ -804,6 +806,8 @@ _TIMINGS = (
     VgaTiming(name='2560x1600@120RB', pixel_clock=552_750_000, h_sync=32, h_back_porch=80, h_active=2560, h_front_porch=48, v_pulse=6, v_back_porch=85, v_active=1600, v_front_porch=3, h_sync_positive=True, v_sync_positive=False, h_border_left=0, h_border_right=0, v_border_top=0, v_border_bottom=0),
 )
 
+VGA_TIMING_NAMES = tuple(entry.name for entry in _TIMINGS)
+
 def _timing_preset(name):
     for entry in _TIMINGS:
         if entry.name == name:
@@ -831,6 +835,49 @@ def _timing_preset(name):
                 preset['v_border_bottom'] = entry.v_border_bottom
             return preset
     raise ValueError('unknown timing preset %r - known: %s' % (name, sorted(e.name for e in _TIMINGS)))
+
+
+def _resolve_timing(timing=None,
+                     pixel_clock=None, h_sync=None, h_back_porch=None, h_active=None, h_front_porch=None,
+                     v_pulse=None, v_back_porch=None, v_active=None, v_front_porch=None,
+                     h_border_left=None, h_border_right=None, v_border_top=None, v_border_bottom=None,
+                     sync_positive=None, h_sync_positive=None, v_sync_positive=None, h_sync_max_deviation=None):
+    if timing is not None:
+        preset = _timing_preset(timing)
+        if pixel_clock is None: pixel_clock = preset.get('pixel_clock')
+        if h_sync is None: h_sync = preset.get('h_sync')
+        if h_back_porch is None: h_back_porch = preset.get('h_back_porch')
+        if h_active is None: h_active = preset.get('h_active')
+        if h_front_porch is None: h_front_porch = preset.get('h_front_porch')
+        if v_pulse is None: v_pulse = preset.get('v_pulse')
+        if v_back_porch is None: v_back_porch = preset.get('v_back_porch')
+        if v_active is None: v_active = preset.get('v_active')
+        if v_front_porch is None: v_front_porch = preset.get('v_front_porch')
+        if h_border_left is None: h_border_left = preset.get('h_border_left')
+        if h_border_right is None: h_border_right = preset.get('h_border_right')
+        if v_border_top is None: v_border_top = preset.get('v_border_top')
+        if v_border_bottom is None: v_border_bottom = preset.get('v_border_bottom')
+        if h_sync_positive is None: h_sync_positive = preset.get('h_sync_positive')
+        if v_sync_positive is None: v_sync_positive = preset.get('v_sync_positive')
+        if sync_positive is None: sync_positive = preset.get('sync_positive')
+        if h_sync_max_deviation is None: h_sync_max_deviation = preset.get('h_sync_max_deviation')
+    if h_sync_positive is None: h_sync_positive = sync_positive
+    if v_sync_positive is None: v_sync_positive = sync_positive
+    if h_sync_positive is None: h_sync_positive = False
+    if v_sync_positive is None: v_sync_positive = False
+    if h_sync_max_deviation is None: h_sync_max_deviation = 0
+    if h_border_left or h_border_right or v_border_top or v_border_bottom:
+        h_back_porch = (h_back_porch or 0) + (h_border_left or 0)
+        h_front_porch = (h_front_porch or 0) + (h_border_right or 0)
+        v_back_porch = (v_back_porch or 0) + (v_border_top or 0)
+        v_front_porch = (v_front_porch or 0) + (v_border_bottom or 0)
+    return {
+        'pixel_clock': pixel_clock, 'h_sync': h_sync, 'h_back_porch': h_back_porch,
+        'h_active': h_active, 'h_front_porch': h_front_porch,
+        'v_pulse': v_pulse, 'v_back_porch': v_back_porch, 'v_active': v_active, 'v_front_porch': v_front_porch,
+        'h_sync_positive': h_sync_positive, 'v_sync_positive': v_sync_positive,
+        'h_sync_max_deviation': h_sync_max_deviation,
+    }
 
 
 
@@ -864,37 +911,14 @@ class VGA:
                  v_pulse=None, v_back_porch=None, v_active=None, v_front_porch=None,
                  h_border_left=None, h_border_right=None, v_border_top=None, v_border_bottom=None,
                  sync_positive=None, h_sync_positive=None, v_sync_positive=None, h_sync_max_deviation=None):
-        if timing is not None:
-            preset = _timing_preset(timing)
-            if pixel_clock is None: pixel_clock = preset.get('pixel_clock')
-            if h_sync is None: h_sync = preset.get('h_sync')
-            if h_back_porch is None: h_back_porch = preset.get('h_back_porch')
-            if h_active is None: h_active = preset.get('h_active')
-            if h_front_porch is None: h_front_porch = preset.get('h_front_porch')
-            if v_pulse is None: v_pulse = preset.get('v_pulse')
-            if v_back_porch is None: v_back_porch = preset.get('v_back_porch')
-            if v_active is None: v_active = preset.get('v_active')
-            if v_front_porch is None: v_front_porch = preset.get('v_front_porch')
-            if h_border_left is None: h_border_left = preset.get('h_border_left')
-            if h_border_right is None: h_border_right = preset.get('h_border_right')
-            if v_border_top is None: v_border_top = preset.get('v_border_top')
-            if v_border_bottom is None: v_border_bottom = preset.get('v_border_bottom')
-            if h_sync_positive is None: h_sync_positive = preset.get('h_sync_positive')
-            if v_sync_positive is None: v_sync_positive = preset.get('v_sync_positive')
-            if sync_positive is None: sync_positive = preset.get('sync_positive')
-            if h_sync_max_deviation is None: h_sync_max_deviation = preset.get('h_sync_max_deviation')
-        if h_sync_positive is None: h_sync_positive = sync_positive
-        if v_sync_positive is None: v_sync_positive = sync_positive
-        if h_sync_positive is None: h_sync_positive = False
-        if v_sync_positive is None: v_sync_positive = False
-        if sync_positive is None: sync_positive = False
-        if h_sync_max_deviation is None: h_sync_max_deviation = 0
-        if h_border_left or h_border_right or v_border_top or v_border_bottom:
-            h_back_porch = (h_back_porch or 0) + (h_border_left or 0)
-            h_front_porch = (h_front_porch or 0) + (h_border_right or 0)
-            v_back_porch = (v_back_porch or 0) + (v_border_top or 0)
-            v_front_porch = (v_front_porch or 0) + (v_border_bottom or 0)
-        self._h_sync_max_deviation = h_sync_max_deviation
+        self.timing_name = timing
+        resolved = _resolve_timing(
+            timing=timing,
+            pixel_clock=pixel_clock, h_sync=h_sync, h_back_porch=h_back_porch, h_active=h_active, h_front_porch=h_front_porch,
+            v_pulse=v_pulse, v_back_porch=v_back_porch, v_active=v_active, v_front_porch=v_front_porch,
+            h_border_left=h_border_left, h_border_right=h_border_right, v_border_top=v_border_top, v_border_bottom=v_border_bottom,
+            sync_positive=sync_positive, h_sync_positive=h_sync_positive, v_sync_positive=v_sync_positive,
+            h_sync_max_deviation=h_sync_max_deviation)
         self.width = width
         self.height = height
         self.source_color_mode = source_color_mode
@@ -912,25 +936,44 @@ class VGA:
         self._vsync_pin = vsync_pin
         self.VSYNC_PIN_MASK = 1 << vsync_pin
 
-        if pixel_clock is not None: self.PIXEL_CLOCK = pixel_clock
-        if h_sync is not None: self.H_SYNC = h_sync
-        if h_back_porch is not None: self.H_BACK_PORCH = h_back_porch
-        if h_active is not None: self.H_ACTIVE = h_active
-        if h_front_porch is not None: self.H_FRONT_PORCH = h_front_porch
-        if v_pulse is not None: self.V_PULSE = v_pulse
-        if v_back_porch is not None: self.V_BACK_PORCH = v_back_porch
-        if v_active is not None: self.V_ACTIVE = v_active
-        if v_front_porch is not None: self.V_FRONT_PORCH = v_front_porch
-        self.V_TOTAL = self.V_PULSE + self.V_BACK_PORCH + self.V_ACTIVE + self.V_FRONT_PORCH
-        self.V_IDLE = self.V_TOTAL - self.V_PULSE
-        self._h_pulse_level = 1 if h_sync_positive else 0
-        self._h_idle_level = 0 if h_sync_positive else 1
-        self._v_pulse_level = 1 if v_sync_positive else 0
-        self._v_idle_level = 0 if v_sync_positive else 1
+        self._apply_timing(resolved)
 
         if not self._is_rgb565:
             self._rgb332_lut = array.array('H', bytearray(256 * 2))
             build_rgb332_dac_lut_into(self._rgb332_lut)
+
+    def _apply_timing(self, resolved):
+        if resolved['pixel_clock'] is not None: self.PIXEL_CLOCK = resolved['pixel_clock']
+        if resolved['h_sync'] is not None: self.H_SYNC = resolved['h_sync']
+        if resolved['h_back_porch'] is not None: self.H_BACK_PORCH = resolved['h_back_porch']
+        if resolved['h_active'] is not None: self.H_ACTIVE = resolved['h_active']
+        if resolved['h_front_porch'] is not None: self.H_FRONT_PORCH = resolved['h_front_porch']
+        if resolved['v_pulse'] is not None: self.V_PULSE = resolved['v_pulse']
+        if resolved['v_back_porch'] is not None: self.V_BACK_PORCH = resolved['v_back_porch']
+        if resolved['v_active'] is not None: self.V_ACTIVE = resolved['v_active']
+        if resolved['v_front_porch'] is not None: self.V_FRONT_PORCH = resolved['v_front_porch']
+        self.V_TOTAL = self.V_PULSE + self.V_BACK_PORCH + self.V_ACTIVE + self.V_FRONT_PORCH
+        self.V_IDLE = self.V_TOTAL - self.V_PULSE
+        self._h_sync_max_deviation = resolved['h_sync_max_deviation']
+        self._h_pulse_level = 1 if resolved['h_sync_positive'] else 0
+        self._h_idle_level = 0 if resolved['h_sync_positive'] else 1
+        self._v_pulse_level = 1 if resolved['v_sync_positive'] else 0
+        self._v_idle_level = 0 if resolved['v_sync_positive'] else 1
+
+    def set_timing(self, timing):
+        resolved = _resolve_timing(timing=timing)
+        if resolved['h_active'] % 4 != 0:
+            raise ValueError('h_active must be a multiple of 4 - timing %r has h_active=%d' % (timing, resolved['h_active']))
+
+        was_started = self._started
+        if was_started:
+            self.stop()
+
+        self._apply_timing(resolved)
+        self.timing_name = timing
+
+        if was_started:
+            self.start()
 
     def _compute_table_len(self, pool_size, src_height):
         raw_table_len = pool_size * self.V_ACTIVE // src_height
@@ -1071,11 +1114,11 @@ class VGA:
     def _alloc_diagnostics(self, pool_size):
         log_len = 64
         self.frame_log = array.array('i', bytearray(log_len * 2 * 4))
-        tail_log_len = 500
+        tail_log_len = 64
         tail_threshold = 0
         self.tail_log = array.array('i', bytearray(tail_log_len * 5 * 4))
         self.row_correctness = array.array('i', bytearray((pool_size + 10) * 4))
-        pattern_len = 400
+        pattern_len = 64
         self.pattern_log = array.array('i', bytearray(pattern_len * 4 * 4))
         return log_len, tail_log_len, tail_threshold, pattern_len
 
@@ -1115,7 +1158,11 @@ class VGA:
     def start(self):
         if self._started:
             return
-        self._started = True
+
+        gc.collect()
+
+        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0])
+        self._core1_done = array.array('i', [0])
 
         POOL_SIZE = self.POOL_SIZE
         SRC_WIDTH = self.width
@@ -1144,18 +1191,20 @@ class VGA:
         table_addr, ring_size_bits = self._build_scanout_table(
             TABLE_LEN, POOL_SIZE, pool_addrs, self.V_ACTIVE, self.V_TOTAL, black_buffer_addr)
 
-        ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
-            table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
-
         buffer_stride_bytes = (WORDS_PER_LINE + COLOR_PROG_LINE_COUNT_WORDS) * 4
         active_start_offset = self.V_PULSE + self.V_BACK_PORCH
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE)
 
+        ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
+            table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
+
         self._start_core1_thread(
             pool_addr_arr, ch_ctrl_reg_addr, table_addr, TABLE_LEN, POOL_SIZE, SRC_WIDTH, SRC_HEIGHT,
             active_start_offset, ch_pixel_reg_addr, pool_addrs[0], buffer_stride_bytes,
             LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, idx_lut_addr, scratch_addr, PATTERN_LEN)
+
+        self._started = True
 
     def render(self, fb, width, height, bbox):
         pass
@@ -1176,12 +1225,9 @@ class VGA:
         self._hsync_sm.active(0)
         self._color_sm.active(0)
         self._vsync_sm.active(0)
-        self._ch_ctrl.irq(handler=None)
-        CHAN_ABORT = self.DMA_BASE + 0x444
-        abort_mask = (1 << self._ch_pixel.channel) | (1 << self._ch_ctrl.channel)
-        machine.mem32[CHAN_ABORT] = abort_mask
-        self._ch_ctrl.active(0)
-        self._ch_pixel.active(0)
+        self._ch_ctrl.close()
+        self._ch_pixel.close()
+        PIO(0).remove_program()
         self._started = False
 
     def stats(self):
@@ -1196,6 +1242,11 @@ class VGA:
         return VgaStats(
             refill_call_count=state[_CS_REFILL_CALL_COUNT],
             vsync_edge_count=state[_CS_VSYNC_EDGE_COUNT],
+            pixel_clock=self.PIXEL_CLOCK,
+            h_active=self.H_ACTIVE,
+            v_pulse=self.V_PULSE,
+            v_back_porch=self.V_BACK_PORCH,
+            prefill_window_lines=self.V_PULSE + self.V_BACK_PORCH,
             src_width=self.width,
             src_height=self.height,
             v_active=self.V_ACTIVE,

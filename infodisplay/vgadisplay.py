@@ -1,6 +1,7 @@
 import asyncio
-from vga import VGA, VGA_STATS_FIELDS
+from vga import VGA, VGA_STATS_FIELDS, VGA_TIMING_NAMES
 from drawing import Drawing
+from management import parse_form
 
 DEFAULT_WIDTH = 320
 DEFAULT_HEIGHT = 240
@@ -73,16 +74,31 @@ class VgaStatsController:
         await asyncio.Event().wait()
 
     def route(self, method, path):
-        return method == b'GET' and path == b'/vgastats'
+        return path == b'/vgastats'
 
     def widget(self):
         return b' <a href="vgastats">VGA Stats</a>'
+
+    def _write_timing_form(self, writer):
+        writer.write(b'<form method="post" action="vgastats"><select name="timing">')
+        current = self.vga.timing_name
+        for name in VGA_TIMING_NAMES:
+            selected = b' selected' if name == current else b''
+            encoded_name = name.encode('utf-8')
+            writer.write(b'<option value="%s"%s>%s</option>' % (encoded_name, selected, encoded_name))
+        writer.write(b'</select> <button>Apply</button></form>')
 
     def _write_expected_actual_row(self, writer, label, expected, actual, ok):
         css_class = b'' if ok else b' class="bad"'
         writer.write(b'<tr%s><td>%s</td><td>%i</td><td>%i</td></tr>' % (css_class, label, expected, actual))
 
     def _write_expected_actual_table(self, writer, stats):
+        writer.write(b'<p>%i Hz pixel clock, %i active columns, %i-line prefill window (%i pulse + %i back porch).</p>' % (
+            stats.pixel_clock, stats.h_active, stats.prefill_window_lines, stats.v_pulse, stats.v_back_porch))
+        writer.write(b'<p>%ix%i source scaled to %i active lines: %i table entries, %i output lines per buffer (%s ratio).</p>' % (
+            stats.src_width, stats.src_height, stats.v_active, stats.table_len, stats.entries_per_buffer,
+            b'exact' if stats.exact_row_ratio else b'approximate'))
+
         writer.write(b'<h2>Refill Timing</h2>')
         writer.write(b'<table><thead><tr><th></th><th>Expected</th><th>Actual</th></tr></thead><tbody>')
         self._write_expected_actual_row(
@@ -126,6 +142,17 @@ class VgaStatsController:
             stats.row_correctness_mismatch_count, stats.row_correctness_checked_count, mismatch_rate))
 
     async def serve(self, method, path, headers, reader, writer):
+        error = None
+        if method == b'POST':
+            content_length = int(headers.get(b'content-length', '0'))
+            form = parse_form(await reader.readexactly(content_length))
+            timing = form.get(b'timing')
+            if timing:
+                try:
+                    self.vga.set_timing(timing.decode('utf-8'))
+                except ValueError as e:
+                    error = str(e)
+
         stats = self.vga.stats()
 
         writer.write(b'HTTP/1.0 200 OK\r\n')
@@ -136,6 +163,9 @@ class VgaStatsController:
         writer.write(b'<meta http-equiv="refresh" content="1">')
         writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}.bad{color:#c00;font-weight:bold;}</style>')
         writer.write(b'<h1>VGA Stats</h1>')
+        self._write_timing_form(writer)
+        if error:
+            writer.write(b'<p class="bad">%s</p>' % error.encode('utf-8'))
 
         if stats is None:
             writer.write(b'<p>VGA has not started.</p>')
