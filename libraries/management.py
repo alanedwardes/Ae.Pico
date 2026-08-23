@@ -16,6 +16,8 @@ HEADER_TERMINATOR = b'\r\n'
 KB = const(1024)
 DUTY_MAX = const(65535)
 DEFAULT_CHUNKSIZE = const(512)
+SRAM_BASE = const(0x20000000)
+SRAM_LENGTH = const(0x40000)
 
 MINIMAL_CSS = b'<style>' \
     b'form{display:inline;}' \
@@ -506,12 +508,37 @@ class ResetController:
     def widget(self):
         return b'<form action="reset" method="post"><button>Reset</button></form>'
 
-class ManagementServer:   
+class MemoryController:
+    def route(self, method, path):
+        return path == b'/memory'
+
+    def widget(self):
+        return b' <form action="memory" method="get"><button>Memory</button></form>'
+
+    async def serve(self, method, path, headers, reader, writer):
+        writer.write(OK_STATUS)
+        writer.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
+        writer.write(b'Content-Disposition: attachment; filename="memory.bin"' + HEADER_TERMINATOR)
+        writer.write(HEADER_TERMINATOR)
+
+        word_bytes = bytearray(4)
+        addr = SRAM_BASE
+        while addr < SRAM_BASE + SRAM_LENGTH:
+            value = machine.mem32[addr]
+            word_bytes[0] = value
+            word_bytes[1] = value >> 8
+            word_bytes[2] = value >> 16
+            word_bytes[3] = value >> 24
+            writer.write(word_bytes)
+            addr += 4
+            await writer.drain()
+
+class ManagementServer:
     def __init__(self, port = 80):
         self.port = port
         self.controllers = [IndexController(self), FilesystemController(), EditController(),
                             DownloadController(), UploadController(), DeleteController(),
-                            ResetController(), WebReplController()]
+                            ResetController(), WebReplController(), MemoryController()]
         self.authorization_header = None
         self.server = None
 
