@@ -701,7 +701,9 @@ def make_vsync_prog(v_pulse_minus_1, pulse_level=0, idle_level=1):
 VgaTiming = namedtuple('VgaTiming', ('name', 'pixel_clock', 'h_sync', 'h_back_porch', 'h_active', 'h_front_porch', 'v_pulse', 'v_back_porch', 'v_active', 'v_front_porch', 'h_sync_positive', 'v_sync_positive', 'h_border_left', 'h_border_right', 'v_border_top', 'v_border_bottom'))
 
 VGA_STATS_FIELDS = (
-    'refill_call_count', 'vsync_edge_count', 'pool_size', 'refill_margin_target_buffers',
+    'refill_call_count', 'vsync_edge_count',
+    'src_width', 'src_height', 'v_active', 'table_len', 'entries_per_buffer', 'exact_row_ratio',
+    'pool_size', 'refill_margin_target_buffers',
     'min_refill_margin_buffers', 'min_refill_margin_lines_into_active',
     'refill_target_collision_count', 'displaying_buffer_out_of_range_count',
     'prefill_burst_incomplete_count', 'row_correctness_checked_count',
@@ -1127,6 +1129,7 @@ class VGA:
             'in fixed POOL_SIZE-row groups')
 
         TABLE_LEN = self._compute_table_len(POOL_SIZE, SRC_HEIGHT)
+        self._table_len = TABLE_LEN
 
         pool_addrs, pool_addr_arr = self._alloc_scanline_pool(POOL_SIZE, WORDS_PER_LINE)
 
@@ -1187,9 +1190,18 @@ class VGA:
         state = self._core1_state
         row_correctness = self.row_correctness
         pool_size = self.POOL_SIZE
+        table_len = self._table_len
+        entries_per_buffer = table_len // pool_size
+        exact_row_ratio = 1 if entries_per_buffer * self.height == self.V_ACTIVE else 0
         return VgaStats(
             refill_call_count=state[_CS_REFILL_CALL_COUNT],
             vsync_edge_count=state[_CS_VSYNC_EDGE_COUNT],
+            src_width=self.width,
+            src_height=self.height,
+            v_active=self.V_ACTIVE,
+            table_len=table_len,
+            entries_per_buffer=entries_per_buffer,
+            exact_row_ratio=exact_row_ratio,
             pool_size=pool_size,
             refill_margin_target_buffers=self.REFILL_MARGIN_BUFFERS,
             min_refill_margin_buffers=state[_CS_MIN_REFILL_MARGIN_BUFFERS],
