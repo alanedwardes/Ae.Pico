@@ -1,7 +1,7 @@
 import gc
 import micropython
 
-from bmfont import BMFont, draw_text, measure_text
+from bmfont import BMFont, draw_text, measure_text, measure_extend
 from mpassets import load_bytes, stage
 from microcheck import check, summarize
 
@@ -93,6 +93,19 @@ def measure_empty():
     measure_text(font, '')
 
 
+WORD = 'quick'
+SECOND_WORD = 'brown'
+
+
+def measure_extend_first():
+    measure_extend(font, WORD, 0, None, None, None)
+
+
+def measure_extend_next():
+    cx, prev_id, min_left, max_right = measure_extend(font, WORD, 0, None, None, None)
+    measure_extend(font, SECOND_WORD, cx, prev_id, min_left, max_right)
+
+
 warm = [
     ('draw_text rgb565', draw_565),
     ('draw_text rgb565 background', draw_565_background),
@@ -105,6 +118,8 @@ measure = [
     ('measure_text normal', measure_normal),
     ('measure_text multiline', measure_multiline),
     ('measure_text empty', measure_empty),
+    ('measure_extend first word', measure_extend_first),
+    ('measure_extend next word', measure_extend_next),
 ]
 
 for _, fn in warm:

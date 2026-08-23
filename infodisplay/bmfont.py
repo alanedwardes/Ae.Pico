@@ -360,33 +360,38 @@ def measure_text(font: BMFont, text: str, kerning=False):
 
 def measure_extend(font: BMFont, text: str, cx, prev_id, min_left, max_right, kerning=False):
     glyph_data = font._glyph_data
-    for ch in text:
-        if ch == "\n":
-            cx = 0
-            prev_id = None
-            continue
-        code = ord(ch)
-        off = font.chars.get(code)
-        if off is None:
-            prev_id = None
-            continue
-        if prev_id is not None and kerning and font.kerning:
-            cx += font.kerning.get((prev_id, code), 0)
-        width = glyph_data[off+4] | (glyph_data[off+5] << 8)
-        xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)
-        if xoffset > 32767: xoffset -= 65536
-        xadvance = glyph_data[off+12] | (glyph_data[off+13] << 8)
-        if xadvance > 32767: xadvance -= 65536
 
-        glyph_left = cx + xoffset
-        glyph_right = glyph_left + width
+    micropython.heap_lock()
+    try:
+        for ch in text:
+            if ch == "\n":
+                cx = 0
+                prev_id = None
+                continue
+            code = ord(ch)
+            off = font.chars.get(code)
+            if off is None:
+                prev_id = None
+                continue
+            if prev_id is not None and kerning and font.kerning:
+                cx += font.kerning.get((prev_id, code), 0)
+            width = glyph_data[off+4] | (glyph_data[off+5] << 8)
+            xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)
+            if xoffset > 32767: xoffset -= 65536
+            xadvance = glyph_data[off+12] | (glyph_data[off+13] << 8)
+            if xadvance > 32767: xadvance -= 65536
 
-        if min_left is None or glyph_left < min_left:
-            min_left = glyph_left
-        if max_right is None or glyph_right > max_right:
-            max_right = glyph_right
+            glyph_left = cx + xoffset
+            glyph_right = glyph_left + width
 
-        cx += xadvance
-        prev_id = code
+            if min_left is None or glyph_left < min_left:
+                min_left = glyph_left
+            if max_right is None or glyph_right > max_right:
+                max_right = glyph_right
+
+            cx += xadvance
+            prev_id = code
+    finally:
+        micropython.heap_unlock()
 
     return cx, prev_id, min_left, max_right
