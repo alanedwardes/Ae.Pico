@@ -78,6 +78,53 @@ class VgaStatsController:
     def widget(self):
         return b' <a href="vgastats">VGA Stats</a>'
 
+    def _write_expected_actual_row(self, writer, label, expected, actual, ok):
+        css_class = b'' if ok else b' class="bad"'
+        writer.write(b'<tr%s><td>%s</td><td>%i</td><td>%i</td></tr>' % (css_class, label, expected, actual))
+
+    def _write_expected_actual_table(self, writer, stats):
+        writer.write(b'<h2>Refill Timing</h2>')
+        writer.write(b'<table><thead><tr><th></th><th>Expected</th><th>Actual</th></tr></thead><tbody>')
+        self._write_expected_actual_row(
+            writer, b'Refill margin (buffers)',
+            stats.refill_margin_target_buffers, stats.min_refill_margin_buffers,
+            stats.min_refill_margin_buffers >= stats.refill_margin_target_buffers)
+        self._write_expected_actual_row(
+            writer, b'Refill target collisions',
+            0, stats.refill_target_collision_count,
+            stats.refill_target_collision_count == 0)
+        self._write_expected_actual_row(
+            writer, b'Out-of-range buffer reads',
+            0, stats.displaying_buffer_out_of_range_count,
+            stats.displaying_buffer_out_of_range_count == 0)
+        self._write_expected_actual_row(
+            writer, b'Incomplete prefill bursts',
+            0, stats.prefill_burst_incomplete_count,
+            stats.prefill_burst_incomplete_count == 0)
+        writer.write(b'</tbody></table>')
+        writer.write(b'<p>Worst margin observed %i lines into active video.</p>' % stats.min_refill_margin_lines_into_active)
+
+        writer.write(b'<h2>Row Correctness</h2>')
+        writer.write(b'<table><thead><tr><th></th><th>Expected</th><th>Actual</th></tr></thead><tbody>')
+        self._write_expected_actual_row(
+            writer, b'Mismatches',
+            0, stats.row_correctness_mismatch_count,
+            stats.row_correctness_mismatch_count == 0)
+        self._write_expected_actual_row(
+            writer, b'Max |row delta|',
+            0, stats.row_correctness_max_abs_row_delta,
+            stats.row_correctness_max_abs_row_delta == 0)
+        if stats.row_correctness_first_mismatch_seen:
+            self._write_expected_actual_row(
+                writer, b'First mismatch: row shown vs. row stored',
+                stats.row_correctness_first_mismatch_current_row, stats.row_correctness_first_mismatch_stored_row,
+                False)
+        writer.write(b'</tbody></table>')
+        mismatch_rate = (100.0 * stats.row_correctness_mismatch_count / stats.row_correctness_checked_count) \
+            if stats.row_correctness_checked_count else 0.0
+        writer.write(b'<p>%i / %i rows checked (%.3f%% mismatched).</p>' % (
+            stats.row_correctness_mismatch_count, stats.row_correctness_checked_count, mismatch_rate))
+
     async def serve(self, method, path, headers, reader, writer):
         stats = self.vga.stats()
 
@@ -87,12 +134,15 @@ class VgaStatsController:
         writer.write(b'Connection: close\r\n')
         writer.write(b'\r\n')
         writer.write(b'<meta http-equiv="refresh" content="1">')
-        writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}</style>')
+        writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}.bad{color:#c00;font-weight:bold;}</style>')
         writer.write(b'<h1>VGA Stats</h1>')
 
         if stats is None:
             writer.write(b'<p>VGA has not started.</p>')
         else:
+            self._write_expected_actual_table(writer, stats)
+
+            writer.write(b'<h2>Raw Counters</h2>')
             writer.write(b'<table><tbody>')
             for name, value in zip(VGA_STATS_FIELDS, stats):
                 writer.write(b'<tr><td>%s</td><td>%i</td></tr>' % (name.encode('utf-8'), value))
