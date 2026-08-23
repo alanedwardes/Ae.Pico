@@ -17,7 +17,9 @@ KB = const(1024)
 DUTY_MAX = const(65535)
 DEFAULT_CHUNKSIZE = const(512)
 SRAM_BASE = const(0x20000000)
-SRAM_LENGTH = const(0x40000)
+# Total SRAM differs by chip (RP2040: 264 KB, RP2350: 520 KB) - read it from
+# the machine description rather than hardcoding one chip's size.
+SRAM_LENGTH = 0x82000 if 'RP2350' in uos.uname().machine else 0x42000
 
 MINIMAL_CSS = b'<style>' \
     b'form{display:inline;}' \
@@ -517,6 +519,7 @@ class MemoryController:
 
     async def serve(self, method, path, headers, reader, writer):
         writer.write(OK_STATUS)
+        writer.write(b'Content-Length: %i' % (SRAM_LENGTH) + HEADER_TERMINATOR)
         writer.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
         writer.write(b'Content-Disposition: attachment; filename="memory.bin"' + HEADER_TERMINATOR)
         writer.write(HEADER_TERMINATOR)
