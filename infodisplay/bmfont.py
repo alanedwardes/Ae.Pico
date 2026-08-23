@@ -1,5 +1,19 @@
 import struct
 import gc
+import sys
+
+try:
+    import micropython
+    IS_MICROPYTHON = sys.implementation.name == 'micropython'
+except ImportError:
+    IS_MICROPYTHON = False
+
+if not IS_MICROPYTHON:
+    class micropython:
+        @staticmethod
+        def heap_lock(): pass
+        @staticmethod
+        def heap_unlock(): pass
 
 from bitblt import blit_region, composite_region, fill_region, _as_ptr16, _as_ptr8
 
@@ -291,46 +305,50 @@ def measure_text(font: BMFont, text: str, kerning=False):
     prev_id = None
     glyph_data = font._glyph_data
 
-    for ch in text:
-        if ch == "\n":
-            cx = 0
-            cy += font.line_height
-            prev_id = None
-            continue
-        code = ord(ch)
-        off = font.chars.get(code)
-        if off is None:
-            prev_id = None
-            continue
-        if prev_id is not None and kerning and font.kerning:
-            cx += font.kerning.get((prev_id, code), 0)
-        # Manual unpack (faster than struct in uPy, and allocation-free):
-        # <HHHHhhhB -- same layout as in draw_text
-        width = glyph_data[off+4] | (glyph_data[off+5] << 8)
-        height = glyph_data[off+6] | (glyph_data[off+7] << 8)
-        xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)
-        if xoffset > 32767: xoffset -= 65536
-        yoffset = glyph_data[off+10] | (glyph_data[off+11] << 8)
-        if yoffset > 32767: yoffset -= 65536
-        xadvance = glyph_data[off+12] | (glyph_data[off+13] << 8)
-        if xadvance > 32767: xadvance -= 65536
+    micropython.heap_lock()
+    try:
+        for ch in text:
+            if ch == "\n":
+                cx = 0
+                cy += font.line_height
+                prev_id = None
+                continue
+            code = ord(ch)
+            off = font.chars.get(code)
+            if off is None:
+                prev_id = None
+                continue
+            if prev_id is not None and kerning and font.kerning:
+                cx += font.kerning.get((prev_id, code), 0)
+            # Manual unpack (faster than struct in uPy, and allocation-free):
+            # <HHHHhhhB -- same layout as in draw_text
+            width = glyph_data[off+4] | (glyph_data[off+5] << 8)
+            height = glyph_data[off+6] | (glyph_data[off+7] << 8)
+            xoffset = glyph_data[off+8] | (glyph_data[off+9] << 8)
+            if xoffset > 32767: xoffset -= 65536
+            yoffset = glyph_data[off+10] | (glyph_data[off+11] << 8)
+            if yoffset > 32767: yoffset -= 65536
+            xadvance = glyph_data[off+12] | (glyph_data[off+13] << 8)
+            if xadvance > 32767: xadvance -= 65536
 
-        glyph_left = cx + xoffset
-        glyph_top = cy + yoffset
-        glyph_right = glyph_left + width
-        glyph_bottom = glyph_top + height
+            glyph_left = cx + xoffset
+            glyph_top = cy + yoffset
+            glyph_right = glyph_left + width
+            glyph_bottom = glyph_top + height
 
-        if min_left is None or glyph_left < min_left:
-            min_left = glyph_left
-        if min_top is None or glyph_top < min_top:
-            min_top = glyph_top
-        if max_right is None or glyph_right > max_right:
-            max_right = glyph_right
-        if max_bottom is None or glyph_bottom > max_bottom:
-            max_bottom = glyph_bottom
+            if min_left is None or glyph_left < min_left:
+                min_left = glyph_left
+            if min_top is None or glyph_top < min_top:
+                min_top = glyph_top
+            if max_right is None or glyph_right > max_right:
+                max_right = glyph_right
+            if max_bottom is None or glyph_bottom > max_bottom:
+                max_bottom = glyph_bottom
 
-        cx += xadvance
-        prev_id = code
+            cx += xadvance
+            prev_id = code
+    finally:
+        micropython.heap_unlock()
 
     if min_left is None:
         # Empty string

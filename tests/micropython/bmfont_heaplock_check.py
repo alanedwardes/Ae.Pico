@@ -1,7 +1,7 @@
 import gc
 import micropython
 
-from bmfont import BMFont, draw_text
+from bmfont import BMFont, draw_text, measure_text
 from mpassets import load_bytes, stage
 from microcheck import check, summarize
 
@@ -33,6 +33,15 @@ def under_lock(fn):
         micropython.heap_unlock()
         return ('raised', None)
     return ('ok', gc.mem_alloc() - before)
+
+
+def production_lock_ok(fn):
+    gc.collect()
+    try:
+        fn()
+    except MemoryError:
+        return False
+    return True
 
 
 font = BMFont.load(stage(FONT_PATH))
@@ -70,6 +79,20 @@ def draw_332_background():
               linebuf=linebuf, color=0xFFFFFF, background=0x000000, clip=clip_box)
 
 
+MULTILINE = 'The quick\nbrown fox\njumps'
+
+def measure_normal():
+    measure_text(font, TEXT)
+
+
+def measure_multiline():
+    measure_text(font, MULTILINE)
+
+
+def measure_empty():
+    measure_text(font, '')
+
+
 warm = [
     ('draw_text rgb565', draw_565),
     ('draw_text rgb565 background', draw_565_background),
@@ -78,7 +101,15 @@ warm = [
     ('draw_text rgb332 background', draw_332_background),
 ]
 
+measure = [
+    ('measure_text normal', measure_normal),
+    ('measure_text multiline', measure_multiline),
+    ('measure_text empty', measure_empty),
+]
+
 for _, fn in warm:
+    fn()
+for _, fn in measure:
     fn()
 
 
@@ -91,6 +122,10 @@ def main():
         res, delta = under_lock(fn)
         check('%s under heap_lock' % label, res == 'ok' and delta == 0,
               'res=%s delta=%d' % (res, delta))
+
+    for label, fn in measure:
+        check('%s under production lock' % label, production_lock_ok(fn),
+              'raised MemoryError under production lock')
 
     summarize()
 
