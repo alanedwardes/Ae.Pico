@@ -9,15 +9,27 @@ class StartupDisplay:
         self.start_y = start_y
         self.display_width, self.display_height = self.display.get_bounds()
         self.pending_activation = True
-    
+
+        self.x = 10
+        self.width = self.display_width - 20
+        self.line_height = 30
+        self.ip_y = start_y + 10
+        self.host_y = self.ip_y + self.line_height
+        self.ssid_y = self.host_y + self.line_height
+        self.mac_y = self.ssid_y + self.line_height
+        self.signal_y = self.mac_y + self.line_height
+
+        self._static_drawn = False
+        self._last_rssi = None
+
     CREATION_PRIORITY = 1
     def create(provider):
         y_separator = provider['config']['display'].get('y_separator', 70)
         return StartupDisplay(provider['display'], provider['nic'], y_separator)
-    
+
     async def start(self):
         await asyncio.Event().wait()
-        
+
     def should_activate(self):
         return self.pending_activation
 
@@ -27,40 +39,27 @@ class StartupDisplay:
             await self.update()
             await asyncio.sleep(0.1)
 
-    async def update(self):
-        y_start = self.start_y
-        
-        y = y_start + 10
-        x = 10
-        width = self.display_width - 20
-        line_height = 30
-        
+    async def _draw_static(self):
         # IP Address
         try:
             ip = self.nic.ifconfig()[0]
         except Exception:
             ip = "?"
-        
-        await textbox.draw_textbox(self.display, f"IP: {ip}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-        y += line_height
-        
+        await textbox.draw_textbox(self.display, f"IP: {ip}", self.x, self.ip_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+
         # Hostname
         try:
             hostname = self.nic.config('hostname')
         except Exception:
             hostname = "?"
-            
-        await textbox.draw_textbox(self.display, f"Host: {hostname}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-        y += line_height
-        
+        await textbox.draw_textbox(self.display, f"Host: {hostname}", self.x, self.host_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+
         # SSID
         try:
             ssid = self.nic.config('ssid')
         except Exception:
             ssid = "?"
-            
-        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-        y += line_height
+        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", self.x, self.ssid_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
         # MAC Address
         try:
@@ -68,17 +67,22 @@ class StartupDisplay:
             mac = binascii.hexlify(mac_bytes, ':').decode().upper()
         except Exception:
             mac = "?"
-            
-        await textbox.draw_textbox(self.display, f"MAC: {mac}", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-        y += line_height
-        
-        # Signal Strength
+        await textbox.draw_textbox(self.display, f"MAC: {mac}", self.x, self.mac_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+
+        self.display.update((0, self.start_y, self.display_width, self.signal_y - self.start_y))
+
+    async def update(self):
+        if not self._static_drawn:
+            self._static_drawn = True
+            await self._draw_static()
+
+        # Signal strength is the only field that actually changes while active
         try:
             rssi = self.nic.status('rssi')
         except Exception:
             rssi = "?"
-            
-        await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", x, y, width, line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-        
-        # Update proper region
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
+
+        if rssi != self._last_rssi:
+            self._last_rssi = rssi
+            await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", self.x, self.signal_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+            self.display.update((0, self.signal_y, self.display_width, self.line_height))
