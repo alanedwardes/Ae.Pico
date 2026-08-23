@@ -160,7 +160,6 @@ class VgaStatsController:
         writer.write(b'Cache-Control: no-cache\r\n')
         writer.write(b'Connection: close\r\n')
         writer.write(b'\r\n')
-        writer.write(b'<meta http-equiv="refresh" content="1">')
         writer.write(b'<style>form{display:inline;}body{background-color:Canvas;color:CanvasText;color-scheme:light dark;font-family:sans-serif;}.bad{color:#c00;font-weight:bold;}</style>')
         writer.write(b'<h1>VGA Stats</h1>')
         self._write_timing_form(writer)
