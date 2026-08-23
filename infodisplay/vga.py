@@ -1,5 +1,4 @@
 import array
-import gc
 import uctypes
 import micropython
 from collections import namedtuple
@@ -1174,7 +1173,10 @@ class VGA:
         if self._started:
             return
 
-        gc.collect()
+        self._pool = None
+        self._idx_lut = None
+        self._black_buffer = None
+        self._raw = None
 
         if hasattr(self, '_core1_state'):
             for i, value in enumerate(_CORE1_STATE_INITIAL):
