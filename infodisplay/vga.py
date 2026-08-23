@@ -46,6 +46,9 @@ _CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT = const(5)
 _CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE = const(6)
 _CS_PREFILL_BURST_INCOMPLETE_COUNT = const(7)
 
+_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0]
+_CORE1_STATE_INITIAL[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = -1
+
 _RC_MISMATCH_COUNT = const(0)
 _RC_CHECKED_COUNT = const(1)
 _RC_FIRST_MISMATCH_SEEN = const(2)
@@ -1016,6 +1019,8 @@ class VGA:
         return uctypes.addressof(idx_lut)
 
     def _alloc_scratch_row(self, src_width):
+        if hasattr(self, '_scratch'):
+            return uctypes.addressof(self._scratch)
         if self._is_rgb565:
             scratch = array.array('H', bytearray(src_width * 2))
         else:
@@ -1111,15 +1116,25 @@ class VGA:
         ch_pixel_reg_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + 0x00
         return ch_ctrl_reg_addr, ch_pixel_reg_addr
 
+    def _clear_array(self, arr):
+        for i in range(len(arr)):
+            arr[i] = 0
+
     def _alloc_diagnostics(self, pool_size):
         log_len = 64
-        self.frame_log = array.array('i', bytearray(log_len * 2 * 4))
         tail_log_len = 64
         tail_threshold = 0
-        self.tail_log = array.array('i', bytearray(tail_log_len * 5 * 4))
-        self.row_correctness = array.array('i', bytearray((pool_size + 10) * 4))
         pattern_len = 64
-        self.pattern_log = array.array('i', bytearray(pattern_len * 4 * 4))
+        if hasattr(self, 'frame_log'):
+            self._clear_array(self.frame_log)
+            self._clear_array(self.tail_log)
+            self._clear_array(self.row_correctness)
+            self._clear_array(self.pattern_log)
+        else:
+            self.frame_log = array.array('i', bytearray(log_len * 2 * 4))
+            self.tail_log = array.array('i', bytearray(tail_log_len * 5 * 4))
+            self.row_correctness = array.array('i', bytearray((pool_size + 10) * 4))
+            self.pattern_log = array.array('i', bytearray(pattern_len * 4 * 4))
         return log_len, tail_log_len, tail_threshold, pattern_len
 
     def _start_core1_thread(self, pool_addr_arr, ch_ctrl_reg_addr, table_addr, table_len, pool_size,
@@ -1161,8 +1176,13 @@ class VGA:
 
         gc.collect()
 
-        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0])
-        self._core1_done = array.array('i', [0])
+        if hasattr(self, '_core1_state'):
+            for i, value in enumerate(_CORE1_STATE_INITIAL):
+                self._core1_state[i] = value
+            self._core1_done[0] = 0
+        else:
+            self._core1_state = array.array('i', _CORE1_STATE_INITIAL)
+            self._core1_done = array.array('i', [0])
 
         POOL_SIZE = self.POOL_SIZE
         SRC_WIDTH = self.width
