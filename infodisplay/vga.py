@@ -923,6 +923,7 @@ class VGA:
             h_sync_max_deviation=h_sync_max_deviation)
         self.width = width
         self.height = height
+        self._bounds = (self.width, self.height)
         self.source_color_mode = source_color_mode
         self._is_rgb565 = source_color_mode == 'RGB565'
         self.bytes_per_pixel = 2 if self._is_rgb565 else 1
@@ -1239,7 +1240,7 @@ class VGA:
         pass
 
     def get_bounds(self):
-        return (self.width, self.height)
+        return self._bounds
 
     def set_backlight(self, brightness):
         pass

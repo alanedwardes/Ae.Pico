@@ -36,6 +36,7 @@ class Drawing:
         self._scratch_buffer = bytearray(1024)
         self._scratch_view = memoryview(self._scratch_buffer)
         self._framebuffer_view = memoryview(self._framebuffer)
+        self._bounds = (self.width, self.height)
 
     @micropython.viper
     def pack(self, color24: int) -> int:
@@ -108,7 +109,7 @@ class Drawing:
         self._driver = driver
 
     def get_bounds(self):
-        return (self.width, self.height)
+        return self._bounds
 
     def set_backlight(self, brightness):
         if self._driver is None:

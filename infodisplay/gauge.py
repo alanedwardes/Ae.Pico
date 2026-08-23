@@ -429,4 +429,9 @@ def draw_gauge(display, position, size, minimum_temperature=None, maximum_temper
         p[55] = notch_fill_color & 0xFF
 
     d8 = _as_ptr8(display)
-    _render(d8, _as_ptr16(display) if bpp == 2 else d8, p)
+    d16 = _as_ptr16(display) if bpp == 2 else d8
+    micropython.heap_lock()
+    try:
+        _render(d8, d16, p)
+    finally:
+        micropython.heap_unlock()
