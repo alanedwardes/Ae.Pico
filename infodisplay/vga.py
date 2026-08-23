@@ -821,7 +821,6 @@ def _timing_preset(name):
 
 class VGA:
     SIO_GPIO_IN = 0xd0000004
-    VSYNC_PIN_MASK = 1 << 17
     DREQ_PIO0_TX0 = 0
     DMA_BASE = 0x50000000
     DMA_CH_STRIDE = 0x40
@@ -896,6 +895,7 @@ class VGA:
         self._hsync_pin = hsync_pin
         self._color_base_pin = color_base_pin
         self._vsync_pin = vsync_pin
+        self.VSYNC_PIN_MASK = 1 << vsync_pin
 
         if pixel_clock is not None: self.PIXEL_CLOCK = pixel_clock
         if h_sync is not None: self.H_SYNC = h_sync
@@ -940,6 +940,13 @@ class VGA:
         self._pool = pool
         return pool_addrs, pool_addr_arr
 
+    def _alloc_black_buffer(self, words_per_line):
+        stride_words = words_per_line + COLOR_PROG_LINE_COUNT_WORDS
+        black = array.array('I', bytearray(stride_words * 4))
+        black[0] = 2 * words_per_line - 1
+        self._black_buffer = black
+        return uctypes.addressof(black)
+
     def _build_index_lut(self, src_width, words_per_line):
         total_out_pixels = words_per_line * 2
         idx_lut = array.array('I', bytearray(words_per_line * 4))
@@ -970,17 +977,23 @@ class VGA:
                 src_offset = b * src_width
                 convert_row_332(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, src_width, words_per_line, lut_addr, idx_lut_addr, scratch_addr)
 
-    def _build_scanout_table(self, table_len, pool_size, pool_addrs):
-        addr_table_bytes = table_len * 4
+    def _build_scanout_table(self, table_len, pool_size, pool_addrs, v_active, v_total, black_buffer_addr):
+        physical_len = 1
+        while physical_len < v_total:
+            physical_len *= 2
+        addr_table_bytes = physical_len * 4
         ring_size_bits = 0
         while (1 << ring_size_bits) < addr_table_bytes:
             ring_size_bits += 1
-        raw = array.array('I', bytearray(table_len * 2 * 4))
+        raw = array.array('I', bytearray(physical_len * 2 * 4))
         raw_addr = uctypes.addressof(raw)
         aligned_addr = (raw_addr + addr_table_bytes - 1) & ~(addr_table_bytes - 1)
         offset_words = (aligned_addr - raw_addr) // 4
-        for i in range(table_len):
-            raw[offset_words + i] = pool_addrs[(i * pool_size) // table_len]
+        for i in range(v_active):
+            phase = i % table_len
+            raw[offset_words + i] = pool_addrs[(phase * pool_size) // table_len]
+        for i in range(v_active, physical_len):
+            raw[offset_words + i] = black_buffer_addr
         self._raw = raw
         return aligned_addr, ring_size_bits
 
@@ -1110,7 +1123,10 @@ class VGA:
 
         self._prefill_pool(pool_addrs, POOL_SIZE, SRC_WIDTH, WORDS_PER_LINE, idx_lut_addr, scratch_addr)
 
-        table_addr, ring_size_bits = self._build_scanout_table(TABLE_LEN, POOL_SIZE, pool_addrs)
+        black_buffer_addr = self._alloc_black_buffer(WORDS_PER_LINE)
+
+        table_addr, ring_size_bits = self._build_scanout_table(
+            TABLE_LEN, POOL_SIZE, pool_addrs, self.V_ACTIVE, self.V_TOTAL, black_buffer_addr)
 
         ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
             table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
