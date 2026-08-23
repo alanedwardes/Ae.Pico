@@ -1080,6 +1080,39 @@ class VGA:
         self._raw = raw
         return aligned_addr, ring_size_bits
 
+    def _prepare_buffers(self, pool_size, src_width, src_height, words_per_line, table_len, fast_path_width):
+        signature = (src_width, src_height, pool_size, words_per_line, table_len, self.V_ACTIVE, self.V_TOTAL)
+        if getattr(self, '_alloc_signature', None) != signature:
+            self._alloc_signature = None
+            self._pool = None
+            self._idx_lut = None
+            self._black_buffer = None
+            self._raw = None
+            if src_width != fast_path_width:
+                _warn_fast_path_missed(self.timing_name, src_width, fast_path_width, src_height, pool_size, self.V_ACTIVE)
+            pool_addrs, pool_addr_arr = self._alloc_scanline_pool(pool_size, words_per_line)
+            idx_lut_addr = self._build_index_lut(src_width, words_per_line)
+            scratch_addr = self._alloc_scratch_row(src_width)
+            black_buffer_addr = self._alloc_black_buffer(words_per_line)
+            table_addr, ring_size_bits = self._build_scanout_table(
+                table_len, pool_size, pool_addrs, self.V_ACTIVE, self.V_TOTAL, black_buffer_addr)
+            self._pool_addrs = pool_addrs
+            self._pool_addr_arr = pool_addr_arr
+            self._idx_lut_addr = idx_lut_addr
+            self._scratch_addr = scratch_addr
+            self._black_buffer_addr = black_buffer_addr
+            self._table_addr = table_addr
+            self._ring_size_bits = ring_size_bits
+            self._alloc_signature = signature
+        else:
+            pool_addrs = self._pool_addrs
+            pool_addr_arr = self._pool_addr_arr
+            idx_lut_addr = self._idx_lut_addr
+            scratch_addr = self._scratch_addr
+            table_addr = self._table_addr
+            ring_size_bits = self._ring_size_bits
+        return pool_addrs, pool_addr_arr, idx_lut_addr, scratch_addr, table_addr, ring_size_bits
+
     def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
         hsync_prog, hsync_deviation_cycles = make_hsync_prog(
@@ -1194,11 +1227,6 @@ class VGA:
         if self._started:
             return
 
-        self._pool = None
-        self._idx_lut = None
-        self._black_buffer = None
-        self._raw = None
-
         if hasattr(self, '_core1_state'):
             for i, value in enumerate(_CORE1_STATE_INITIAL):
                 self._core1_state[i] = value
@@ -1214,8 +1242,6 @@ class VGA:
         WORDS_PER_LINE = self.H_ACTIVE // 4
         self._words_per_line = WORDS_PER_LINE
         fast_path_width = WORDS_PER_LINE * 2
-        if SRC_WIDTH != fast_path_width:
-            _warn_fast_path_missed(self.timing_name, SRC_WIDTH, fast_path_width, SRC_HEIGHT, POOL_SIZE, self.V_ACTIVE)
         assert SRC_HEIGHT % POOL_SIZE == 0, (
             'SRC_HEIGHT must be a multiple of POOL_SIZE - the pool of '
             'scanline buffers cycles through the whole framebuffer height '
@@ -1224,18 +1250,10 @@ class VGA:
         TABLE_LEN = self._compute_table_len(POOL_SIZE, SRC_HEIGHT)
         self._table_len = TABLE_LEN
 
-        pool_addrs, pool_addr_arr = self._alloc_scanline_pool(POOL_SIZE, WORDS_PER_LINE)
-
-        idx_lut_addr = self._build_index_lut(SRC_WIDTH, WORDS_PER_LINE)
-
-        scratch_addr = self._alloc_scratch_row(SRC_WIDTH)
+        pool_addrs, pool_addr_arr, idx_lut_addr, scratch_addr, table_addr, ring_size_bits = \
+            self._prepare_buffers(POOL_SIZE, SRC_WIDTH, SRC_HEIGHT, WORDS_PER_LINE, TABLE_LEN, fast_path_width)
 
         self._prefill_pool(pool_addrs, POOL_SIZE, SRC_WIDTH, WORDS_PER_LINE, idx_lut_addr, scratch_addr)
-
-        black_buffer_addr = self._alloc_black_buffer(WORDS_PER_LINE)
-
-        table_addr, ring_size_bits = self._build_scanout_table(
-            TABLE_LEN, POOL_SIZE, pool_addrs, self.V_ACTIVE, self.V_TOTAL, black_buffer_addr)
 
         buffer_stride_bytes = (WORDS_PER_LINE + COLOR_PROG_LINE_COUNT_WORDS) * 4
         active_start_offset = self.V_PULSE + self.V_BACK_PORCH
@@ -1259,7 +1277,10 @@ class VGA:
         return self._bounds
 
     def set_backlight(self, brightness):
-        pass
+        if brightness <= 0:
+            self.stop()
+        else:
+            self.start()
 
     def stop(self):
         if not self._started:
