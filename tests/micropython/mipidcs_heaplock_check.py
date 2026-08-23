@@ -1,7 +1,6 @@
 import gc
 import micropython
 
-import machine
 from mipidcs import (
     _rgb565_to_888_line,
     _rgb565_to_888_upscale_line,

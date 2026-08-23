@@ -1,5 +1,9 @@
 import micropython
-from machine import PWM
+
+try:
+    from machine import PWM
+except ImportError:
+    PWM = None
 
 try:
     import rp2
