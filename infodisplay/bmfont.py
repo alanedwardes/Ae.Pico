@@ -1,7 +1,7 @@
 import struct
 import gc
 
-from bitblt import blit_region, _as_ptr16, _as_ptr8
+from bitblt import blit_region, composite_region, fill_region, _as_ptr16, _as_ptr8
 
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
@@ -146,7 +146,7 @@ class BMFont:
                     font.kerning[(first, second)] = amount
         return font
 
-def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None, clip=None):
+def draw_text(framebuffer, display_width, display_height, font: BMFont, page_files, text, x, y, kerning=False, scale_up=1, scale_down=1, color=None, linebuf=None, clip=None, background=None, top_edge=True, bottom_edge=True):
     # GS8 source atlases: one byte per pixel per row
     row_bytes = font.scale_w
     
@@ -155,6 +155,10 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
     
     # Resolve tinted palette for font rendering (GS8 -> Dest)
     palette = _resolve_palette(color, bytes_per_pixel)
+    bg_pixel = None
+    if background is not None:
+        bg_pal = _resolve_palette(background, bytes_per_pixel)
+        bg_pixel = (bg_pal[510] | (bg_pal[511] << 8)) if bytes_per_pixel == 2 else bg_pal[255]
 
     # Dicts keyed by page id and lists/tuples index identically via
     # pages[page], so pass them through rather than rebuilding a dict on
@@ -170,11 +174,32 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
     # Scale fast path
     is_scaled = (scale_up != 1 or scale_down != 1)
 
+    if background is not None and clip:
+        box_x, box_y, box_w, box_h = clip
+        box_right = box_x + box_w
+        box_bottom = box_y + box_h
+        total_lines = text.count("\n") + 1
+        line_h_px = (font.line_height * scale_up) // scale_down if is_scaled else font.line_height
+        watermark_x = box_x
+    else:
+        box_x = None
+    line_idx = 0
+    n = len(text)
+
     cx, cy = x, y
     prev_id = None
-    for ch in text:
+    for i in range(n):
+        ch = text[i]
         if ch == "\n":
-            cx, cy = x, cy + font.line_height; prev_id = None; continue
+            if box_x is not None:
+                fill_y = box_y if (line_idx == 0 and top_edge) else cy
+                fill_bottom = box_bottom if (line_idx == total_lines - 1 and bottom_edge) else cy + line_h_px
+                fill_region(framebuffer, display_width, display_height,
+                            watermark_x, fill_y, box_right - watermark_x, fill_bottom - fill_y,
+                            bg_pixel, clip)
+                watermark_x = box_x
+            cx, cy = x, cy + font.line_height; prev_id = None; line_idx += 1
+            continue
         code = ord(ch)
         off = font.chars.get(code)
         if off is None: prev_id = None; continue
@@ -187,7 +212,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         src_y = glyph_data[off+2] | (glyph_data[off+3] << 8)
         width = glyph_data[off+4] | (glyph_data[off+5] << 8)
         height = glyph_data[off+6] | (glyph_data[off+7] << 8)
-        
+
         xo = glyph_data[off+8] | (glyph_data[off+9] << 8)
         if xo > 32767: xo -= 65536
         yo = glyph_data[off+10] | (glyph_data[off+11] << 8)
@@ -199,30 +224,56 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
         if is_scaled:
             dest_x = cx + (xo * scale_up) // scale_down
             dest_y = cy + (yo * scale_up) // scale_down
+            adv_px = (xa * scale_up) // scale_down
         else:
             dest_x = cx + xo
             dest_y = cy + yo
-        
-        # Quick bounds check (rejection) before calling blit_region.
-        # Positional args throughout: keyword calls build a dict per
-        # glyph in MicroPython, and this runs for every character drawn.
-        if not clip:
-            if dest_x >= display_width or dest_y >= display_height: pass
-            elif dest_x + width <= 0 or dest_y + height <= 0: pass
+            adv_px = xa
+
+        if background is not None and box_x is not None:
+            fill_x = watermark_x
+            if dest_x < fill_x: fill_x = dest_x
+            ink_right = dest_x + width
+            fill_right = cx + adv_px
+            if ink_right > fill_right: fill_right = ink_right
+            fill_y = box_y if (line_idx == 0 and top_edge) else cy
+            fill_bottom = box_bottom if (line_idx == total_lines - 1 and bottom_edge) else cy + line_h_px
+            if fill_right > fill_x and fill_bottom > fill_y:
+                composite_region(framebuffer, display_width, display_height, bytes_per_pixel,
+                                  pages[page], 4, row_bytes,
+                                  src_x, src_y, width, height,
+                                  fill_x, fill_y, fill_right - fill_x, fill_bottom - fill_y,
+                                  dest_x - fill_x, dest_y - fill_y,
+                                  linebuf, palette, bg_pixel, clip)
+            watermark_x = fill_right
+        else:
+            # Quick bounds check (rejection) before calling blit_region.
+            # Positional args throughout: keyword calls build a dict per
+            # glyph in MicroPython, and this runs for every character drawn.
+            if not clip:
+                if dest_x >= display_width or dest_y >= display_height: pass
+                elif dest_x + width <= 0 or dest_y + height <= 0: pass
+                else:
+                    blit_region(framebuffer, display_width, display_height, 1,
+                                pages[page], 4, row_bytes,
+                                src_x, src_y, width, height,
+                                dest_x, dest_y, linebuf, 6, palette, clip, 0)
             else:
+                # Complex clipping case - let blit_region handle it
                 blit_region(framebuffer, display_width, display_height, 1,
                             pages[page], 4, row_bytes,
                             src_x, src_y, width, height,
                             dest_x, dest_y, linebuf, 6, palette, clip, 0)
-        else:
-            # Complex clipping case - let blit_region handle it
-            blit_region(framebuffer, display_width, display_height, 1,
-                        pages[page], 4, row_bytes,
-                        src_x, src_y, width, height,
-                        dest_x, dest_y, linebuf, 6, palette, clip, 0)
-        
-        cx += (xa * scale_up) // scale_down if is_scaled else xa
+
+        cx += adv_px
         prev_id = code
+
+    if background is not None and box_x is not None:
+        fill_y = box_y if (line_idx == 0 and top_edge) else cy
+        fill_bottom = box_bottom if (line_idx == total_lines - 1 and bottom_edge) else cy + line_h_px
+        fill_region(framebuffer, display_width, display_height,
+                    watermark_x, fill_y, box_right - watermark_x, fill_bottom - fill_y,
+                    bg_pixel, clip)
 
 def measure_text(font: BMFont, text: str, kerning=False):
     """Return tight bounds of the rendered text including bearings.

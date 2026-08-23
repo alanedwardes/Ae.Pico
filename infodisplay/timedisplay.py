@@ -165,9 +165,7 @@ class TimeDisplay:
             min_str = self._padded_numbers[now[4]]
             time_text = hour_str + ":" + min_str # String concatenation of interned strings is optimized in MicroPython
 
-            # Clear time area then draw
-            self.display.rect(0, 0, time_width, height, 0x000000, True)
-            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale)
+            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale, background=0x000000)
 
             # Render only the time region
             self.display.update(self._time_region)
@@ -192,9 +190,8 @@ class TimeDisplay:
             day_date_text = self.DAYS[now[6]] + ' ' + str(now[2])
             month_text = self.MONTHS[now[1] - 1]
 
-            self.display.rect(cal_x, cal_y, cal_w, cal_h, 0x000000, True)
-            await textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale)
-            await textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale)
+            await textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
+            await textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
 
             self.display.update(self._cal_region)
 
@@ -208,8 +205,7 @@ class TimeDisplay:
                 sec_text = "00" # Safety fallback
 
             sec_align = 'left' if self.show_milliseconds else 'center'
-            self.display.rect(self.sec_x, section_height, self.sec_width, section_height, 0x000000, True)
-            await textbox.draw_textbox(self.display, sec_text, self.sec_x, section_height, self.sec_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align=sec_align)
+            await textbox.draw_textbox(self.display, sec_text, self.sec_x, section_height, self.sec_width, section_height, color=0xFFFFFF, font='regular', scale=font_scale, align=sec_align, background=0x000000)
             self.display.update(self._sec_region)
 
         # 4. Milliseconds (Tenths) Display
@@ -223,10 +219,8 @@ class TimeDisplay:
                 # () = build declined (box too small): don't retry per tick
                 self._tenth_cells = self._build_tenth_cells() or ()
 
-            self.display.rect(self.ms_x, section_height, self.ms_width, section_height, 0x000000, True)
             if self._tenth_cells:
                 self.display.blit(self._tenth_cells[tenth].fb, self._tenth_x, self._tenth_y)
             else:
-                # Box too small to prerender -- fall back to the textbox path
-                await textbox.draw_textbox(self.display, self._tenth_numbers[tenth], self.ms_x, section_height, self.ms_width, section_height, color=0xFFFFFF, font='small', scale=font_scale, align='left')
+                await textbox.draw_textbox(self.display, self._tenth_numbers[tenth], self.ms_x, section_height, self.ms_width, section_height, color=0xFFFFFF, font='small', scale=font_scale, align='left', background=0x000000)
             self.display.update(self._ms_region)

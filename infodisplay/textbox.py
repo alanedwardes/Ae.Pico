@@ -136,15 +136,15 @@ def draw_textbox_outline(display, x, y, width, height):
     display.rect(int(x), int(y), 1, int(height), c, True)  # left
     display.rect(int(x + width - 1), int(y), 1, int(height), c, True)  # right
 
-async def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', scale=1, align='center', wrap=False, valign='center'):
+async def draw_textbox(display, text, x, y, width, height, *, color, font='bitmap8', scale=1, align='center', wrap=False, valign='center', background=None):
     """
     Draw text in a textbox with specified dimensions.
-    
+
     Args:
         display: The display object to draw on
         text: The text string to render
         x: X position of the textbox
-        y: Y position of the textbox  
+        y: Y position of the textbox
         width: Width of the textbox
         height: Height of the textbox
         font: Font to use - 'sans' or 'bitmap8' (default: 'sans')
@@ -152,7 +152,12 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
         align: Text alignment - 'left', 'center', or 'right' (default: 'center')
         wrap: Whether to wrap text to fit within the textbox width (default: False)
         valign: Vertical alignment - 'top', 'center', or 'bottom' (default: 'center')
+        background: If set, fills the box with this color (default: None)
     """
+    if background is not None and not text:
+        display.rect(int(x), int(y), int(width), int(height), background, True)
+        return
+
     is_bmfont = font != 'bitmap8'
     if is_bmfont:
         bmfont_obj, bm_pages = _get_bmfont(font)
@@ -248,7 +253,8 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
                 origin_x,
                 current_y,
                 kerning=True, scale_up=scale_up_i, scale_down=scale_down_i, color=color,
-                linebuf=linebuf, clip=clip
+                linebuf=linebuf, clip=clip, background=background,
+                top_edge=(i == 0), bottom_edge=(i == len(lines) - 1)
             )
             await asyncio.sleep(0)
     else:
