@@ -15,7 +15,7 @@ if not IS_MICROPYTHON:
         @staticmethod
         def heap_unlock(): pass
 
-from bitblt import blit_region, composite_region, fill_region, _as_ptr16, _as_ptr8
+from bitblt import render_glyph_cell, fill_region, _as_ptr16, _as_ptr8
 
 # Glyphs are stored compactly in a bytearray to minimize RAM.
 # Packed layout (little-endian): x,y,width,height (uint16), xoffset,yoffset,xadvance (int16), page (uint8)
@@ -256,7 +256,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
             fill_y = box_y if (line_idx == 0 and top_edge) else cy
             fill_bottom = box_bottom if (line_idx == total_lines - 1 and bottom_edge) else cy + line_h_px
             if fill_right > fill_x and fill_bottom > fill_y:
-                composite_region(framebuffer, display_width, display_height, bytes_per_pixel,
+                render_glyph_cell(framebuffer, display_width, display_height, bytes_per_pixel,
                                   pages[page], 4, row_bytes,
                                   src_x, src_y, width, height,
                                   fill_x, fill_y, fill_right - fill_x, fill_bottom - fill_y,
@@ -264,23 +264,17 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
                                   linebuf, palette, bg_pixel, clip)
             watermark_x = fill_right
         else:
-            # Quick bounds check (rejection) before calling blit_region.
+            # Quick bounds check (rejection) before calling render_glyph_cell.
             # Positional args throughout: keyword calls build a dict per
             # glyph in MicroPython, and this runs for every character drawn.
-            if not clip:
-                if dest_x >= display_width or dest_y >= display_height: pass
-                elif dest_x + width <= 0 or dest_y + height <= 0: pass
-                else:
-                    blit_region(framebuffer, display_width, display_height, 1,
-                                pages[page], 4, row_bytes,
-                                src_x, src_y, width, height,
-                                dest_x, dest_y, linebuf, 6, palette, clip, 0)
+            if dest_x >= display_width or dest_y >= display_height: pass
+            elif dest_x + width <= 0 or dest_y + height <= 0: pass
             else:
-                # Complex clipping case - let blit_region handle it
-                blit_region(framebuffer, display_width, display_height, 1,
+                render_glyph_cell(framebuffer, display_width, display_height, bytes_per_pixel,
                             pages[page], 4, row_bytes,
                             src_x, src_y, width, height,
-                            dest_x, dest_y, linebuf, 6, palette, clip, 0)
+                            dest_x, dest_y, width, height, 0, 0,
+                            linebuf, palette, None, clip)
 
         cx += adv_px
         prev_id = code

@@ -89,4 +89,23 @@ def main():
     compare('old-style long text', lambda: old_style(TEXT, font, pages, d_linebuf_regular),
             'new-style long text', lambda: new_style(TEXT, font, pages, d_linebuf_regular))
 
+    d332 = Drawing(320, 480, 'RGB332')
+    d332_linebuf_regular = d332.get_scratch_buffer(font.scale_w)
+
+    def old_style332(text, font_obj, pages_obj, linebuf_obj):
+        d332.rect(clip_box[0], clip_box[1], clip_box[2], clip_box[3], 0x000000, True)
+        draw_text(d332, 320, 480, font_obj, pages_obj, text, 10, 10,
+                  linebuf=linebuf_obj, color=0xFFFFFF, clip=clip_box)
+
+    def new_style332(text, font_obj, pages_obj, linebuf_obj):
+        draw_text(d332, 320, 480, font_obj, pages_obj, text, 10, 10,
+                  linebuf=linebuf_obj, color=0xFFFFFF, background=0x000000, clip=clip_box)
+
+    bench('old-style (rect+masked blit) long text regular rgb332',
+          lambda: old_style332(TEXT, font, pages, d332_linebuf_regular))
+    bench('new-style (composite) long text regular rgb332',
+          lambda: new_style332(TEXT, font, pages, d332_linebuf_regular))
+    compare('old-style long text rgb332', lambda: old_style332(TEXT, font, pages, d332_linebuf_regular),
+            'new-style long text rgb332', lambda: new_style332(TEXT, font, pages, d332_linebuf_regular))
+
 main()

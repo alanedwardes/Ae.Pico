@@ -3,7 +3,7 @@ import struct
 import micropython
 from io import BytesIO
 
-from bitblt import blit_region, composite_region, fill_region
+from bitblt import blit_region, render_glyph_cell, fill_region
 from microcheck import check, summarize
 
 FB_WIDTH = 320
@@ -73,16 +73,28 @@ def blit_gs8_direct332():
                 0, 0, ICON_W, ICON_H, DX, DY, warm_buffer, 6, None, None, -1)
 
 
-def composite565():
-    composite_region(fb565, FB_WIDTH, FB_HEIGHT, 2, gs8_src, 4, ICON_W,
+def render_glyph_cell565():
+    render_glyph_cell(fb565, FB_WIDTH, FB_HEIGHT, 2, gs8_src, 4, ICON_W,
                      0, 0, ICON_W, ICON_H, DX, DY, ICON_W, CELL_H, 0, GLYPH_Y,
                      warm_buffer, palette565, 0x0000, None)
 
 
-def composite332():
-    composite_region(fb332, FB_WIDTH, FB_HEIGHT, 1, gs8_src, 4, ICON_W,
+def render_glyph_cell332():
+    render_glyph_cell(fb332, FB_WIDTH, FB_HEIGHT, 1, gs8_src, 4, ICON_W,
                      0, 0, ICON_W, ICON_H, DX, DY, ICON_W, CELL_H, 0, GLYPH_Y,
                      warm_buffer, palette332, 0x00, None)
+
+
+def render_glyph_cell_transparent565():
+    render_glyph_cell(fb565, FB_WIDTH, FB_HEIGHT, 2, gs8_src, 4, ICON_W,
+                     0, 0, ICON_W, ICON_H, DX, DY, ICON_W, ICON_H, 0, 0,
+                     warm_buffer, palette565, None, None)
+
+
+def render_glyph_cell_transparent332():
+    render_glyph_cell(fb332, FB_WIDTH, FB_HEIGHT, 1, gs8_src, 4, ICON_W,
+                     0, 0, ICON_W, ICON_H, DX, DY, ICON_W, ICON_H, 0, 0,
+                     warm_buffer, palette332, None, None)
 
 
 def fill565():
@@ -104,8 +116,10 @@ warm = [
     ('blit rgb565 -> rgb565', blit_rgb565_to565),
     ('blit gs8+palette -> rgb332', blit_gs8_palette332),
     ('blit gs8 direct -> rgb332', blit_gs8_direct332),
-    ('composite gs8 -> rgb565', composite565),
-    ('composite gs8 -> rgb332', composite332),
+    ('render_glyph_cell gs8 -> rgb565', render_glyph_cell565),
+    ('render_glyph_cell gs8 -> rgb332', render_glyph_cell332),
+    ('render_glyph_cell transparent gs8 -> rgb565', render_glyph_cell_transparent565),
+    ('render_glyph_cell transparent gs8 -> rgb332', render_glyph_cell_transparent332),
     ('fill rgb565', fill565),
     ('fill rgb332', fill332),
 ]

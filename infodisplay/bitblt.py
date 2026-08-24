@@ -156,40 +156,60 @@ def _fill_rows_8bit_viper(dest: ptr8, d_off: int, d_stride: int, w: int, h: int,
             dest[d_p + x] = bg
 
 @micropython.viper
-def _composite_glyph_row_gs8_to_rgb565_viper(dest: ptr16, d_off: int, d_stride: int,
+def _render_glyph_row_gs8_to_rgb565_viper(dest: ptr16, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
                                  left_w: int, glyph_w: int, right_w: int, h: int,
                                  palette: ptr16, bg: int):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(left_w):
-            dest[d_p + x] = bg
-        gp = d_p + left_w
-        for x in range(glyph_w):
-            v = int(src[s_p + x])
-            dest[gp + x] = bg if v == 0 else palette[v]
-        rp = gp + glyph_w
-        for x in range(right_w):
-            dest[rp + x] = bg
+    if bg == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            gp = d_p + left_w
+            for x in range(glyph_w):
+                v = int(src[s_p + x])
+                if v != 0:
+                    dest[gp + x] = palette[v]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(left_w):
+                dest[d_p + x] = bg
+            gp = d_p + left_w
+            for x in range(glyph_w):
+                v = int(src[s_p + x])
+                dest[gp + x] = bg if v == 0 else palette[v]
+            rp = gp + glyph_w
+            for x in range(right_w):
+                dest[rp + x] = bg
 
 @micropython.viper
-def _composite_glyph_row_gs8_to_8bit_viper(dest: ptr8, d_off: int, d_stride: int,
+def _render_glyph_row_gs8_to_8bit_viper(dest: ptr8, d_off: int, d_stride: int,
                                  src: ptr8, s_off: int, s_stride: int,
                                  left_w: int, glyph_w: int, right_w: int, h: int,
                                  palette: ptr8, bg: int):
-    for y in range(h):
-        d_p = d_off + y * d_stride
-        s_p = s_off + y * s_stride
-        for x in range(left_w):
-            dest[d_p + x] = bg
-        gp = d_p + left_w
-        for x in range(glyph_w):
-            v = int(src[s_p + x])
-            dest[gp + x] = bg if v == 0 else palette[v]
-        rp = gp + glyph_w
-        for x in range(right_w):
-            dest[rp + x] = bg
+    if bg == -1:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            gp = d_p + left_w
+            for x in range(glyph_w):
+                v = int(src[s_p + x])
+                if v != 0:
+                    dest[gp + x] = palette[v]
+    else:
+        for y in range(h):
+            d_p = d_off + y * d_stride
+            s_p = s_off + y * s_stride
+            for x in range(left_w):
+                dest[d_p + x] = bg
+            gp = d_p + left_w
+            for x in range(glyph_w):
+                v = int(src[s_p + x])
+                dest[gp + x] = bg if v == 0 else palette[v]
+            rp = gp + glyph_w
+            for x in range(right_w):
+                dest[rp + x] = bg
 
 _scratch_buf = None
 _scratch_view = None
@@ -233,7 +253,7 @@ def fill_region(framebuffer, fb_width, fb_height, x, y, w, h, bg_pixel, clip=Non
     finally:
         micropython.heap_unlock()
 
-def composite_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
+def render_glyph_cell(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
                      sx, sy, sw, sh, cell_x, cell_y, cell_w, cell_h, glyph_x, glyph_y,
                      buffer, palette, bg_pixel, clip=None):
     if cell_w <= 0 or cell_h <= 0: return
@@ -258,24 +278,50 @@ def composite_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, head
     if not hasattr(framebuffer, '_cached_bpp'):
         framebuffer._cached_bpp = framebuffer.bytes_per_pixel if hasattr(framebuffer, 'bytes_per_pixel') else 2
     dest_bpp = framebuffer._cached_bpp
+    p_dest = _as_ptr16(framebuffer) if dest_bpp == 2 else _as_ptr8(framebuffer)
+
+    # -1 is never a valid rgb565/8bit pixel value, so it doubles as the
+    # "no background: skip ink-hole pixels instead of filling them" sentinel
+    # for the row kernel below.
+    bg_kernel = -1 if bg_pixel is None else bg_pixel
 
     glyph_start = glyph_y
     glyph_end = glyph_y + sh
     row_top = max(start_row, glyph_start)
     row_bottom = min(end_row, glyph_end)
 
-    if row_top > start_row:
-        fill_region(framebuffer, fb_width, fb_height,
-                    cell_x + left_clip, cell_y + start_row, draw_w, row_top - start_row,
-                    bg_pixel)
-    if row_bottom < end_row:
-        fill_region(framebuffer, fb_width, fb_height,
-                    cell_x + left_clip, cell_y + row_bottom, draw_w, end_row - row_bottom,
-                    bg_pixel)
+    # When the caller passes a cell equal to the glyph rect (bg_pixel=None,
+    # the transparent-text case), row_top==start_row and row_bottom==end_row
+    # always, so neither padding fill below ever runs.
+    if bg_pixel is not None and row_top > start_row:
+        pad_h = row_top - start_row
+        d_off = (cell_y + start_row) * fb_width + cell_x + left_clip
+        micropython.heap_lock()
+        try:
+            if dest_bpp == 2:
+                _fill_rows_rgb565_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
+            elif dest_bpp == 1:
+                _fill_rows_8bit_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
+            else:
+                raise ValueError(f"Unsupported fill: dest_bpp={dest_bpp}")
+        finally:
+            micropython.heap_unlock()
+    if bg_pixel is not None and row_bottom < end_row:
+        pad_h = end_row - row_bottom
+        d_off = (cell_y + row_bottom) * fb_width + cell_x + left_clip
+        micropython.heap_lock()
+        try:
+            if dest_bpp == 2:
+                _fill_rows_rgb565_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
+            elif dest_bpp == 1:
+                _fill_rows_8bit_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
+            else:
+                raise ValueError(f"Unsupported fill: dest_bpp={dest_bpp}")
+        finally:
+            micropython.heap_unlock()
     if row_bottom <= row_top:
         return
 
-    p_dest = _as_ptr16(framebuffer) if dest_bpp == 2 else _as_ptr8(framebuffer)
     p_pal = _as_ptr16(palette) if (dest_bpp == 2 and palette is not None) else (_as_ptr8(palette) if palette is not None else None)
 
     stride_bytes = src_row_bytes
@@ -322,13 +368,13 @@ def composite_region(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, head
         micropython.heap_lock()
         try:
             if dest_bpp == 2:
-                _composite_glyph_row_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, src_x, stride_bytes,
-                                                          left_w, glyph_w_visible, right_w, this_h, p_pal, bg_pixel)
+                _render_glyph_row_gs8_to_rgb565_viper(p_dest, d_off, fb_width, p_src, src_x, stride_bytes,
+                                                          left_w, glyph_w_visible, right_w, this_h, p_pal, bg_kernel)
             elif dest_bpp == 1:
-                _composite_glyph_row_gs8_to_8bit_viper(p_dest, d_off, fb_width, p_src, src_x, stride_bytes,
-                                                        left_w, glyph_w_visible, right_w, this_h, p_pal, bg_pixel)
+                _render_glyph_row_gs8_to_8bit_viper(p_dest, d_off, fb_width, p_src, src_x, stride_bytes,
+                                                        left_w, glyph_w_visible, right_w, this_h, p_pal, bg_kernel)
             else:
-                raise ValueError(f"Unsupported composite: dest_bpp={dest_bpp}")
+                raise ValueError(f"Unsupported render: dest_bpp={dest_bpp}")
         finally:
             micropython.heap_unlock()
 
