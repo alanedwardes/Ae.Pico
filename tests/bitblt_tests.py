@@ -13,7 +13,7 @@ except ImportError:
     # If not in path, try direct import from cpython
     from cpython import framebuf
 
-from bitblt import blit_region
+from bitblt import blit_region, render_glyph_cell
 
 class TestBitBlt(unittest.TestCase):
     def setUp(self):
@@ -166,6 +166,40 @@ class TestBitBlt(unittest.TestCase):
                     
         self.assertEqual(fb8_data[0], 0xAA)
         self.assertEqual(fb8_data[1], 0xFF)
+
+    def test_render_glyph_cell_bottom_edge_clip_stays_in_bounds(self):
+        fh = io.BytesIO(b'\x00\x00\x00\x00' + bytes(100))
+
+        render_glyph_cell(self.fb, self.width, self.height, 2, fh, 4, 10,
+                           0, 0, 10, 10, 10, 96, 10, 20, 0, 15,
+                           None, None, 0xF800)
+
+        for row in range(96, self.height):
+            for col in range(10, 20):
+                idx = (row * self.width + col) * 2
+                val = (self.fb_data[idx + 1] << 8) | self.fb_data[idx]
+                self.assertEqual(val, 0xF800)
+
+        idx_above_cell = (95 * self.width + 10) * 2
+        val_above_cell = (self.fb_data[idx_above_cell + 1] << 8) | self.fb_data[idx_above_cell]
+        self.assertEqual(val_above_cell, 0x0000)
+
+    def test_render_glyph_cell_top_edge_clip_stays_in_bounds(self):
+        fh = io.BytesIO(b'\x00\x00\x00\x00' + bytes(100))
+
+        render_glyph_cell(self.fb, self.width, self.height, 2, fh, 4, 10,
+                           0, 0, 10, 5, 5, -50, 10, 60, 0, -200,
+                           None, None, 0xF800)
+
+        for row in range(0, 10):
+            for col in range(5, 15):
+                idx = (row * self.width + col) * 2
+                val = (self.fb_data[idx + 1] << 8) | self.fb_data[idx]
+                self.assertEqual(val, 0xF800)
+
+        idx_below_visible_band = (10 * self.width + 5) * 2
+        val_below_visible_band = (self.fb_data[idx_below_visible_band + 1] << 8) | self.fb_data[idx_below_visible_band]
+        self.assertEqual(val_below_visible_band, 0x0000)
 
 if __name__ == '__main__':
     unittest.main()
