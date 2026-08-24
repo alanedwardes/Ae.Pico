@@ -253,6 +253,26 @@ def fill_region(framebuffer, fb_width, fb_height, x, y, w, h, bg_pixel, clip=Non
     finally:
         micropython.heap_unlock()
 
+def _fill_rows_clamped_to_framebuffer(p_dest, dest_bpp, fb_width, fb_height, x, y, w, h, bg_pixel):
+    if y < 0:
+        h += y
+        y = 0
+    if h > fb_height - y:
+        h = fb_height - y
+    if h <= 0:
+        return
+    d_off = y * fb_width + x
+    micropython.heap_lock()
+    try:
+        if dest_bpp == 2:
+            _fill_rows_rgb565_viper(p_dest, d_off, fb_width, w, h, bg_pixel)
+        elif dest_bpp == 1:
+            _fill_rows_8bit_viper(p_dest, d_off, fb_width, w, h, bg_pixel)
+        else:
+            raise ValueError(f"Unsupported fill: dest_bpp={dest_bpp}")
+    finally:
+        micropython.heap_unlock()
+
 def render_glyph_cell(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, header_bytes, src_row_bytes,
                      sx, sy, sw, sh, cell_x, cell_y, cell_w, cell_h, glyph_x, glyph_y,
                      buffer, palette, bg_pixel, clip=None):
@@ -280,9 +300,6 @@ def render_glyph_cell(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, hea
     dest_bpp = framebuffer._cached_bpp
     p_dest = _as_ptr16(framebuffer) if dest_bpp == 2 else _as_ptr8(framebuffer)
 
-    # -1 is never a valid rgb565/8bit pixel value, so it doubles as the
-    # "no background: skip ink-hole pixels instead of filling them" sentinel
-    # for the row kernel below.
     bg_kernel = -1 if bg_pixel is None else bg_pixel
 
     glyph_start = glyph_y
@@ -290,35 +307,14 @@ def render_glyph_cell(framebuffer, fb_width, fb_height, bytes_per_pixel, fh, hea
     row_top = max(start_row, glyph_start)
     row_bottom = min(end_row, glyph_end)
 
-    # When the caller passes a cell equal to the glyph rect (bg_pixel=None,
-    # the transparent-text case), row_top==start_row and row_bottom==end_row
-    # always, so neither padding fill below ever runs.
     if bg_pixel is not None and row_top > start_row:
-        pad_h = row_top - start_row
-        d_off = (cell_y + start_row) * fb_width + cell_x + left_clip
-        micropython.heap_lock()
-        try:
-            if dest_bpp == 2:
-                _fill_rows_rgb565_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
-            elif dest_bpp == 1:
-                _fill_rows_8bit_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
-            else:
-                raise ValueError(f"Unsupported fill: dest_bpp={dest_bpp}")
-        finally:
-            micropython.heap_unlock()
+        _fill_rows_clamped_to_framebuffer(p_dest, dest_bpp, fb_width, fb_height,
+                                           cell_x + left_clip, cell_y + start_row,
+                                           draw_w, row_top - start_row, bg_pixel)
     if bg_pixel is not None and row_bottom < end_row:
-        pad_h = end_row - row_bottom
-        d_off = (cell_y + row_bottom) * fb_width + cell_x + left_clip
-        micropython.heap_lock()
-        try:
-            if dest_bpp == 2:
-                _fill_rows_rgb565_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
-            elif dest_bpp == 1:
-                _fill_rows_8bit_viper(p_dest, d_off, fb_width, draw_w, pad_h, bg_pixel)
-            else:
-                raise ValueError(f"Unsupported fill: dest_bpp={dest_bpp}")
-        finally:
-            micropython.heap_unlock()
+        _fill_rows_clamped_to_framebuffer(p_dest, dest_bpp, fb_width, fb_height,
+                                           cell_x + left_clip, cell_y + row_bottom,
+                                           draw_w, end_row - row_bottom, bg_pixel)
     if row_bottom <= row_top:
         return
 
