@@ -59,7 +59,7 @@ class TimeDisplay:
         scale_up, scale_down = self._scale_up, self._scale_down
         origins = []
         for text in strings:
-            bounds_w, _h, min_x, _min_y = measure_text(font, text)
+            bounds_w, _h, min_x, _min_y = measure_text(font, text.encode())
             text_width = (bounds_w * scale_up) // scale_down
             text_x = x + (width - text_width) * align_fraction
             origins.append(math.floor(text_x - (min_x * scale_up) // scale_down))

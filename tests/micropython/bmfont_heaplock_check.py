@@ -36,7 +36,6 @@ def under_lock(fn):
 
 
 def production_lock_ok(fn):
-    gc.collect()
     try:
         fn()
     except MemoryError:
@@ -80,30 +79,40 @@ def draw_332_background():
 
 
 MULTILINE = 'The quick\nbrown fox\njumps'
-
-def measure_normal():
-    measure_text(font, TEXT)
-
-
-def measure_multiline():
-    measure_text(font, MULTILINE)
-
-
-def measure_empty():
-    measure_text(font, '')
-
+MULTIBYTE = '21°C -30°C\n'
 
 WORD = 'quick'
 SECOND_WORD = 'brown'
 
+TEXT_B = TEXT.encode()
+MULTILINE_B = MULTILINE.encode()
+MULTIBYTE_B = MULTIBYTE.encode()
+WORD_B = WORD.encode()
+SECOND_WORD_B = SECOND_WORD.encode()
+
+def measure_normal():
+    measure_text(font, TEXT_B)
+
+
+def measure_multiline():
+    measure_text(font, MULTILINE_B)
+
+
+def measure_empty():
+    measure_text(font, b'')
+
+
+def measure_multibyte():
+    measure_text(font, MULTIBYTE_B)
+
 
 def measure_extend_first():
-    measure_extend(font, WORD, 0, None, None, None)
+    measure_extend(font, WORD_B, 0, None, None, None)
 
 
 def measure_extend_next():
-    cx, prev_id, min_left, max_right = measure_extend(font, WORD, 0, None, None, None)
-    measure_extend(font, SECOND_WORD, cx, prev_id, min_left, max_right)
+    cx, prev_id, min_left, max_right = measure_extend(font, WORD_B, 0, None, None, None)
+    measure_extend(font, SECOND_WORD_B, cx, prev_id, min_left, max_right)
 
 
 warm = [
@@ -118,13 +127,12 @@ measure = [
     ('measure_text normal', measure_normal),
     ('measure_text multiline', measure_multiline),
     ('measure_text empty', measure_empty),
+    ('measure_text multibyte', measure_multibyte),
     ('measure_extend first word', measure_extend_first),
     ('measure_extend next word', measure_extend_next),
 ]
 
 for _, fn in warm:
-    fn()
-for _, fn in measure:
     fn()
 
 
@@ -139,8 +147,8 @@ def main():
               'res=%s delta=%d' % (res, delta))
 
     for label, fn in measure:
-        check('%s under production lock' % label, production_lock_ok(fn),
-              'raised MemoryError under production lock')
+        check('%s production heap_lock' % label, production_lock_ok(fn),
+              'raised MemoryError under measure_text own heap_lock')
 
     summarize()
 

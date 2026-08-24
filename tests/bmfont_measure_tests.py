@@ -63,31 +63,31 @@ class TestMeasureExtend(unittest.TestCase):
 
     def test_matches_measure_text_fresh_start(self):
         for text in ('a', 'abc', 'hello world', 'the quick brown fox', 'jjjj'):
-            w, _h, _min_x, _min_y = measure_text(self.font, text)
-            cx, prev_id, min_left, max_right = measure_extend(self.font, text, 0, None, None, None)
+            w, _h, _min_x, _min_y = measure_text(self.font, text.encode())
+            cx, prev_id, min_left, max_right = measure_extend(self.font, text.encode(), 0, None, None, None)
             extend_w = 0 if min_left is None else max_right - min_left
             self.assertEqual(extend_w, w, 'mismatch for %r' % text)
 
     def test_empty_string(self):
-        cx, prev_id, min_left, max_right = measure_extend(self.font, '', 0, None, None, None)
+        cx, prev_id, min_left, max_right = measure_extend(self.font, b'', 0, None, None, None)
         self.assertEqual(cx, 0)
         self.assertIsNone(prev_id)
         self.assertIsNone(min_left)
         self.assertIsNone(max_right)
 
     def test_unknown_characters_are_skipped(self):
-        w1, _h, _min_x, _min_y = measure_text(self.font, 'abc')
-        w2, _h, _min_x, _min_y = measure_text(self.font, 'a\x01b\x02c')
+        w1, _h, _min_x, _min_y = measure_text(self.font, b'abc')
+        w2, _h, _min_x, _min_y = measure_text(self.font, b'a\x01b\x02c')
         self.assertEqual(w1, w2)
 
     def test_resuming_scan_matches_single_pass(self):
         full = 'hello world'
-        cx, prev_id, min_left, max_right = measure_extend(self.font, 'hello', 0, None, None, None)
+        cx, prev_id, min_left, max_right = measure_extend(self.font, b'hello', 0, None, None, None)
         cx, prev_id, min_left, max_right = measure_extend(
-            self.font, ' world', cx, prev_id, min_left, max_right)
+            self.font, b' world', cx, prev_id, min_left, max_right)
         resumed_w = max_right - min_left
 
-        w, _h, _min_x, _min_y = measure_text(self.font, full)
+        w, _h, _min_x, _min_y = measure_text(self.font, full.encode())
         self.assertEqual(resumed_w, w)
 
     def test_resuming_scan_matches_single_pass_many_words(self):
@@ -96,16 +96,16 @@ class TestMeasureExtend(unittest.TestCase):
         for i, word in enumerate(words):
             piece = word if i == 0 else ' ' + word
             cx, prev_id, min_left, max_right = measure_extend(
-                self.font, piece, cx, prev_id, min_left, max_right)
+                self.font, piece.encode(), cx, prev_id, min_left, max_right)
         resumed_w = max_right - min_left
 
-        w, _h, _min_x, _min_y = measure_text(self.font, ' '.join(words))
+        w, _h, _min_x, _min_y = measure_text(self.font, ' '.join(words).encode())
         self.assertEqual(resumed_w, w)
 
     def test_kerning_applied_when_requested(self):
         font = make_font(kerning={(ord('a'), ord('b')): -3})
-        cx_no_k, _p, min_no_k, max_no_k = measure_extend(font, 'ab', 0, None, None, None, kerning=False)
-        cx_k, _p, min_k, max_k = measure_extend(font, 'ab', 0, None, None, None, kerning=True)
+        cx_no_k, _p, min_no_k, max_no_k = measure_extend(font, b'ab', 0, None, None, None, kerning=False)
+        cx_k, _p, min_k, max_k = measure_extend(font, b'ab', 0, None, None, None, kerning=True)
         self.assertEqual(cx_k, cx_no_k - 3)
 
 

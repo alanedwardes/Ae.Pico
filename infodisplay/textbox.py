@@ -32,7 +32,7 @@ def clear_font_cache():
     _BM_FONT_CACHE.clear()
 
 def _measure_bmfont(font_obj, text, scale):
-    w, h, _min_x, _min_y = measure_text(font_obj, text)
+    w, h, _min_x, _min_y = measure_text(font_obj, text.encode())
     return w * scale, h * scale
 
 async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
@@ -63,7 +63,7 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
             await asyncio.sleep(0)
         line_started_empty = not current_words
         if line_started_empty:
-            t_cx, t_prev, t_min, t_max = measure_extend(font_obj, word, 0, None, None, None)
+            t_cx, t_prev, t_min, t_max = measure_extend(font_obj, word.encode(), 0, None, None, None)
         else:
             sl = cx + sp_xoffset
             if min_left is None or sl < min_left:
@@ -72,7 +72,7 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
             if max_right is None or sr > max_right:
                 max_right = sr
             t_cx, t_prev, t_min, t_max = measure_extend(
-                font_obj, word, cx + sp_xadvance, sp_code, min_left, max_right)
+                font_obj, word.encode(), cx + sp_xadvance, sp_code, min_left, max_right)
         line_width_pixels = 0 if t_min is None else (t_max - t_min) * scale
         if line_width_pixels <= max_width_pixels:
             current_words.append(word)
@@ -83,7 +83,7 @@ async def _word_wrap_bmfont(font_obj, text, max_width_pixels, scale):
             if line_started_empty:
                 cx, prev_id, min_left, max_right = t_cx, t_prev, t_min, t_max
             else:
-                cx, prev_id, min_left, max_right = measure_extend(font_obj, word, 0, None, None, None)
+                cx, prev_id, min_left, max_right = measure_extend(font_obj, word.encode(), 0, None, None, None)
     if current_words:
         wrapped_lines.append(" ".join(current_words))
     return "\n".join(wrapped_lines)
@@ -184,7 +184,7 @@ async def draw_textbox(display, text, x, y, width, height, *, color, font='bitma
 
     if is_bmfont:
         # Use tight bounds that include glyph bearings
-        bounds_w, bounds_h, min_x, min_y = measure_text(bmfont_obj, text)
+        bounds_w, bounds_h, min_x, min_y = measure_text(bmfont_obj, text.encode())
         # Compute integer scale factors and scaled bounds now (needed for alignment)
         s = max(0.000001, float(scale))
         if s < 1.0:
