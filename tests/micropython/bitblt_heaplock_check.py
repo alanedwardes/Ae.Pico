@@ -32,6 +32,7 @@ fb565 = FB(FB_WIDTH, FB_HEIGHT, 2)
 fb332 = FB(FB_WIDTH, FB_HEIGHT, 1)
 warm_buffer = memoryview(bytearray(ICON_W * 2 * 8))
 cold_buffer = bytearray(ICON_W * 2 * 8)
+readinto_mv = memoryview(bytearray(ICON_W * ICON_H))
 
 
 def alloc_under_lock(fn):
@@ -118,9 +119,27 @@ def main():
     check('heap_lock forbids allocation', res == 'raised',
           'bytearray(1) under lock did not raise')
 
+    res, _ = alloc_under_lock(lambda: memoryview(cold_buffer))
+    check('memoryview() construction allocates', res == 'raised',
+          'memoryview() did not raise under lock')
+
+    res, _ = alloc_under_lock(lambda: warm_buffer[:64])
+    check('memoryview slice allocates', res == 'raised',
+          'memoryview slice did not raise under lock')
+
     res, _ = alloc_under_lock(blit_cold)
     check('non-memoryview buffer allocates per call', res == 'raised',
           'bytearray buffer did not raise under lock')
+
+    gs8_src.seek(0)
+    res, _ = alloc_under_lock(lambda: gs8_src.readinto(readinto_mv))
+    check('readinto(full) does not alloc', res == 'ok',
+          'readinto raised res=%s' % res)
+
+    gs8_src.seek(4)
+    res, _ = alloc_under_lock(lambda: gs8_src.readinto(readinto_mv, 64))
+    check('readinto(buf, nbytes) no alloc', res == 'ok',
+          'readinto(buf,n) res=%s' % res)
 
     for label, fn in warm:
         res, delta = alloc_under_lock(fn)

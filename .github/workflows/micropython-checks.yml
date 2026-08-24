@@ -32,4 +32,4 @@ jobs:
             sudo apt-get install -y build-essential libffi-dev git pkg-config
             bash tests/micropython/setup.sh
           fi
-          bash tests/micropython/run.sh tests/micropython/chart_heaplock_check.py tests/micropython/blit_heaplock_check.py tests/micropython/bmfont_heaplock_check.py tests/micropython/gauge_heaplock_check.py tests/micropython/mipidcs_heaplock_check.py
+          bash tests/micropython/run.sh tests/micropython/chart_heaplock_check.py tests/micropython/bitblt_heaplock_check.py tests/micropython/bmfont_heaplock_check.py tests/micropython/gauge_heaplock_check.py tests/micropython/mipidcs_heaplock_check.py
