@@ -67,8 +67,9 @@ _CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE = const(6)
 _CS_PREFILL_BURST_INCOMPLETE_COUNT = const(7)
 _CS_TABLE_ADVANCE_JUMP_COUNT = const(8)
 _CS_MAX_TABLE_ADVANCE = const(9)
+_CS_CATCH_UP_COUNT = const(10)
 
-_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 _CORE1_STATE_INITIAL[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = -1
 
 _RC_MISMATCH_COUNT = const(0)
@@ -224,6 +225,8 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     pattern_pos = 0
     jump_count = 0
     max_table_advance = 0
+    catch_up_count = 0
+    prev_safe_buffer = -1
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
@@ -260,8 +263,10 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                 convert_row_565(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
+            prev_safe_buffer = -1
             continue
         if lines_into_active >= v_active:
+            prev_safe_buffer = -1
             continue
 
         if prev_table_idx >= 0:
@@ -353,6 +358,28 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
             convert_row_565(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
 
+        if prev_safe_buffer >= 0:
+            missed_safe_gap = (safe_buffer - prev_safe_buffer) % pool_size
+            if missed_safe_gap > 1:
+                catch_up_buffer = (prev_safe_buffer + 1) % pool_size
+                if catch_up_buffer != actual_buffer:
+                    if exact_ratio:
+                        catch_up_target_row = current_row + (catch_up_buffer - current_row) % pool_size
+                    else:
+                        catch_up_table_idx_start = catch_up_buffer * entries_per_buffer
+                        catch_up_steps = (catch_up_table_idx_start - displaying_table_idx) % table_len
+                        catch_up_future = lines_into_active + catch_up_steps
+                        catch_up_target_row = (catch_up_future * src_height) // v_active
+                    if catch_up_target_row >= src_height:
+                        catch_up_target_row = src_height - 1
+                    catch_up_src_offset = catch_up_target_row * src_width
+                    catch_up_dst_addr = pool_addr_tbl[catch_up_buffer]
+                    convert_row_565(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, src_width, content_words, idx_lut, scratch)
+                    row_correctness[catch_up_buffer] = catch_up_target_row
+                    catch_up_count += 1
+                    state[_CS_CATCH_UP_COUNT] = catch_up_count
+        prev_safe_buffer = safe_buffer
+
         call_count += 1
         state[_CS_REFILL_CALL_COUNT] = call_count
     done[0] = 1
@@ -396,6 +423,8 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     pattern_pos = 0
     jump_count = 0
     max_table_advance = 0
+    catch_up_count = 0
+    prev_safe_buffer = -1
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
@@ -432,8 +461,10 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                 convert_row_332(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, lut, idx_lut, scratch)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
+            prev_safe_buffer = -1
             continue
         if lines_into_active >= v_active:
+            prev_safe_buffer = -1
             continue
 
         if prev_table_idx >= 0:
@@ -524,6 +555,28 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
             dst_addr = pool_addr_tbl[safe_buffer]
             convert_row_332(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, lut, idx_lut, scratch)
             row_correctness[safe_buffer] = target_row
+
+        if prev_safe_buffer >= 0:
+            missed_safe_gap = (safe_buffer - prev_safe_buffer) % pool_size
+            if missed_safe_gap > 1:
+                catch_up_buffer = (prev_safe_buffer + 1) % pool_size
+                if catch_up_buffer != actual_buffer:
+                    if exact_ratio:
+                        catch_up_target_row = current_row + (catch_up_buffer - current_row) % pool_size
+                    else:
+                        catch_up_table_idx_start = catch_up_buffer * entries_per_buffer
+                        catch_up_steps = (catch_up_table_idx_start - displaying_table_idx) % table_len
+                        catch_up_future = lines_into_active + catch_up_steps
+                        catch_up_target_row = (catch_up_future * src_height) // v_active
+                    if catch_up_target_row >= src_height:
+                        catch_up_target_row = src_height - 1
+                    catch_up_src_offset = catch_up_target_row * src_width
+                    catch_up_dst_addr = pool_addr_tbl[catch_up_buffer]
+                    convert_row_332(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, src_width, content_words, lut, idx_lut, scratch)
+                    row_correctness[catch_up_buffer] = catch_up_target_row
+                    catch_up_count += 1
+                    state[_CS_CATCH_UP_COUNT] = catch_up_count
+        prev_safe_buffer = safe_buffer
 
         call_count += 1
         state[_CS_REFILL_CALL_COUNT] = call_count
@@ -788,7 +841,7 @@ VGA_STATS_FIELDS = (
     'vsync_reset_handler_call_count', 'vsync_reset_write_count',
     'line_idx_at_last_vsync', 'line_idx_at_vsync_max_abs', 'vsync_edge_probe_count',
     'vsync_reanchor_count',
-    'table_advance_jump_count', 'max_table_advance',
+    'table_advance_jump_count', 'max_table_advance', 'catch_up_count',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -1017,7 +1070,7 @@ class VGA:
         self._framebuffer = framebuffer
         self._fb_addr = uctypes.addressof(framebuffer)
 
-        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0, 0, 0])
+        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0])
         self._core1_done = array.array('i', [0])
         self._started = False
 
@@ -1432,4 +1485,5 @@ class VGA:
             vsync_reanchor_count=_vsync_reset_shared[_VSR_REANCHOR_COUNT],
             table_advance_jump_count=state[_CS_TABLE_ADVANCE_JUMP_COUNT],
             max_table_advance=state[_CS_MAX_TABLE_ADVANCE],
+            catch_up_count=state[_CS_CATCH_UP_COUNT],
         )

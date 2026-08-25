@@ -173,12 +173,14 @@ class VgaStatsController:
 
         frames = stats.vsync_edge_count
         jump_per_frame = (stats.table_advance_jump_count / frames) if frames else 0.0
+        catch_up_per_frame = (stats.catch_up_count / frames) if frames else 0.0
         large_per_frame = (stats.row_correctness_large_row_delta_count / frames) if frames else 0.0
         writer.write(b'<p>Table-advance jumps (advance&gt;1): %i (max advance %i). '
-                     b'Large row deltas: %i.</p>' % (
+                     b'Catch-up refills: %i. Large row deltas: %i.</p>' % (
                          stats.table_advance_jump_count, stats.max_table_advance,
-                         stats.row_correctness_large_row_delta_count))
-        writer.write(b'<p>Per frame: jumps %.4f, large deltas %.4f.</p>' % (jump_per_frame, large_per_frame))
+                         stats.catch_up_count, stats.row_correctness_large_row_delta_count))
+        writer.write(b'<p>Per frame: jumps %.4f, catch-ups %.4f, large deltas %.4f.</p>' % (
+            jump_per_frame, catch_up_per_frame, large_per_frame))
 
     async def serve(self, method, path, headers, reader, writer):
         error = None
