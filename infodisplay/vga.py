@@ -87,12 +87,37 @@ _JUMP_ADVANCE_HIST_LEN = const(8)
 
 
 @micropython.viper
-def convert_row_565(dst: ptr32, source: ptr16, src_row_offset: int, src_width: int, out_words: int, idx_lut: ptr32, scratch: ptr16):
-    total_out_pixels = out_words * 2
-    if total_out_pixels == src_width:
-        s = src_row_offset
-        d = 0
-        n = out_words
+def convert_row_565(dst: ptr32, source: ptr16, src_row_offset: int, out_words: int, h_dup: int):
+    s = src_row_offset
+    d = 0
+    n = out_words
+    if h_dup == 2:
+        while n >= 4:
+            p = int(source[s]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d] = v | (v << 16)
+            p = int(source[s + 1]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d + 1] = v | (v << 16)
+            p = int(source[s + 2]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d + 2] = v | (v << 16)
+            p = int(source[s + 3]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d + 3] = v | (v << 16)
+            s += 4; d += 4; n -= 4
+        while n:
+            p = int(source[s]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d] = v | (v << 16)
+            s += 1; d += 1; n -= 1
+    elif h_dup == 4:
+        while n >= 4:
+            p = int(source[s]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d] = v | (v << 16); dst[d + 1] = v | (v << 16)
+            p = int(source[s + 1]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d + 2] = v | (v << 16); dst[d + 3] = v | (v << 16)
+            s += 2; d += 4; n -= 4
+        while n >= 2:
+            p = int(source[s]); v = (p >> 11) | (p & 0x7C0) | ((p & 0x1F) << 11)
+            dst[d] = v | (v << 16); dst[d + 1] = v | (v << 16)
+            s += 1; d += 2; n -= 2
+    else:
         while n >= 4:
             p0 = int(source[s]); p1 = int(source[s + 1])
             dst[d] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
@@ -112,33 +137,6 @@ def convert_row_565(dst: ptr32, source: ptr16, src_row_offset: int, src_width: i
             dst[d] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
                      (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
             s += 2; d += 1; n -= 1
-        return
-
-    w = 0
-    while w + 4 <= out_words:
-        packed = idx_lut[w]
-        p0 = int(source[src_row_offset + (packed & 0xFFFF)]); p1 = int(source[src_row_offset + (packed >> 16)])
-        dst[w] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
-                 (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
-        packed = idx_lut[w + 1]
-        p0 = int(source[src_row_offset + (packed & 0xFFFF)]); p1 = int(source[src_row_offset + (packed >> 16)])
-        dst[w + 1] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
-                      (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
-        packed = idx_lut[w + 2]
-        p0 = int(source[src_row_offset + (packed & 0xFFFF)]); p1 = int(source[src_row_offset + (packed >> 16)])
-        dst[w + 2] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
-                      (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
-        packed = idx_lut[w + 3]
-        p0 = int(source[src_row_offset + (packed & 0xFFFF)]); p1 = int(source[src_row_offset + (packed >> 16)])
-        dst[w + 3] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
-                      (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
-        w += 4
-    while w < out_words:
-        packed = idx_lut[w]
-        p0 = int(source[src_row_offset + (packed & 0xFFFF)]); p1 = int(source[src_row_offset + (packed >> 16)])
-        dst[w] = ((p0 >> 11) | (p0 & 0x7C0) | ((p0 & 0x1F) << 11)) | \
-                 (((p1 >> 11) | (p1 & 0x7C0) | ((p1 & 0x1F) << 11)) << 16)
-        w += 1
 
 
 def build_rgb332_dac_lut_into(lut):
@@ -153,12 +151,29 @@ def build_rgb332_dac_lut_into(lut):
 
 
 @micropython.viper
-def convert_row_332(dst: ptr32, source: ptr8, src_row_offset: int, src_width: int, out_words: int, lut: ptr16, idx_lut: ptr32, scratch: ptr8):
-    total_out_pixels = out_words * 2
-    if total_out_pixels == src_width:
-        s = src_row_offset
-        d = 0
-        n = out_words
+def convert_row_332(dst: ptr32, source: ptr8, src_row_offset: int, out_words: int, lut: ptr16, h_dup: int):
+    s = src_row_offset
+    d = 0
+    n = out_words
+    if h_dup == 2:
+        while n >= 4:
+            v = int(lut[source[s]]); dst[d] = v | (v << 16)
+            v = int(lut[source[s + 1]]); dst[d + 1] = v | (v << 16)
+            v = int(lut[source[s + 2]]); dst[d + 2] = v | (v << 16)
+            v = int(lut[source[s + 3]]); dst[d + 3] = v | (v << 16)
+            s += 4; d += 4; n -= 4
+        while n:
+            v = int(lut[source[s]]); dst[d] = v | (v << 16)
+            s += 1; d += 1; n -= 1
+    elif h_dup == 4:
+        while n >= 4:
+            v = int(lut[source[s]]); dst[d] = v | (v << 16); dst[d + 1] = v | (v << 16)
+            v = int(lut[source[s + 1]]); dst[d + 2] = v | (v << 16); dst[d + 3] = v | (v << 16)
+            s += 2; d += 4; n -= 4
+        while n >= 2:
+            v = int(lut[source[s]]); dst[d] = v | (v << 16); dst[d + 1] = v | (v << 16)
+            s += 1; d += 2; n -= 2
+    else:
         while n >= 4:
             dst[d] = int(lut[source[s]]) | (int(lut[source[s + 1]]) << 16)
             dst[d + 1] = int(lut[source[s + 2]]) | (int(lut[source[s + 3]]) << 16)
@@ -168,23 +183,6 @@ def convert_row_332(dst: ptr32, source: ptr8, src_row_offset: int, src_width: in
         while n:
             dst[d] = int(lut[source[s]]) | (int(lut[source[s + 1]]) << 16)
             s += 2; d += 1; n -= 1
-        return
-
-    w = 0
-    while w + 4 <= out_words:
-        packed = idx_lut[w]
-        dst[w] = int(lut[source[src_row_offset + (packed & 0xFFFF)]]) | (int(lut[source[src_row_offset + (packed >> 16)]]) << 16)
-        packed = idx_lut[w + 1]
-        dst[w + 1] = int(lut[source[src_row_offset + (packed & 0xFFFF)]]) | (int(lut[source[src_row_offset + (packed >> 16)]]) << 16)
-        packed = idx_lut[w + 2]
-        dst[w + 2] = int(lut[source[src_row_offset + (packed & 0xFFFF)]]) | (int(lut[source[src_row_offset + (packed >> 16)]]) << 16)
-        packed = idx_lut[w + 3]
-        dst[w + 3] = int(lut[source[src_row_offset + (packed & 0xFFFF)]]) | (int(lut[source[src_row_offset + (packed >> 16)]]) << 16)
-        w += 4
-    while w < out_words:
-        packed = idx_lut[w]
-        dst[w] = int(lut[source[src_row_offset + (packed & 0xFFFF)]]) | (int(lut[source[src_row_offset + (packed >> 16)]]) << 16)
-        w += 1
 
 
 @micropython.viper
@@ -198,7 +196,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                       ch_pixel_reg_addr: int, pool_base_addr: int, buffer_stride_bytes: int,
                       margin_target: int,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
-                      idx_lut: ptr32, scratch: ptr16,
+                      h_dup: int,
                       row_correctness: ptr32,
                       pattern_log: ptr32, pattern_len: int,
                       irq_shared: ptr32,
@@ -260,7 +258,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_565(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, idx_lut, scratch)
+                convert_row_565(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, content_words, h_dup)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             prev_safe_buffer = -1
@@ -355,7 +353,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_565(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, idx_lut, scratch)
+            convert_row_565(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, content_words, h_dup)
             row_correctness[safe_buffer] = target_row
 
         if prev_safe_buffer >= 0:
@@ -374,7 +372,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                         catch_up_target_row = src_height - 1
                     catch_up_src_offset = catch_up_target_row * src_width
                     catch_up_dst_addr = pool_addr_tbl[catch_up_buffer]
-                    convert_row_565(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, src_width, content_words, idx_lut, scratch)
+                    convert_row_565(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, content_words, h_dup)
                     row_correctness[catch_up_buffer] = catch_up_target_row
                     catch_up_count += 1
                     state[_CS_CATCH_UP_COUNT] = catch_up_count
@@ -396,7 +394,8 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                       ch_pixel_reg_addr: int, pool_base_addr: int, buffer_stride_bytes: int,
                       margin_target: int,
                       tail_log: ptr32, tail_log_len: int, tail_threshold: int,
-                      lut: ptr16, idx_lut: ptr32, scratch: ptr8,
+                      h_dup: int,
+                      lut: ptr16,
                       row_correctness: ptr32,
                       pattern_log: ptr32, pattern_len: int,
                       irq_shared: ptr32,
@@ -458,7 +457,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if lines_into_active < 0:
             if prefill_next < pool_size and (displaying_table_idx * pool_size) // table_len != prefill_next:
                 pf_dst_addr = pool_addr_tbl[prefill_next]
-                convert_row_332(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, src_width, content_words, lut, idx_lut, scratch)
+                convert_row_332(ptr32(pf_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, prefill_next * src_width, content_words, lut, h_dup)
                 row_correctness[prefill_next] = prefill_next
                 prefill_next += 1
             prev_safe_buffer = -1
@@ -553,7 +552,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if actual_buffer != safe_buffer:
             src_offset = target_row * src_width
             dst_addr = pool_addr_tbl[safe_buffer]
-            convert_row_332(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, src_width, content_words, lut, idx_lut, scratch)
+            convert_row_332(ptr32(dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, src_offset, content_words, lut, h_dup)
             row_correctness[safe_buffer] = target_row
 
         if prev_safe_buffer >= 0:
@@ -572,7 +571,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                         catch_up_target_row = src_height - 1
                     catch_up_src_offset = catch_up_target_row * src_width
                     catch_up_dst_addr = pool_addr_tbl[catch_up_buffer]
-                    convert_row_332(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, src_width, content_words, lut, idx_lut, scratch)
+                    convert_row_332(ptr32(catch_up_dst_addr + int(COLOR_PROG_LINE_COUNT_WORDS) * 4), fb, catch_up_src_offset, content_words, lut, h_dup)
                     row_correctness[catch_up_buffer] = catch_up_target_row
                     catch_up_count += 1
                     state[_CS_CATCH_UP_COUNT] = catch_up_count
@@ -1009,19 +1008,6 @@ def _resolve_timing(timing=None,
 
 
 
-def _warn_fast_path_missed(timing_name, requested_width, fast_path_width, requested_height, pool_size, v_active):
-    max_safe_height = (v_active // pool_size) * pool_size
-    nearest_height = ((requested_height + pool_size // 2) // pool_size) * pool_size
-    if nearest_height > max_safe_height:
-        nearest_height = max_safe_height
-    if nearest_height < pool_size:
-        nearest_height = pool_size
-    label = timing_name if timing_name else '%dx%d' % (fast_path_width * 2, v_active)
-    print('Warning: framebuffer width %d misses the fast-path width %d for %s; '
-          'using the index-LUT row path. Closest fast-path framebuffer: %dx%d.'
-          % (requested_width, fast_path_width, label, fast_path_width, nearest_height))
-
-
 class VGA:
     SIO_GPIO_IN = _SIO_GPIO_IN_ADDR
     DREQ_PIO0_TX0 = 0
@@ -1155,37 +1141,18 @@ class VGA:
         self._black_buffer = black
         return uctypes.addressof(black)
 
-    def _build_index_lut(self, src_width, words_per_line):
-        total_out_pixels = words_per_line * 2
-        idx_lut = array.array('I', bytearray(words_per_line * 4))
-        for w in range(words_per_line):
-            s0 = (w * 2 * src_width) // total_out_pixels
-            s1 = (w * 2 + 1) * src_width // total_out_pixels
-            idx_lut[w] = s0 | (s1 << 16)
-        self._idx_lut = idx_lut
-        return uctypes.addressof(idx_lut)
-
-    def _alloc_scratch_row(self, src_width):
-        if hasattr(self, '_scratch'):
-            return uctypes.addressof(self._scratch)
-        if self._is_rgb565:
-            scratch = array.array('H', bytearray(src_width * 2))
-        else:
-            scratch = array.array('B', bytearray(src_width))
-        self._scratch = scratch
-        return uctypes.addressof(scratch)
-
-    def _prefill_pool(self, pool_addrs, pool_size, src_width, words_per_line, idx_lut_addr, scratch_addr):
+    def _prefill_pool(self, pool_addrs, pool_size, src_width, words_per_line):
         fb_addr = self._fb_addr
+        h_dup = self._h_dup
         if self._is_rgb565:
             for b in range(pool_size):
                 src_offset = b * src_width
-                convert_row_565(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, src_width, words_per_line, idx_lut_addr, scratch_addr)
+                convert_row_565(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, words_per_line, h_dup)
         else:
             lut_addr = uctypes.addressof(self._rgb332_lut)
             for b in range(pool_size):
                 src_offset = b * src_width
-                convert_row_332(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, src_width, words_per_line, lut_addr, idx_lut_addr, scratch_addr)
+                convert_row_332(pool_addrs[b] + COLOR_PROG_LINE_COUNT_WORDS * 4, fb_addr, src_offset, words_per_line, lut_addr, h_dup)
 
     def _build_scanout_table(self, table_len, pool_size, pool_addrs, v_active, v_total, black_buffer_addr):
         physical_len = 1
@@ -1207,26 +1174,32 @@ class VGA:
         self._raw = raw
         return aligned_addr, ring_size_bits
 
-    def _prepare_buffers(self, pool_size, src_width, src_height, words_per_line, table_len, fast_path_width):
+    def _prepare_buffers(self, pool_size, src_width, src_height, words_per_line, table_len):
+        native_pixels = words_per_line * 2
+        if src_width == native_pixels:
+            h_dup = 1
+        elif src_width * 2 == native_pixels:
+            h_dup = 2
+        elif src_width * 4 == native_pixels:
+            h_dup = 4
+        else:
+            raise ValueError(
+                'framebuffer width %d must be h_active/2 (%d), h_active/4, or h_active/8 for timing %s '
+                '(non-integer horizontal scale needs the slow path, which is disabled)' % (
+                    src_width, native_pixels, self.timing_name))
+        self._h_dup = h_dup
         signature = (src_width, src_height, pool_size, words_per_line, table_len, self.V_ACTIVE, self.V_TOTAL)
         if getattr(self, '_alloc_signature', None) != signature:
             self._alloc_signature = None
             self._pool = None
-            self._idx_lut = None
             self._black_buffer = None
             self._raw = None
-            if src_width != fast_path_width:
-                _warn_fast_path_missed(self.timing_name, src_width, fast_path_width, src_height, pool_size, self.V_ACTIVE)
             pool_addrs, pool_addr_arr = self._alloc_scanline_pool(pool_size, words_per_line)
-            idx_lut_addr = self._build_index_lut(src_width, words_per_line)
-            scratch_addr = self._alloc_scratch_row(src_width)
             black_buffer_addr = self._alloc_black_buffer(words_per_line)
             table_addr, ring_size_bits = self._build_scanout_table(
                 table_len, pool_size, pool_addrs, self.V_ACTIVE, self.V_TOTAL, black_buffer_addr)
             self._pool_addrs = pool_addrs
             self._pool_addr_arr = pool_addr_arr
-            self._idx_lut_addr = idx_lut_addr
-            self._scratch_addr = scratch_addr
             self._black_buffer_addr = black_buffer_addr
             self._table_addr = table_addr
             self._ring_size_bits = ring_size_bits
@@ -1234,11 +1207,9 @@ class VGA:
         else:
             pool_addrs = self._pool_addrs
             pool_addr_arr = self._pool_addr_arr
-            idx_lut_addr = self._idx_lut_addr
-            scratch_addr = self._scratch_addr
             table_addr = self._table_addr
             ring_size_bits = self._ring_size_bits
-        return pool_addrs, pool_addr_arr, idx_lut_addr, scratch_addr, table_addr, ring_size_bits
+        return pool_addrs, pool_addr_arr, table_addr, ring_size_bits
 
     def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
@@ -1330,7 +1301,7 @@ class VGA:
     def _start_core1_thread(self, pool_addr_arr, ch_ctrl_reg_addr, table_addr, table_len, pool_size,
                              src_width, src_height, active_start_offset, ch_pixel_reg_addr,
                              pool_base_addr, buffer_stride_bytes, log_len, tail_log_len, tail_threshold,
-                             idx_lut_addr, scratch_addr, pattern_len):
+                             pattern_len):
         row_correctness_addr = uctypes.addressof(self.row_correctness)
         pattern_log_addr = uctypes.addressof(self.pattern_log)
         jump_advance_hist_addr = uctypes.addressof(self.jump_advance_hist)
@@ -1345,10 +1316,10 @@ class VGA:
             ch_pixel_reg_addr, pool_base_addr, buffer_stride_bytes,
             self.REFILL_MARGIN_BUFFERS,
             self.tail_log, tail_log_len, tail_threshold,
+            self._h_dup,
         )
         if self._is_rgb565:
             _thread.start_new_thread(core1_loop_viper_565, common_args + (
-                idx_lut_addr, scratch_addr,
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
                 _vsync_reset_shared_addr,
@@ -1356,7 +1327,7 @@ class VGA:
             ))
         else:
             _thread.start_new_thread(core1_loop_viper_332, common_args + (
-                uctypes.addressof(self._rgb332_lut), idx_lut_addr, scratch_addr,
+                uctypes.addressof(self._rgb332_lut),
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
                 _vsync_reset_shared_addr,
@@ -1381,7 +1352,6 @@ class VGA:
         assert self.H_ACTIVE % 4 == 0
         WORDS_PER_LINE = self.H_ACTIVE // 4
         self._words_per_line = WORDS_PER_LINE
-        fast_path_width = WORDS_PER_LINE * 2
         assert SRC_HEIGHT % POOL_SIZE == 0, (
             'SRC_HEIGHT must be a multiple of POOL_SIZE - the pool of '
             'scanline buffers cycles through the whole framebuffer height '
@@ -1390,10 +1360,10 @@ class VGA:
         TABLE_LEN = self._compute_table_len(POOL_SIZE, SRC_HEIGHT)
         self._table_len = TABLE_LEN
 
-        pool_addrs, pool_addr_arr, idx_lut_addr, scratch_addr, table_addr, ring_size_bits = \
-            self._prepare_buffers(POOL_SIZE, SRC_WIDTH, SRC_HEIGHT, WORDS_PER_LINE, TABLE_LEN, fast_path_width)
+        pool_addrs, pool_addr_arr, table_addr, ring_size_bits = \
+            self._prepare_buffers(POOL_SIZE, SRC_WIDTH, SRC_HEIGHT, WORDS_PER_LINE, TABLE_LEN)
 
-        self._prefill_pool(pool_addrs, POOL_SIZE, SRC_WIDTH, WORDS_PER_LINE, idx_lut_addr, scratch_addr)
+        self._prefill_pool(pool_addrs, POOL_SIZE, SRC_WIDTH, WORDS_PER_LINE)
 
         buffer_stride_bytes = (WORDS_PER_LINE + COLOR_PROG_LINE_COUNT_WORDS) * 4
         active_start_offset = self.V_PULSE + self.V_BACK_PORCH
@@ -1406,7 +1376,7 @@ class VGA:
         self._start_core1_thread(
             pool_addr_arr, ch_ctrl_reg_addr, table_addr, TABLE_LEN, POOL_SIZE, SRC_WIDTH, SRC_HEIGHT,
             active_start_offset, ch_pixel_reg_addr, pool_addrs[0], buffer_stride_bytes,
-            LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, idx_lut_addr, scratch_addr, PATTERN_LEN)
+            LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN)
 
         self._started = True
 
