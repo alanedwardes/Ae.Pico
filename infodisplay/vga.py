@@ -716,6 +716,7 @@ VGA_STATS_FIELDS = (
     'row_correctness_first_mismatch_lines_into_active', 'row_correctness_first_mismatch_current_row',
     'row_correctness_first_mismatch_displaying_buffer', 'row_correctness_first_mismatch_stored_row',
     'row_correctness_first_mismatch_table_idx',
+    'vsync_reset_handler_call_count', 'vsync_reset_write_count',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -1337,4 +1338,6 @@ class VGA:
             row_correctness_first_mismatch_displaying_buffer=row_correctness[pool_size + _RC_FIRST_MISMATCH_DISPLAYING_BUFFER],
             row_correctness_first_mismatch_stored_row=row_correctness[pool_size + _RC_FIRST_MISMATCH_STORED_ROW],
             row_correctness_first_mismatch_table_idx=row_correctness[pool_size + _RC_FIRST_MISMATCH_TABLE_IDX],
+            vsync_reset_handler_call_count=_vsync_reset_shared[_VSR_HANDLER_CALL_COUNT],
+            vsync_reset_write_count=_vsync_reset_shared[_VSR_RESET_WRITE_COUNT],
         )
