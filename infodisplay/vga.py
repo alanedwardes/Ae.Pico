@@ -19,8 +19,15 @@ _VSR_RESET_WRITE_COUNT = const(6)
 _VSR_LINE_IDX_AT_VSYNC = const(7)
 _VSR_LINE_IDX_AT_VSYNC_MAX_ABS = const(8)
 _VSR_EDGE_PROBE_COUNT = const(9)
+_VSR_VSYNC_PIN_MASK = const(10)
+_VSR_VSYNC_ASSERTED_HIGH = const(11)
+_VSR_LAST_VSYNC_ASSERTED = const(12)
+_VSR_RESET_DONE_THIS_FRAME = const(13)
+_VSR_REANCHOR_COUNT = const(14)
 
-_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+_SIO_GPIO_IN_ADDR = const(0xd0000004)
+
+_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 
 
@@ -28,15 +35,26 @@ _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 def _vsync_reset_irq_handler(dma_obj):
     shared = ptr32(int(_vsync_reset_shared_addr))
     shared[_VSR_HANDLER_CALL_COUNT] += 1
-    line_idx = shared[_VSR_LINE_IDX] + 1
-    if line_idx >= shared[_VSR_V_TOTAL]:
+    gpio_in = ptr32(int(_SIO_GPIO_IN_ADDR))
+    vsync_level = 1 if (gpio_in[0] & shared[_VSR_VSYNC_PIN_MASK]) != 0 else 0
+    vsync_asserted = 1 if vsync_level == shared[_VSR_VSYNC_ASSERTED_HIGH] else 0
+    if shared[_VSR_LAST_VSYNC_ASSERTED] == 0 and vsync_asserted == 1:
+        shared[_VSR_LAST_VSYNC_ASSERTED] = 1
         line_idx = 0
+        shared[_VSR_RESET_DONE_THIS_FRAME] = 0
+        shared[_VSR_REANCHOR_COUNT] += 1
+    else:
+        shared[_VSR_LAST_VSYNC_ASSERTED] = vsync_asserted
+        line_idx = shared[_VSR_LINE_IDX] + 1
+        if line_idx >= shared[_VSR_V_TOTAL]:
+            line_idx = 0
     shared[_VSR_LINE_IDX] = line_idx
 
     ctrl_reg = ptr32(shared[_VSR_CH_CTRL_READ_ADDR_REGISTER])
-    if line_idx == shared[_VSR_RESET_LINE_IDX]:
+    if line_idx == shared[_VSR_RESET_LINE_IDX] and shared[_VSR_RESET_DONE_THIS_FRAME] == 0:
         ctrl_reg[0] = shared[_VSR_RESET_TARGET_TABLE_ADDR]
         shared[_VSR_RESET_WRITE_COUNT] += 1
+        shared[_VSR_RESET_DONE_THIS_FRAME] = 1
 
 
 _CS_REFILL_CALL_COUNT = const(0)
@@ -735,6 +753,7 @@ VGA_STATS_FIELDS = (
     'row_correctness_first_mismatch_table_idx',
     'vsync_reset_handler_call_count', 'vsync_reset_write_count',
     'line_idx_at_last_vsync', 'line_idx_at_vsync_max_abs', 'vsync_edge_probe_count',
+    'vsync_reanchor_count',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -916,7 +935,7 @@ def _warn_fast_path_missed(timing_name, requested_width, fast_path_width, reques
 
 
 class VGA:
-    SIO_GPIO_IN = 0xd0000004
+    SIO_GPIO_IN = _SIO_GPIO_IN_ADDR
     DREQ_PIO0_TX0 = 0
     DMA_BASE = 0x50000000
     DMA_CH_STRIDE = 0x40
@@ -1181,6 +1200,11 @@ class VGA:
         _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC] = 0
         _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS] = 0
         _vsync_reset_shared[_VSR_EDGE_PROBE_COUNT] = 0
+        _vsync_reset_shared[_VSR_VSYNC_PIN_MASK] = self.VSYNC_PIN_MASK
+        _vsync_reset_shared[_VSR_VSYNC_ASSERTED_HIGH] = self._v_pulse_level
+        _vsync_reset_shared[_VSR_LAST_VSYNC_ASSERTED] = 0
+        _vsync_reset_shared[_VSR_RESET_DONE_THIS_FRAME] = 0
+        _vsync_reset_shared[_VSR_REANCHOR_COUNT] = 0
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
         vsync_sm.put(self.V_IDLE - 1)
@@ -1364,4 +1388,5 @@ class VGA:
             line_idx_at_last_vsync=_vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC],
             line_idx_at_vsync_max_abs=_vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS],
             vsync_edge_probe_count=_vsync_reset_shared[_VSR_EDGE_PROBE_COUNT],
+            vsync_reanchor_count=_vsync_reset_shared[_VSR_REANCHOR_COUNT],
         )
