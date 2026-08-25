@@ -65,11 +65,10 @@ _CS_REFILL_TARGET_COLLISION_COUNT = const(4)
 _CS_DISPLAYING_BUFFER_OUT_OF_RANGE_COUNT = const(5)
 _CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE = const(6)
 _CS_PREFILL_BURST_INCOMPLETE_COUNT = const(7)
-_CS_LARGE_DELTA_RING_HEAD = const(8)
-_CS_LARGE_DELTA_MIN_ABS = const(9)
-_CS_LARGE_DELTA_MAX_ABS = const(10)
+_CS_TABLE_ADVANCE_JUMP_COUNT = const(8)
+_CS_MAX_TABLE_ADVANCE = const(9)
 
-_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 _CORE1_STATE_INITIAL[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = -1
 
 _RC_MISMATCH_COUNT = const(0)
@@ -83,9 +82,7 @@ _RC_FIRST_MISMATCH_TABLE_IDX = const(7)
 _RC_MAX_ABS_ROW_DELTA = const(8)
 _RC_LARGE_ROW_DELTA_COUNT = const(9)
 
-_LARGE_DELTA_LINE_BUCKETS = const(16)
-_LARGE_DELTA_RING_LEN = const(16)
-_LARGE_DELTA_RING_FIELDS = const(6)
+_JUMP_ADVANCE_HIST_LEN = const(8)
 
 
 @micropython.viper
@@ -204,7 +201,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                       row_correctness: ptr32,
                       pattern_log: ptr32, pattern_len: int,
                       irq_shared: ptr32,
-                      prediction_delta_hist: ptr32, large_delta_line_hist: ptr32, large_delta_ring: ptr32):
+                      jump_advance_hist: ptr32):
     gpio_in = ptr32(sio_gpio_in_addr)
     ctrl_reg = ptr32(ch_ctrl_reg_addr)
     pixel_reg = ptr32(ch_pixel_reg_addr)
@@ -225,9 +222,8 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
-    large_delta_ring_head = 0
-    large_delta_min_abs = 0
-    large_delta_max_abs = 0
+    jump_count = 0
+    max_table_advance = 0
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
@@ -254,6 +250,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
 
         if displaying_table_idx == last_table_idx:
             continue
+        prev_table_idx = last_table_idx
         last_table_idx = displaying_table_idx
 
         lines_into_active = lines_since_vsync - active_start_offset
@@ -266,6 +263,17 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
             continue
         if lines_into_active >= v_active:
             continue
+
+        if prev_table_idx >= 0:
+            table_advance = (displaying_table_idx - prev_table_idx) % table_len
+            if table_advance < _JUMP_ADVANCE_HIST_LEN:
+                jump_advance_hist[table_advance] += 1
+            if table_advance > 1:
+                jump_count += 1
+                state[_CS_TABLE_ADVANCE_JUMP_COUNT] = jump_count
+            if table_advance > max_table_advance:
+                max_table_advance = table_advance
+                state[_CS_MAX_TABLE_ADVANCE] = max_table_advance
 
         if need_log == 1:
             if prefill_next < pool_size:
@@ -296,24 +304,6 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
                     row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA] = row_delta
                 if row_delta > 2:
                     row_correctness[pool_size + _RC_LARGE_ROW_DELTA_COUNT] += 1
-                    line_bucket = lines_into_active * _LARGE_DELTA_LINE_BUCKETS // v_active
-                    if line_bucket >= 0 and line_bucket < _LARGE_DELTA_LINE_BUCKETS:
-                        large_delta_line_hist[line_bucket] += 1
-                    if large_delta_min_abs == 0 or row_delta < large_delta_min_abs:
-                        large_delta_min_abs = row_delta
-                    if row_delta > large_delta_max_abs:
-                        large_delta_max_abs = row_delta
-                    ring_slot = large_delta_ring_head * _LARGE_DELTA_RING_FIELDS
-                    large_delta_ring[ring_slot] = lines_into_active
-                    large_delta_ring[ring_slot + 1] = displaying_table_idx
-                    large_delta_ring[ring_slot + 2] = displaying_buffer
-                    large_delta_ring[ring_slot + 3] = current_row
-                    large_delta_ring[ring_slot + 4] = row_correctness[displaying_buffer]
-                    large_delta_ring[ring_slot + 5] = current_row - row_correctness[displaying_buffer]
-                    large_delta_ring_head = (large_delta_ring_head + 1) % _LARGE_DELTA_RING_LEN
-                    state[_CS_LARGE_DELTA_RING_HEAD] = large_delta_ring_head
-                    state[_CS_LARGE_DELTA_MIN_ABS] = large_delta_min_abs
-                    state[_CS_LARGE_DELTA_MAX_ABS] = large_delta_max_abs
                 if row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] == 0:
                     row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] = 1
                     row_correctness[pool_size + _RC_FIRST_MISMATCH_LINES_INTO_ACTIVE] = lines_into_active
@@ -325,13 +315,11 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if exact_ratio:
             delta = (safe_buffer - current_row) % pool_size
             target_row = current_row + delta
-            prediction_delta_hist[delta] += 1
         else:
             target_table_idx_start = safe_buffer * entries_per_buffer
             steps = (target_table_idx_start - displaying_table_idx) % table_len
             future_lines_into_active = lines_into_active + steps
             target_row = (future_lines_into_active * src_height) // v_active
-            prediction_delta_hist[steps] += 1
         if target_row >= src_height:
             target_row = src_height - 1
 
@@ -385,7 +373,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                       row_correctness: ptr32,
                       pattern_log: ptr32, pattern_len: int,
                       irq_shared: ptr32,
-                      prediction_delta_hist: ptr32, large_delta_line_hist: ptr32, large_delta_ring: ptr32):
+                      jump_advance_hist: ptr32):
     gpio_in = ptr32(sio_gpio_in_addr)
     ctrl_reg = ptr32(ch_ctrl_reg_addr)
     pixel_reg = ptr32(ch_pixel_reg_addr)
@@ -406,9 +394,8 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     exact_ratio = 1 if entries_per_buffer * src_height == v_active else 0
     settle_threshold = table_len * 2
     pattern_pos = 0
-    large_delta_ring_head = 0
-    large_delta_min_abs = 0
-    large_delta_max_abs = 0
+    jump_count = 0
+    max_table_advance = 0
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
     while state[_CS_STOP_REQUESTED] == 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
@@ -435,6 +422,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
 
         if displaying_table_idx == last_table_idx:
             continue
+        prev_table_idx = last_table_idx
         last_table_idx = displaying_table_idx
 
         lines_into_active = lines_since_vsync - active_start_offset
@@ -447,6 +435,17 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
             continue
         if lines_into_active >= v_active:
             continue
+
+        if prev_table_idx >= 0:
+            table_advance = (displaying_table_idx - prev_table_idx) % table_len
+            if table_advance < _JUMP_ADVANCE_HIST_LEN:
+                jump_advance_hist[table_advance] += 1
+            if table_advance > 1:
+                jump_count += 1
+                state[_CS_TABLE_ADVANCE_JUMP_COUNT] = jump_count
+            if table_advance > max_table_advance:
+                max_table_advance = table_advance
+                state[_CS_MAX_TABLE_ADVANCE] = max_table_advance
 
         if need_log == 1:
             if prefill_next < pool_size:
@@ -477,24 +476,6 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
                     row_correctness[pool_size + _RC_MAX_ABS_ROW_DELTA] = row_delta
                 if row_delta > 2:
                     row_correctness[pool_size + _RC_LARGE_ROW_DELTA_COUNT] += 1
-                    line_bucket = lines_into_active * _LARGE_DELTA_LINE_BUCKETS // v_active
-                    if line_bucket >= 0 and line_bucket < _LARGE_DELTA_LINE_BUCKETS:
-                        large_delta_line_hist[line_bucket] += 1
-                    if large_delta_min_abs == 0 or row_delta < large_delta_min_abs:
-                        large_delta_min_abs = row_delta
-                    if row_delta > large_delta_max_abs:
-                        large_delta_max_abs = row_delta
-                    ring_slot = large_delta_ring_head * _LARGE_DELTA_RING_FIELDS
-                    large_delta_ring[ring_slot] = lines_into_active
-                    large_delta_ring[ring_slot + 1] = displaying_table_idx
-                    large_delta_ring[ring_slot + 2] = displaying_buffer
-                    large_delta_ring[ring_slot + 3] = current_row
-                    large_delta_ring[ring_slot + 4] = row_correctness[displaying_buffer]
-                    large_delta_ring[ring_slot + 5] = current_row - row_correctness[displaying_buffer]
-                    large_delta_ring_head = (large_delta_ring_head + 1) % _LARGE_DELTA_RING_LEN
-                    state[_CS_LARGE_DELTA_RING_HEAD] = large_delta_ring_head
-                    state[_CS_LARGE_DELTA_MIN_ABS] = large_delta_min_abs
-                    state[_CS_LARGE_DELTA_MAX_ABS] = large_delta_max_abs
                 if row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] == 0:
                     row_correctness[pool_size + _RC_FIRST_MISMATCH_SEEN] = 1
                     row_correctness[pool_size + _RC_FIRST_MISMATCH_LINES_INTO_ACTIVE] = lines_into_active
@@ -506,13 +487,11 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if exact_ratio:
             delta = (safe_buffer - current_row) % pool_size
             target_row = current_row + delta
-            prediction_delta_hist[delta] += 1
         else:
             target_table_idx_start = safe_buffer * entries_per_buffer
             steps = (target_table_idx_start - displaying_table_idx) % table_len
             future_lines_into_active = lines_into_active + steps
             target_row = (future_lines_into_active * src_height) // v_active
-            prediction_delta_hist[steps] += 1
         if target_row >= src_height:
             target_row = src_height - 1
 
@@ -809,7 +788,7 @@ VGA_STATS_FIELDS = (
     'vsync_reset_handler_call_count', 'vsync_reset_write_count',
     'line_idx_at_last_vsync', 'line_idx_at_vsync_max_abs', 'vsync_edge_probe_count',
     'vsync_reanchor_count',
-    'large_delta_min_abs', 'large_delta_max_abs', 'large_delta_ring_head',
+    'table_advance_jump_count', 'max_table_advance',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -998,9 +977,7 @@ class VGA:
     DMA_AL3_READ_ADDR_TRIG_OFFSET = 0x3C
     POOL_SIZE = 8
     REFILL_MARGIN_BUFFERS = POOL_SIZE // 2
-    LARGE_DELTA_LINE_BUCKETS = _LARGE_DELTA_LINE_BUCKETS
-    LARGE_DELTA_RING_LEN = _LARGE_DELTA_RING_LEN
-    LARGE_DELTA_RING_FIELDS = _LARGE_DELTA_RING_FIELDS
+    JUMP_ADVANCE_HIST_LEN = _JUMP_ADVANCE_HIST_LEN
     DMA_READ_ADDR_WRITE_LATENCY_LINES = 1
     IRQ_DISPATCH_JITTER_MARGIN_LINES = 1
     RESET_ANCHOR_LEAD_LINES = DMA_READ_ADDR_WRITE_LATENCY_LINES + IRQ_DISPATCH_JITTER_MARGIN_LINES
@@ -1040,7 +1017,7 @@ class VGA:
         self._framebuffer = framebuffer
         self._fb_addr = uctypes.addressof(framebuffer)
 
-        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0])
+        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0, 0, 0])
         self._core1_done = array.array('i', [0])
         self._started = False
 
@@ -1288,17 +1265,13 @@ class VGA:
             self._clear_array(self.tail_log)
             self._clear_array(self.row_correctness)
             self._clear_array(self.pattern_log)
-            self._clear_array(self.prediction_delta_hist)
-            self._clear_array(self.large_delta_line_hist)
-            self._clear_array(self.large_delta_ring)
+            self._clear_array(self.jump_advance_hist)
         else:
             self.frame_log = array.array('i', bytearray(log_len * 2 * 4))
             self.tail_log = array.array('i', bytearray(tail_log_len * 5 * 4))
             self.row_correctness = array.array('i', bytearray((pool_size + 10) * 4))
             self.pattern_log = array.array('i', bytearray(pattern_len * 4 * 4))
-            self.prediction_delta_hist = array.array('i', bytearray(table_len * 4))
-            self.large_delta_line_hist = array.array('i', bytearray(_LARGE_DELTA_LINE_BUCKETS * 4))
-            self.large_delta_ring = array.array('i', bytearray(_LARGE_DELTA_RING_LEN * _LARGE_DELTA_RING_FIELDS * 4))
+            self.jump_advance_hist = array.array('i', bytearray(_JUMP_ADVANCE_HIST_LEN * 4))
         return log_len, tail_log_len, tail_threshold, pattern_len
 
     def _start_core1_thread(self, pool_addr_arr, ch_ctrl_reg_addr, table_addr, table_len, pool_size,
@@ -1307,10 +1280,7 @@ class VGA:
                              idx_lut_addr, scratch_addr, pattern_len):
         row_correctness_addr = uctypes.addressof(self.row_correctness)
         pattern_log_addr = uctypes.addressof(self.pattern_log)
-        prediction_delta_hist_addr = uctypes.addressof(self.prediction_delta_hist)
-        large_delta_line_hist_addr = uctypes.addressof(self.large_delta_line_hist)
-        large_delta_ring_addr = uctypes.addressof(self.large_delta_ring)
-        large_delta_args = (prediction_delta_hist_addr, large_delta_line_hist_addr, large_delta_ring_addr)
+        jump_advance_hist_addr = uctypes.addressof(self.jump_advance_hist)
         common_args = (
             self._core1_state, self._core1_done,
             pool_addr_arr, self._framebuffer,
@@ -1329,14 +1299,16 @@ class VGA:
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
                 _vsync_reset_shared_addr,
-            ) + large_delta_args)
+                jump_advance_hist_addr,
+            ))
         else:
             _thread.start_new_thread(core1_loop_viper_332, common_args + (
                 uctypes.addressof(self._rgb332_lut), idx_lut_addr, scratch_addr,
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
                 _vsync_reset_shared_addr,
-            ) + large_delta_args)
+                jump_advance_hist_addr,
+            ))
 
     def start(self):
         if self._started:
@@ -1458,7 +1430,6 @@ class VGA:
             line_idx_at_vsync_max_abs=_vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS],
             vsync_edge_probe_count=_vsync_reset_shared[_VSR_EDGE_PROBE_COUNT],
             vsync_reanchor_count=_vsync_reset_shared[_VSR_REANCHOR_COUNT],
-            large_delta_min_abs=state[_CS_LARGE_DELTA_MIN_ABS],
-            large_delta_max_abs=state[_CS_LARGE_DELTA_MAX_ABS],
-            large_delta_ring_head=state[_CS_LARGE_DELTA_RING_HEAD],
+            table_advance_jump_count=state[_CS_TABLE_ADVANCE_JUMP_COUNT],
+            max_table_advance=state[_CS_MAX_TABLE_ADVANCE],
         )

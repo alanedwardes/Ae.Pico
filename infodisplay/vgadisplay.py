@@ -152,59 +152,33 @@ class VgaStatsController:
         writer.write(b'<p>%i / %i rows checked (%.3f%% mismatched).</p>' % (
             stats.row_correctness_mismatch_count, stats.row_correctness_checked_count, mismatch_rate))
 
-    def _write_large_delta_diagnostics(self, writer, stats):
-        if not hasattr(self.vga, 'prediction_delta_hist'):
+    def _write_table_advance_diagnostics(self, writer, stats):
+        if not hasattr(self.vga, 'jump_advance_hist'):
             return
         vga = self.vga
-        prediction_delta_hist = vga.prediction_delta_hist
-        large_delta_line_hist = vga.large_delta_line_hist
-        large_delta_ring = vga.large_delta_ring
-        ring_head = stats.large_delta_ring_head
-        line_buckets = vga.LARGE_DELTA_LINE_BUCKETS
-        ring_len = vga.LARGE_DELTA_RING_LEN
-        ring_fields = vga.LARGE_DELTA_RING_FIELDS
-        table_len = stats.table_len
-        v_active = stats.v_active
-        quantity = b'delta' if stats.exact_row_ratio else b'steps'
+        jump_advance_hist = vga.jump_advance_hist
+        hist_len = vga.JUMP_ADVANCE_HIST_LEN
 
-        writer.write(b'<h2>Prediction %s Histogram</h2>' % quantity)
-        writer.write(b'<p>One dominant bucket = counter locked; scattered non-zero buckets = prediction race.</p>')
-        writer.write(b'<table><thead><tr><th>%s</th><th>count</th></tr></thead><tbody>' % quantity)
-        for i in range(table_len):
-            count = prediction_delta_hist[i]
+        writer.write(b'<h2>Table Advance Histogram</h2>')
+        writer.write(b'<p>Each pass core1 polls the DMA table position. advance=1 means it kept up '
+                     b'(one new entry since last poll); advance=N means N-1 entries passed unread, '
+                     b'so a buffer can skip refill and display stale content. If the jumps total '
+                     b'matches the large-row-delta count, the missed-refill cause is confirmed.</p>')
+        writer.write(b'<table><thead><tr><th>advance</th><th>count</th></tr></thead><tbody>')
+        for i in range(1, hist_len):
+            count = jump_advance_hist[i]
             if count:
                 writer.write(b'<tr><td>%i</td><td>%i</td></tr>' % (i, count))
         writer.write(b'</tbody></table>')
 
-        writer.write(b'<h2>Large Row Deltas by Line</h2>')
-        writer.write(b'<p>Clustering in the first buckets = reset-boundary race; even spread = elsewhere.</p>')
-        writer.write(b'<table><thead><tr><th>line range</th><th>count</th></tr></thead><tbody>')
-        for i in range(line_buckets):
-            count = large_delta_line_hist[i]
-            if count:
-                lo = i * v_active // line_buckets
-                hi = (i + 1) * v_active // line_buckets
-                writer.write(b'<tr><td>%i-%i</td><td>%i</td></tr>' % (lo, hi - 1, count))
-        writer.write(b'</tbody></table>')
-        if stats.large_delta_max_abs:
-            writer.write(b'<p>|row delta| among large deltas: %i (min) .. %i (max).</p>' % (
-                stats.large_delta_min_abs, stats.large_delta_max_abs))
-
-        writer.write(b'<h2>Recent Large Delta Events</h2>')
-        writer.write(b'<table><thead><tr><th>line</th><th>table_idx</th><th>buf</th>'
-                     b'<th>current_row</th><th>stored_row</th><th>signed_delta</th></tr></thead><tbody>')
-        for count in range(ring_len):
-            idx = (ring_head - 1 - count) % ring_len
-            slot = idx * ring_fields
-            line = large_delta_ring[slot]
-            if line == 0 and large_delta_ring[slot + 1] == 0 and large_delta_ring[slot + 2] == 0 \
-                    and large_delta_ring[slot + 3] == 0 and large_delta_ring[slot + 4] == 0 \
-                    and large_delta_ring[slot + 5] == 0:
-                continue
-            writer.write(b'<tr><td>%i</td><td>%i</td><td>%i</td><td>%i</td><td>%i</td><td>%i</td></tr>' % (
-                line, large_delta_ring[slot + 1], large_delta_ring[slot + 2],
-                large_delta_ring[slot + 3], large_delta_ring[slot + 4], large_delta_ring[slot + 5]))
-        writer.write(b'</tbody></table>')
+        frames = stats.vsync_edge_count
+        jump_per_frame = (stats.table_advance_jump_count / frames) if frames else 0.0
+        large_per_frame = (stats.row_correctness_large_row_delta_count / frames) if frames else 0.0
+        writer.write(b'<p>Table-advance jumps (advance&gt;1): %i (max advance %i). '
+                     b'Large row deltas: %i.</p>' % (
+                         stats.table_advance_jump_count, stats.max_table_advance,
+                         stats.row_correctness_large_row_delta_count))
+        writer.write(b'<p>Per frame: jumps %.4f, large deltas %.4f.</p>' % (jump_per_frame, large_per_frame))
 
     async def serve(self, method, path, headers, reader, writer):
         error = None
@@ -245,7 +219,7 @@ class VgaStatsController:
             writer.write(b'<p>VGA has not started.</p>')
         else:
             self._write_expected_actual_table(writer, stats)
-            self._write_large_delta_diagnostics(writer, stats)
+            self._write_table_advance_diagnostics(writer, stats)
 
             writer.write(b'<h2>Raw Counters</h2>')
             writer.write(b'<table><tbody>')
