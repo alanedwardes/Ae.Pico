@@ -809,7 +809,7 @@ VGA_STATS_FIELDS = (
     'vsync_reset_handler_call_count', 'vsync_reset_write_count',
     'line_idx_at_last_vsync', 'line_idx_at_vsync_max_abs', 'vsync_edge_probe_count',
     'vsync_reanchor_count',
-    'large_delta_min_abs', 'large_delta_max_abs',
+    'large_delta_min_abs', 'large_delta_max_abs', 'large_delta_ring_head',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -998,6 +998,9 @@ class VGA:
     DMA_AL3_READ_ADDR_TRIG_OFFSET = 0x3C
     POOL_SIZE = 8
     REFILL_MARGIN_BUFFERS = POOL_SIZE // 2
+    LARGE_DELTA_LINE_BUCKETS = _LARGE_DELTA_LINE_BUCKETS
+    LARGE_DELTA_RING_LEN = _LARGE_DELTA_RING_LEN
+    LARGE_DELTA_RING_FIELDS = _LARGE_DELTA_RING_FIELDS
     DMA_READ_ADDR_WRITE_LATENCY_LINES = 1
     IRQ_DISPATCH_JITTER_MARGIN_LINES = 1
     RESET_ANCHOR_LEAD_LINES = DMA_READ_ADDR_WRITE_LATENCY_LINES + IRQ_DISPATCH_JITTER_MARGIN_LINES
@@ -1457,4 +1460,5 @@ class VGA:
             vsync_reanchor_count=_vsync_reset_shared[_VSR_REANCHOR_COUNT],
             large_delta_min_abs=state[_CS_LARGE_DELTA_MIN_ABS],
             large_delta_max_abs=state[_CS_LARGE_DELTA_MAX_ABS],
+            large_delta_ring_head=state[_CS_LARGE_DELTA_RING_HEAD],
         )

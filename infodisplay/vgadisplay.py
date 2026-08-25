@@ -1,9 +1,5 @@
 import asyncio
-from vga import (
-    VGA, VGA_STATS_FIELDS, VGA_TIMING_NAMES,
-    _CS_LARGE_DELTA_RING_HEAD, _LARGE_DELTA_LINE_BUCKETS,
-    _LARGE_DELTA_RING_LEN, _LARGE_DELTA_RING_FIELDS,
-)
+from vga import VGA, VGA_STATS_FIELDS, VGA_TIMING_NAMES
 from drawing import Drawing
 from management import parse_form
 
@@ -159,10 +155,14 @@ class VgaStatsController:
     def _write_large_delta_diagnostics(self, writer, stats):
         if not hasattr(self.vga, 'prediction_delta_hist'):
             return
-        prediction_delta_hist = self.vga.prediction_delta_hist
-        large_delta_line_hist = self.vga.large_delta_line_hist
-        large_delta_ring = self.vga.large_delta_ring
-        ring_head = self.vga._core1_state[_CS_LARGE_DELTA_RING_HEAD]
+        vga = self.vga
+        prediction_delta_hist = vga.prediction_delta_hist
+        large_delta_line_hist = vga.large_delta_line_hist
+        large_delta_ring = vga.large_delta_ring
+        ring_head = stats.large_delta_ring_head
+        line_buckets = vga.LARGE_DELTA_LINE_BUCKETS
+        ring_len = vga.LARGE_DELTA_RING_LEN
+        ring_fields = vga.LARGE_DELTA_RING_FIELDS
         table_len = stats.table_len
         v_active = stats.v_active
         quantity = b'delta' if stats.exact_row_ratio else b'steps'
@@ -179,11 +179,11 @@ class VgaStatsController:
         writer.write(b'<h2>Large Row Deltas by Line</h2>')
         writer.write(b'<p>Clustering in the first buckets = reset-boundary race; even spread = elsewhere.</p>')
         writer.write(b'<table><thead><tr><th>line range</th><th>count</th></tr></thead><tbody>')
-        for i in range(_LARGE_DELTA_LINE_BUCKETS):
+        for i in range(line_buckets):
             count = large_delta_line_hist[i]
             if count:
-                lo = i * v_active // _LARGE_DELTA_LINE_BUCKETS
-                hi = (i + 1) * v_active // _LARGE_DELTA_LINE_BUCKETS
+                lo = i * v_active // line_buckets
+                hi = (i + 1) * v_active // line_buckets
                 writer.write(b'<tr><td>%i-%i</td><td>%i</td></tr>' % (lo, hi - 1, count))
         writer.write(b'</tbody></table>')
         if stats.large_delta_max_abs:
@@ -193,9 +193,9 @@ class VgaStatsController:
         writer.write(b'<h2>Recent Large Delta Events</h2>')
         writer.write(b'<table><thead><tr><th>line</th><th>table_idx</th><th>buf</th>'
                      b'<th>current_row</th><th>stored_row</th><th>signed_delta</th></tr></thead><tbody>')
-        for count in range(_LARGE_DELTA_RING_LEN):
-            idx = (ring_head - 1 - count) % _LARGE_DELTA_RING_LEN
-            slot = idx * _LARGE_DELTA_RING_FIELDS
+        for count in range(ring_len):
+            idx = (ring_head - 1 - count) % ring_len
+            slot = idx * ring_fields
             line = large_delta_ring[slot]
             if line == 0 and large_delta_ring[slot + 1] == 0 and large_delta_ring[slot + 2] == 0 \
                     and large_delta_ring[slot + 3] == 0 and large_delta_ring[slot + 4] == 0 \
