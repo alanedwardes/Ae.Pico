@@ -16,8 +16,11 @@ _VSR_LINE_IDX = const(3)
 _VSR_V_TOTAL = const(4)
 _VSR_HANDLER_CALL_COUNT = const(5)
 _VSR_RESET_WRITE_COUNT = const(6)
+_VSR_LINE_IDX_AT_VSYNC = const(7)
+_VSR_LINE_IDX_AT_VSYNC_MAX_ABS = const(8)
+_VSR_EDGE_PROBE_COUNT = const(9)
 
-_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 1, 0, 0])
+_vsync_reset_shared = array.array('i', [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 _vsync_reset_shared_addr = uctypes.addressof(_vsync_reset_shared)
 
 
@@ -202,6 +205,13 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
         if last_vsync_high == 1 and vsync_high == 0:
             edge_reset_count += 1
             state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+            probe_li = irq_shared[_VSR_LINE_IDX]
+            irq_shared[_VSR_LINE_IDX_AT_VSYNC] = probe_li
+            vt = irq_shared[_VSR_V_TOTAL]
+            probe_dev = probe_li if probe_li < vt - probe_li else vt - probe_li
+            if probe_dev > irq_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS]:
+                irq_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS] = probe_dev
+            irq_shared[_VSR_EDGE_PROBE_COUNT] += 1
         last_vsync_high = vsync_high
 
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
@@ -352,6 +362,13 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
         if last_vsync_high == 1 and vsync_high == 0:
             edge_reset_count += 1
             state[_CS_VSYNC_EDGE_COUNT] = edge_reset_count
+            probe_li = irq_shared[_VSR_LINE_IDX]
+            irq_shared[_VSR_LINE_IDX_AT_VSYNC] = probe_li
+            vt = irq_shared[_VSR_V_TOTAL]
+            probe_dev = probe_li if probe_li < vt - probe_li else vt - probe_li
+            if probe_dev > irq_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS]:
+                irq_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS] = probe_dev
+            irq_shared[_VSR_EDGE_PROBE_COUNT] += 1
         last_vsync_high = vsync_high
 
         next_table_idx = (ctrl_reg[0] - table_addr) >> 2
@@ -717,6 +734,7 @@ VGA_STATS_FIELDS = (
     'row_correctness_first_mismatch_displaying_buffer', 'row_correctness_first_mismatch_stored_row',
     'row_correctness_first_mismatch_table_idx',
     'vsync_reset_handler_call_count', 'vsync_reset_write_count',
+    'line_idx_at_last_vsync', 'line_idx_at_vsync_max_abs', 'vsync_edge_probe_count',
 )
 VgaStats = namedtuple('VgaStats', VGA_STATS_FIELDS)
 
@@ -1160,6 +1178,9 @@ class VGA:
         _vsync_reset_shared[_VSR_V_TOTAL] = self.V_TOTAL
         _vsync_reset_shared[_VSR_HANDLER_CALL_COUNT] = 0
         _vsync_reset_shared[_VSR_RESET_WRITE_COUNT] = 0
+        _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC] = 0
+        _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS] = 0
+        _vsync_reset_shared[_VSR_EDGE_PROBE_COUNT] = 0
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
         vsync_sm.active(1)
         vsync_sm.put(self.V_IDLE - 1)
@@ -1340,4 +1361,7 @@ class VGA:
             row_correctness_first_mismatch_table_idx=row_correctness[pool_size + _RC_FIRST_MISMATCH_TABLE_IDX],
             vsync_reset_handler_call_count=_vsync_reset_shared[_VSR_HANDLER_CALL_COUNT],
             vsync_reset_write_count=_vsync_reset_shared[_VSR_RESET_WRITE_COUNT],
+            line_idx_at_last_vsync=_vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC],
+            line_idx_at_vsync_max_abs=_vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS],
+            vsync_edge_probe_count=_vsync_reset_shared[_VSR_EDGE_PROBE_COUNT],
         )
