@@ -68,8 +68,9 @@ _CS_PREFILL_BURST_INCOMPLETE_COUNT = const(7)
 _CS_TABLE_ADVANCE_JUMP_COUNT = const(8)
 _CS_MAX_TABLE_ADVANCE = const(9)
 _CS_CATCH_UP_COUNT = const(10)
+_CS_ENABLED = const(11)
 
-_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+_CORE1_STATE_INITIAL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
 _CORE1_STATE_INITIAL[_CS_MIN_REFILL_MARGIN_LINES_INTO_ACTIVE] = -1
 
 _RC_MISMATCH_COUNT = const(0)
@@ -226,7 +227,7 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
     catch_up_count = 0
     prev_safe_buffer = -1
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
-    while state[_CS_STOP_REQUESTED] == 0:
+    while state[_CS_STOP_REQUESTED] == 0 and state[_CS_ENABLED] != 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         if last_vsync_high == 1 and vsync_high == 0:
             edge_reset_count += 1
@@ -380,7 +381,6 @@ def core1_loop_viper_565(state: ptr32, done: ptr32,
 
         call_count += 1
         state[_CS_REFILL_CALL_COUNT] = call_count
-    done[0] = 1
 
 
 @micropython.viper
@@ -425,7 +425,7 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
     catch_up_count = 0
     prev_safe_buffer = -1
     content_words = (buffer_stride_bytes >> 2) - int(COLOR_PROG_LINE_COUNT_WORDS)
-    while state[_CS_STOP_REQUESTED] == 0:
+    while state[_CS_STOP_REQUESTED] == 0 and state[_CS_ENABLED] != 0:
         vsync_high = 1 if (gpio_in[0] & vsync_pin_mask) != 0 else 0
         if last_vsync_high == 1 and vsync_high == 0:
             edge_reset_count += 1
@@ -579,6 +579,27 @@ def core1_loop_viper_332(state: ptr32, done: ptr32,
 
         call_count += 1
         state[_CS_REFILL_CALL_COUNT] = call_count
+
+
+def _core1_entry_565(*args):
+    state = args[0]
+    done = args[1]
+    while state[_CS_STOP_REQUESTED] == 0:
+        if state[_CS_ENABLED] == 0:
+            time.sleep_ms(2)
+            continue
+        core1_loop_viper_565(*args)
+    done[0] = 1
+
+
+def _core1_entry_332(*args):
+    state = args[0]
+    done = args[1]
+    while state[_CS_STOP_REQUESTED] == 0:
+        if state[_CS_ENABLED] == 0:
+            time.sleep_ms(2)
+            continue
+        core1_loop_viper_332(*args)
     done[0] = 1
 
 
@@ -1056,9 +1077,10 @@ class VGA:
         self._framebuffer = framebuffer
         self._fb_addr = uctypes.addressof(framebuffer)
 
-        self._core1_state = array.array('i', [0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0])
+        self._core1_state = array.array('i', _CORE1_STATE_INITIAL)
         self._core1_done = array.array('i', [0])
         self._started = False
+        self._suspended = False
 
         self._hsync_pin = hsync_pin
         self._color_base_pin = color_base_pin
@@ -1211,7 +1233,7 @@ class VGA:
             ring_size_bits = self._ring_size_bits
         return pool_addrs, pool_addr_arr, table_addr, ring_size_bits
 
-    def _start_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
+    def _build_video_pipeline(self, table_addr, table_len, ring_size_bits, pool_addrs, words_per_line):
         H_TOTAL = self.H_SYNC + self.H_BACK_PORCH + self.H_ACTIVE + self.H_FRONT_PORCH
         hsync_prog, hsync_deviation_cycles = make_hsync_prog(
             self.H_SYNC, H_TOTAL - self.H_SYNC - HSYNC_PROG_LOOP_HEAD_IRQ_CYCLES, self._h_pulse_level, self._h_idle_level,
@@ -1233,6 +1255,10 @@ class VGA:
 
         ch_pixel_al3_trig_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + self.DMA_AL3_READ_ADDR_TRIG_OFFSET
         ch_ctrl_reg_addr = self.DMA_BASE + ch_ctrl.channel * self.DMA_CH_STRIDE + 0x00
+        ch_pixel_reg_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + 0x00
+        self._ch_pixel_al3_trig_addr = ch_pixel_al3_trig_addr
+        self._ch_ctrl_reg_addr = ch_ctrl_reg_addr
+        self._ch_pixel_reg_addr = ch_pixel_reg_addr
 
         ctrl_pixel = ch_pixel.pack_ctrl(size=2, inc_read=True, inc_write=False,
                                          treq_sel=self.DREQ_PIO0_TX0 + 1,
@@ -1243,37 +1269,47 @@ class VGA:
                                        chain_to=ch_ctrl.channel,
                                        ring_sel=False, ring_size=ring_size_bits,
                                        high_pri=True, irq_quiet=False)
+        self._ctrl_pixel = ctrl_pixel
+        self._ctrl_ctrl = ctrl_ctrl
+        self._pool_addrs = pool_addrs
+        self._words_per_line = words_per_line
+        self._table_addr = table_addr
+        self._reset_line_idx = (self.V_PULSE + self.V_BACK_PORCH - self.RESET_ANCHOR_LEAD_LINES) % self.V_TOTAL
 
-        ch_pixel.config(read=pool_addrs[0], write=color_sm, count=words_per_line + COLOR_PROG_LINE_COUNT_WORDS, ctrl=ctrl_pixel, trigger=False)
-        ch_ctrl.config(read=table_addr, write=ch_pixel_al3_trig_addr, count=1, ctrl=ctrl_ctrl, trigger=False)
-
-        color_sm.active(1)
-
-        reset_line_idx = (self.V_PULSE + self.V_BACK_PORCH - self.RESET_ANCHOR_LEAD_LINES) % self.V_TOTAL
         _vsync_reset_shared[_VSR_CH_CTRL_READ_ADDR_REGISTER] = ch_ctrl_reg_addr
         _vsync_reset_shared[_VSR_RESET_TARGET_TABLE_ADDR] = table_addr
-        _vsync_reset_shared[_VSR_RESET_LINE_IDX] = reset_line_idx
-        _vsync_reset_shared[_VSR_LINE_IDX] = -1
+        _vsync_reset_shared[_VSR_VSYNC_PIN_MASK] = self.VSYNC_PIN_MASK
+        _vsync_reset_shared[_VSR_VSYNC_ASSERTED_HIGH] = self._v_pulse_level
         _vsync_reset_shared[_VSR_V_TOTAL] = self.V_TOTAL
+        ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
+
+        self._arm_video_pipeline(first_arm=True)
+        return ch_ctrl_reg_addr, ch_pixel_reg_addr
+
+    def _arm_video_pipeline(self, first_arm):
+        _vsync_reset_shared[_VSR_RESET_LINE_IDX] = self._reset_line_idx
+        _vsync_reset_shared[_VSR_LINE_IDX] = -1
         _vsync_reset_shared[_VSR_HANDLER_CALL_COUNT] = 0
         _vsync_reset_shared[_VSR_RESET_WRITE_COUNT] = 0
         _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC] = 0
         _vsync_reset_shared[_VSR_LINE_IDX_AT_VSYNC_MAX_ABS] = 0
         _vsync_reset_shared[_VSR_EDGE_PROBE_COUNT] = 0
-        _vsync_reset_shared[_VSR_VSYNC_PIN_MASK] = self.VSYNC_PIN_MASK
-        _vsync_reset_shared[_VSR_VSYNC_ASSERTED_HIGH] = self._v_pulse_level
         _vsync_reset_shared[_VSR_LAST_VSYNC_ASSERTED] = 0
         _vsync_reset_shared[_VSR_RESET_DONE_THIS_FRAME] = 0
         _vsync_reset_shared[_VSR_REANCHOR_COUNT] = 0
-        ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
-        vsync_sm.active(1)
-        vsync_sm.put(self.V_IDLE - 1)
 
-        ch_ctrl.active(1)
-        hsync_sm.active(1)
+        self._ch_pixel.config(read=self._pool_addrs[0], write=self._color_sm,
+                              count=self._words_per_line + COLOR_PROG_LINE_COUNT_WORDS,
+                              ctrl=self._ctrl_pixel, trigger=False)
+        self._ch_ctrl.config(read=self._table_addr, write=self._ch_pixel_al3_trig_addr,
+                             count=1, ctrl=self._ctrl_ctrl, trigger=False)
 
-        ch_pixel_reg_addr = self.DMA_BASE + ch_pixel.channel * self.DMA_CH_STRIDE + 0x00
-        return ch_ctrl_reg_addr, ch_pixel_reg_addr
+        self._color_sm.active(1)
+        self._vsync_sm.active(1)
+        if first_arm:
+            self._vsync_sm.put(self.V_IDLE - 1)
+        self._ch_ctrl.active(1)
+        self._hsync_sm.active(1)
 
     def _clear_array(self, arr):
         for i in range(len(arr)):
@@ -1319,14 +1355,14 @@ class VGA:
             self._h_dup,
         )
         if self._is_rgb565:
-            _thread.start_new_thread(core1_loop_viper_565, common_args + (
+            _thread.start_new_thread(_core1_entry_565, common_args + (
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
                 _vsync_reset_shared_addr,
                 jump_advance_hist_addr,
             ))
         else:
-            _thread.start_new_thread(core1_loop_viper_332, common_args + (
+            _thread.start_new_thread(_core1_entry_332, common_args + (
                 uctypes.addressof(self._rgb332_lut),
                 row_correctness_addr,
                 pattern_log_addr, pattern_len,
@@ -1336,6 +1372,8 @@ class VGA:
 
     def start(self):
         if self._started:
+            if self._suspended:
+                self._resume()
             return
 
         if hasattr(self, '_core1_state'):
@@ -1370,7 +1408,7 @@ class VGA:
 
         LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN = self._alloc_diagnostics(POOL_SIZE, TABLE_LEN)
 
-        ch_ctrl_reg_addr, ch_pixel_reg_addr = self._start_video_pipeline(
+        ch_ctrl_reg_addr, ch_pixel_reg_addr = self._build_video_pipeline(
             table_addr, TABLE_LEN, ring_size_bits, pool_addrs, WORDS_PER_LINE)
 
         self._start_core1_thread(
@@ -1379,15 +1417,42 @@ class VGA:
             LOG_LEN, TAIL_LOG_LEN, TAIL_THRESHOLD, PATTERN_LEN)
 
         self._started = True
+        self._suspended = False
 
     def get_bounds(self):
         return self._bounds
 
     def set_backlight(self, brightness):
         if brightness <= 0:
-            self.stop()
+            self.suspend()
         else:
+            self.resume()
+
+    def suspend(self):
+        if not self._started or self._suspended:
+            return
+        self._suspend()
+
+    def resume(self):
+        if not self._started:
             self.start()
+            return
+        if self._suspended:
+            self._resume()
+
+    def _suspend(self):
+        self._core1_state[_CS_ENABLED] = 0
+        self._hsync_sm.active(0)
+        self._color_sm.active(0)
+        self._vsync_sm.active(0)
+        self._ch_ctrl.active(0)
+        self._ch_pixel.active(0)
+        self._suspended = True
+
+    def _resume(self):
+        self._arm_video_pipeline(first_arm=False)
+        self._core1_state[_CS_ENABLED] = 1
+        self._suspended = False
 
     def stop(self):
         if not self._started:
@@ -1403,9 +1468,10 @@ class VGA:
         self._ch_pixel.close()
         PIO(0).remove_program()
         self._started = False
+        self._suspended = False
 
     def stats(self):
-        if not self._started:
+        if not self._started or self._suspended:
             return None
         state = self._core1_state
         row_correctness = self.row_correctness
