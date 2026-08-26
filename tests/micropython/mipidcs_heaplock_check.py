@@ -3,9 +3,7 @@ import micropython
 
 from mipidcs import (
     _rgb565_to_888_line,
-    _rgb565_to_888_upscale_line,
     _rgb565_swap_line,
-    _rgb565_swap_upscale_line,
     _rgb332_to_888_line,
     _rgb332_to_565_line,
     build_rgb332_888_lut,
@@ -13,7 +11,6 @@ from mipidcs import (
 from microcheck import check, summarize
 
 PIXELS = 320
-SCALE = 2
 
 
 def under_lock(fn):
@@ -33,8 +30,6 @@ src565 = bytearray(PIXELS * 2)
 src332 = bytearray(PIXELS)
 dst888 = bytearray(PIXELS * 3)
 dst565 = bytearray(PIXELS * 2)
-dst888_up = bytearray(PIXELS * 3 * SCALE)
-dst565_up = bytearray(PIXELS * 2 * SCALE)
 lut565 = bytearray(128)
 lut332_888 = build_rgb332_888_lut()
 lut332_565 = bytearray(512)
@@ -44,16 +39,8 @@ def conv_565_to_888():
     _rgb565_to_888_line(dst888, src565, 0, PIXELS, lut565)
 
 
-def conv_565_to_888_upscale():
-    _rgb565_to_888_upscale_line(dst888_up, src565, 0, PIXELS, SCALE, lut565)
-
-
 def conv_565_swap():
     _rgb565_swap_line(dst565, src565, 0, PIXELS, lut565)
-
-
-def conv_565_swap_upscale():
-    _rgb565_swap_upscale_line(dst565_up, src565, 0, PIXELS, SCALE, lut565)
 
 
 def conv_332_to_888():
@@ -66,9 +53,7 @@ def conv_332_to_565():
 
 warm = [
     ('rgb565 -> rgb888', conv_565_to_888),
-    ('rgb565 -> rgb888 upscale', conv_565_to_888_upscale),
     ('rgb565 swap', conv_565_swap),
-    ('rgb565 swap upscale', conv_565_swap_upscale),
     ('rgb332 -> rgb888', conv_332_to_888),
     ('rgb332 -> rgb565', conv_332_to_565),
 ]

@@ -2,7 +2,7 @@ from time import sleep_ms
 import gc
 import micropython
 from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, MipiDisplay, \
-    _rgb565_swap_line, _rgb565_swap_upscale_line, _rgb332_to_565_line
+    _rgb565_swap_line, _rgb332_to_565_line
 
 # Display types
 GENERIC = (0, 0, 1, 0, True) # Default (x, y, orientation, bgr, inv)
@@ -13,16 +13,16 @@ WAVESHARE_13 = 0x000010
 ADAFRUIT_1_9 = (35, 0, PORTRAIT)
 
 class ST7789(MipiDisplay):
-    def __init__(self, spi, cs, dc, backlight=None, height=240, width=240, 
-                 disp_mode=LANDSCAPE, init_spi=False, display=GENERIC, 
-                 scale=1, source_color_mode='RGB565'):
-        
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 2, chunked_command_data=False)
+    def __init__(self, spi, cs, dc, backlight=None, height=240, width=240,
+                 disp_mode=LANDSCAPE, init_spi=False, display=GENERIC,
+                 source_color_mode='RGB565'):
+
+        super().__init__(spi, cs, dc, backlight, width, height, source_color_mode, 2, chunked_command_data=False)
 
         self._offset = display[:2]
         self._ram_w, self._ram_h = 240, 320
         self._spi_init = init_spi
-        
+
         # Initialize RGB332 to 565 LUT (512 bytes)
         self._lut = bytearray(512)
         for i in range(256):
@@ -32,11 +32,6 @@ class ST7789(MipiDisplay):
             self._lut[i*2 + 1] = ((g6 & 0x07) << 5) | b5 # lo
             
         self._init(disp_mode, display[2], display[3:])
-
-    def _get_line_conv(self, scale):
-        if self.source_color_mode == 'RGB565':
-            return _rgb565_swap_line if scale == 1 else _rgb565_swap_upscale_line
-        return _rgb332_to_565_line 
 
     def _init(self, user_mode, orientation, cfg):
         bgr = cfg[0] if len(cfg) else False

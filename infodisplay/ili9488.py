@@ -2,23 +2,23 @@ from time import sleep_ms
 import gc
 import micropython
 from mipidcs import LANDSCAPE, REFLECT, USD, PORTRAIT, get_madctl, MipiDisplay, \
-    _rgb565_to_888_line, _rgb565_to_888_upscale_line, _rgb332_to_888_line, build_rgb332_888_lut
+    _rgb565_to_888_line, _rgb332_to_888_line, build_rgb332_888_lut
 
 # Display types
 GENERIC = (0, 0, 1, True, True) # Default (x, y, orientation, bgr, inv)
 
 class ILI9488(MipiDisplay):
-    def __init__(self, spi, cs, dc, rst, backlight=None, width=480, height=320, 
-                 disp_mode=LANDSCAPE, display=GENERIC, scale=1, 
+    def __init__(self, spi, cs, dc, rst, backlight=None, width=480, height=320,
+                 disp_mode=LANDSCAPE, display=GENERIC,
                  source_color_mode='RGB565'):
-        
-        super().__init__(spi, cs, dc, backlight, width, height, scale, source_color_mode, 3, chunked_command_data=True)
-        
+
+        super().__init__(spi, cs, dc, backlight, width, height, source_color_mode, 3, chunked_command_data=True)
+
         self._offset = display[:2]
         self._rst = rst
         self._display = display
         self._ram_w, self._ram_h = 320, 480
-        
+
         if source_color_mode == 'RGB332':
             # Full 768-byte RGB332->888 table (only the 332 converter runs)
             self._lut = build_rgb332_888_lut()
@@ -33,11 +33,6 @@ class ILI9488(MipiDisplay):
                 self._lut[i + 32] = (i << 2) | (i >> 4) # G6
             
         self._init(disp_mode, display[2], display[3:])
-
-    def _get_line_conv(self, scale):
-        if self.source_color_mode == 'RGB565':
-            return _rgb565_to_888_line if scale == 1 else _rgb565_to_888_upscale_line
-        return _rgb332_to_888_line # No upscale for 332->888 yet
 
     def _init(self, user_mode, orientation, cfg):
         bgr = cfg[0] if len(cfg) else False

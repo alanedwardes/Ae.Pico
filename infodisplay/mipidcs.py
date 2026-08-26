@@ -58,20 +58,6 @@ def _rgb565_to_888_line(dest: ptr8, source: ptr16, src_offset: int, pixels: int,
         s += 1; d += 3; pixels -= 1
 
 @micropython.viper
-def _rgb565_to_888_upscale_line(dest: ptr8, source: ptr16, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
-    s: int = src_offset
-    d: int = 0
-    while src_pixels:
-        c = source[s]
-        r8 = lut[(c >> 11) & 0x1F]
-        g8 = lut[((c >> 5) & 0x3F) + 32]
-        b8 = lut[(c & 0x1F) + 96]
-        for _ in range(scale):
-            dest[d] = r8; dest[d + 1] = g8; dest[d + 2] = b8
-            d += 3
-        s += 1; src_pixels -= 1
-
-@micropython.viper
 def _rgb565_swap_line(dest: ptr16, source: ptr16, src_offset: int, pixels: int, lut: ptr8):
     # For RGB565 byte swap - Unrolled 4x
     s: int = src_offset
@@ -85,18 +71,6 @@ def _rgb565_swap_line(dest: ptr16, source: ptr16, src_offset: int, pixels: int, 
     while pixels:
         c = source[s]; dest[d] = (c << 8) | (c >> 8)
         s += 1; d += 1; pixels -= 1
-
-@micropython.viper
-def _rgb565_swap_upscale_line(dest: ptr16, source: ptr16, src_offset: int, src_pixels: int, scale: int, lut: ptr8):
-    s: int = src_offset
-    d: int = 0
-    while src_pixels:
-        c = source[s]
-        sw = (c << 8) | (c >> 8)
-        for _ in range(scale):
-            dest[d] = sw
-            d += 1
-        s += 1; src_pixels -= 1
 
 def build_rgb332_888_lut():
     """256-entry RGB332 -> RGB888 table (768 bytes) for _rgb332_to_888_line."""
@@ -323,14 +297,13 @@ class SpiController:
 
 class MipiDisplay:
     """Base class for MIPI DCS compatible displays (ILI9488, ST7789, etc)."""
-    def __init__(self, spi, cs, dc, backlight, width, height, scale, color_mode, bpp, chunked_command_data=True):
+    def __init__(self, spi, cs, dc, backlight, width, height, color_mode, bpp, chunked_command_data=True):
         self._spi = spi
         self._cs = cs
         self._dc = dc
         self._backlight = BacklightManager(backlight)
         self.width = width
         self.height = height
-        self._scale = scale
         self.source_color_mode = color_mode
         self._bpp = bpp # Bytes per pixel on SPI bus
         self._linebuf = bytearray(width * bpp)
@@ -380,67 +353,6 @@ class MipiDisplay:
                 xs = ram_w - win_w - xo + x
                 xe = xs + rw - 1
         return xs, xe, ys, ye
-
-    def render(self, fb, width, height, bbox):
-        x, y, rw, rh = bbox
-        if x < 0 or y < 0 or rw <= 0 or rh <= 0: return
-        if x + rw > width or y + rh > height: return
-            
-        scale = self._scale
-        self._set_region_window(x * scale, y * scale, rw * scale, rh * scale)
-        self._spi_ctrl.write_cmd(b"\x2c")  # RAMWR
-        self._spi_ctrl.start_data()
-        
-        line_conv = self._get_line_conv(scale)
-        fb_ptr = y * width + x
-        lut = self._lut
-        bpp = self._bpp
-        
-        self._render_spi(fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv)
-        self._spi_ctrl.end_data()
-
-
-
-    def _render_spi(self, fb, width, fb_ptr, rw, rh, scale, bpp, lut, line_conv):
-        write_len = rw * scale * bpp
-        out_view = memoryview(self._linebuf)[:write_len]
-        if scale > 1:
-            for _ in range(rh):
-                lb = self._linebuf
-                line_conv(lb, fb, fb_ptr, rw, scale, lut)
-                fb_ptr += width
-                for _ in range(scale):
-                    self._spi.write(out_view)
-            return
-
-        dma = self._spi_dma
-        if dma is not None and rh > 1:
-            # Double-buffered: DMA line N to the panel while converting
-            # line N+1. The final line goes through blocking spi.write,
-            # which drains the FIFO and BSY so end_data() can raise CS.
-            buf_a = self._linebuf
-            buf_b = self._linebuf2
-            line_conv(buf_a, fb, fb_ptr, rw, lut)
-            fb_ptr += width
-            for _ in range(rh - 1):
-                dma.start(buf_a, write_len)
-                line_conv(buf_b, fb, fb_ptr, rw, lut)
-                fb_ptr += width
-                dma.wait()
-                buf_a, buf_b = buf_b, buf_a
-            if buf_a is not self._linebuf:
-                out_view = memoryview(buf_a)[:write_len]
-            self._spi.write(out_view)
-            return
-
-        for _ in range(rh):
-            lb = self._linebuf
-            line_conv(lb, fb, fb_ptr, rw, lut)
-            fb_ptr += width
-            self._spi.write(out_view)
-
-    def _get_line_conv(self, scale):
-        raise NotImplementedError
 
     def _set_region_window(self, x, y, rw, rh):
         raise NotImplementedError

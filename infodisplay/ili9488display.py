@@ -16,10 +16,9 @@ class ILI9488Display:
 
         display_width = config.get('width', DEFAULT_WIDTH)
         display_height = config.get('height', DEFAULT_HEIGHT)
-        scale = config.get('scale', 1)
 
-        fb_width = display_width // scale
-        fb_height = display_height // scale
+        fb_width = display_width
+        fb_height = display_height
 
         spi = SPI(1, baudrate=40_000_000, polarity=0, phase=0, sck=Pin(10), mosi=Pin(11))
         dc = Pin(8, Pin.OUT, value=0)
@@ -43,7 +42,6 @@ class ILI9488Display:
             width=display_width,
             disp_mode=disp_mode,
             display=(0, 0, 1, True, True),
-            scale=scale,
             source_color_mode=mode
         )
 
