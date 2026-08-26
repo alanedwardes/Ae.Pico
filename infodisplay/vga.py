@@ -1380,9 +1380,6 @@ class VGA:
 
         self._started = True
 
-    def render(self, fb, width, height, bbox):
-        pass
-
     def get_bounds(self):
         return self._bounds
 

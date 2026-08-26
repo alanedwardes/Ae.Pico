@@ -59,7 +59,6 @@ class StaticDisplay:
             bytes_per_pixel = self.display.bytes_per_pixel
             y_offset = (self.start_offset // bytes_per_pixel) // self.display_width
             height = self.display_height - y_offset
-            self.display.update((0, y_offset, self.display_width, height))
 
             # Clean up after HTTP request
             gc.collect()

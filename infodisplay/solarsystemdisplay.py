@@ -266,7 +266,6 @@ class SolarSystemDisplay:
         for c in self.comets:
             await self._draw_comet(c, days_since_j2000)
 
-        self.display.update((0, self.top_margin, self.display_width, self.display_height - self.top_margin))
 
     def _draw_orbit_path(self, body):
         # Sample points along the orbit to draw 3D ellipse

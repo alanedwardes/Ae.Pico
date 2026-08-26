@@ -85,8 +85,6 @@ class TouchCalibrationDisplay:
             d.text("Calibration Complete!", 20, 20, self.fg_color)
             d.text("Check serial console.", 20, 40, self.fg_color)
             self.calculate_calibration()
-            
-        d.update()
 
     def calculate_calibration(self):
         if len(self.raw_clicks) < 4:

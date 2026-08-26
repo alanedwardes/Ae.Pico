@@ -14,13 +14,6 @@ EXPECTED = {
     'thermostat rgb565': 0x9b1b5ae7,
 }
 
-class CountingDriver:
-    def __init__(self):
-        self.renders = 0
-
-    def render(self, framebuffer, width, height, region):
-        self.renders += 1
-
 def _entity(target, current, hvac, extra=0):
     return {'s': 'heat', 'a': {
         'temperature': target, 'current_temperature': current,
@@ -33,36 +26,35 @@ def main():
     mpassets.preload_fonts(('headline', 'small', 'regular'))
 
     display = Drawing(WIDTH, HEIGHT, 'RGB565')
-    driver = CountingDriver()
-    display.set_driver(driver)
+
+    draws = [0]
+    _orig_rect = display.rect
+    def _count_rect(*a, **k):
+        draws[0] += 1
+        return _orig_rect(*a, **k)
+    display.rect = _count_rect
 
     td = ThermostatDisplay(display, None, ENTITY, 70)
     td.entities[ENTITY] = _entity(21.5, 20.9, 'heating')
 
     asyncio.run(td.update())
-    check('first update renders', driver.renders == 1,
-          'renders = %d' % driver.renders)
-
+    check('first update renders', draws[0] == 1, 'draws = %d' % draws[0])
     check_pixels('thermostat rgb565', display._framebuffer, EXPECTED.get('thermostat rgb565'))
 
     asyncio.run(td.update())
-    check('identical update skipped', driver.renders == 1,
-          'renders = %d' % driver.renders)
+    check('identical update skipped', draws[0] == 1, 'draws = %d' % draws[0])
 
     td.entities[ENTITY] = _entity(21.5, 20.9, 'heating', extra=1)
     asyncio.run(td.update())
-    check('unrelated attribute skipped', driver.renders == 1,
-          'renders = %d' % driver.renders)
+    check('unrelated attribute skipped', draws[0] == 1, 'draws = %d' % draws[0])
 
     td.entities[ENTITY] = _entity(21.5, 21.0, 'heating')
     asyncio.run(td.update())
-    check('changed value renders', driver.renders == 2,
-          'renders = %d' % driver.renders)
+    check('changed value renders', draws[0] == 2, 'draws = %d' % draws[0])
 
     td._rendered = None
     asyncio.run(td.update())
-    check('reactivation renders', driver.renders == 3,
-          'renders = %d' % driver.renders)
+    check('reactivation renders', draws[0] == 3, 'draws = %d' % draws[0])
 
     summarize()
 

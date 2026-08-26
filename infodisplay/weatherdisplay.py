@@ -189,8 +189,6 @@ class WeatherDisplay:
             await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, slot_height, color=rain_color, font=font_name)
 
 
-            # Update just this column
-            self.display.update((sx, y_start, column_width, self.display_height - y_start))
 
             # Allow other work to continue
             await asyncio.sleep(0)

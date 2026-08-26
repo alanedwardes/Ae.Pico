@@ -103,5 +103,3 @@ class TemperatureDisplay:
         await textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
         await textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
 
-        # Render only the temperature region
-        self.display.update((self.display_width - self.height, 0, self.height, self.height))

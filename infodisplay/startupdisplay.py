@@ -69,8 +69,6 @@ class StartupDisplay:
             mac = "?"
         await textbox.draw_textbox(self.display, f"MAC: {mac}", self.x, self.mac_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
-        self.display.update((0, self.start_y, self.display_width, self.signal_y - self.start_y))
-
     async def update(self):
         if not self._static_drawn:
             self._static_drawn = True
@@ -85,4 +83,3 @@ class StartupDisplay:
         if rssi != self._last_rssi:
             self._last_rssi = rssi
             await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", self.x, self.signal_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
-            self.display.update((0, self.signal_y, self.display_width, self.line_height))

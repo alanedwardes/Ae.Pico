@@ -128,9 +128,6 @@ class TimeDisplay:
 
             await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale, background=0x000000)
 
-            # Render only the time region
-            self.display.update(self._time_region)
-
         # 2. Day / Date / Month Display
         day_region_changed = (
             now[6] != self._last_day_idx
@@ -154,8 +151,6 @@ class TimeDisplay:
             await textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
             await textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
 
-            self.display.update(self._cal_region)
-
         # 3. Seconds Display
         if now[5] != self._last_second:
             self._last_second = now[5]
@@ -165,7 +160,6 @@ class TimeDisplay:
                       self._padded_numbers[sec_idx], self._sec_origin_x[sec_idx], self._sec_origin_y,
                       kerning=True, scale_up=self._scale_up, scale_down=self._scale_down, color=0xFFFFFF,
                       linebuf=self._linebuf, clip=self._sec_clip, background=0x000000, top_edge=True, bottom_edge=True)
-            self.display.update(self._sec_region)
 
         # 4. Milliseconds (Tenths) Display
         if not self.show_milliseconds:
@@ -178,4 +172,3 @@ class TimeDisplay:
                       self._tenth_numbers[tenth], self._ms_origin_x[tenth], self._ms_origin_y,
                       kerning=True, scale_up=self._scale_up, scale_down=self._scale_down, color=0xFFFFFF,
                       linebuf=self._linebuf, clip=self._ms_clip, background=0x000000, top_edge=True, bottom_edge=True)
-            self.display.update(self._ms_region)

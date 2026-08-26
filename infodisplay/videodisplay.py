@@ -62,7 +62,6 @@ class VideoDisplay:
                     if bytes_read < len(framebuffer):
                         break
 
-                    self.display.update((0, y_offset, self.display_width, height))
                     await asyncio.sleep(self.frame_period)
             except OSError:
                 pass

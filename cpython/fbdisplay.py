@@ -11,7 +11,7 @@ from drawing import Drawing
 
 
 class FbDisplay:
-    def __init__(self, display_width, display_height, fb_width, fb_height, rotation=0, fb_device='/dev/fb0', backlight_path=None):
+    def __init__(self, display_width, display_height, fb_width, fb_height, framebuffer, rotation=0, fb_device='/dev/fb0', backlight_path=None, push_fps=30):
         self._display_width = display_width  # Physical framebuffer width
         self._display_height = display_height  # Physical framebuffer height
         self._fb_width = fb_width  # Drawing surface width
@@ -19,6 +19,9 @@ class FbDisplay:
         self._rotation = rotation  # 0, 90, 180, 270
         self._backlight_path = backlight_path
         self._max_brightness = 100 # Default fallback
+
+        self._fb = framebuffer
+        self._frame_interval = 1.0 / push_fps if push_fps else 0
 
         if self._backlight_path:
             try:
@@ -78,15 +81,18 @@ class FbDisplay:
 
         fb_device = config.get('fb_device', '/dev/fb0')
         backlight_path = config.get('backlight_path')
+        push_fps = config.get('push_fps', 30)
 
+        drawing = Drawing(fb_width, fb_height)
         driver = FbDisplay(
             display_width, display_height,
             fb_width, fb_height,
+            drawing.framebuffer,
             rotation=rotation,
             fb_device=fb_device,
-            backlight_path=backlight_path
+            backlight_path=backlight_path,
+            push_fps=push_fps
         )
-        drawing = Drawing(fb_width, fb_height)
         drawing.set_driver(driver)
 
         provider['display'] = drawing
@@ -97,7 +103,12 @@ class FbDisplay:
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
     async def start(self):
-        await asyncio.Event().wait()
+        try:
+            while True:
+                self._push_frame()
+                await asyncio.sleep(self._frame_interval)
+        except asyncio.CancelledError:
+            pass
 
     def get_brightness(self):
         if not self._backlight_path:
@@ -131,59 +142,40 @@ class FbDisplay:
         except Exception as e:
             print(f"FbDisplay: Failed to set brightness: {e}")
 
-    def render(self, framebuffer, width, height, region):
-        """Render RGB565 framebuffer region to display with scaling and rotation."""
-        x, y, rw, rh = region
-        if x < 0 or y < 0 or rw <= 0 or rh <= 0:
-            return
-        if x + rw > width or y + rh > height:
-            return
-        if width != self._fb_width or height != self._fb_height:
+    def _push_frame(self):
+        fb = self._fb
+        if fb is None:
             return
 
-        # Convert source framebuffer to numpy array (height x width)
-        src = np.frombuffer(framebuffer, dtype=np.uint16).reshape((height, width))
-        
-        # Extract the region to update
-        region_data = src[y:y+rh, x:x+rw]
-        
-        # Scale using numpy repeat (uniform scale)
+        src = np.frombuffer(fb, dtype=np.uint16).reshape((self._fb_height, self._fb_width))
+
         scale = self._scale
         if scale > 1:
-            scaled = np.repeat(np.repeat(region_data, scale, axis=0), scale, axis=1)
+            scaled = np.repeat(np.repeat(src, scale, axis=0), scale, axis=1)
         else:
-            scaled = region_data
-        
-        # Apply rotation
+            scaled = src
+
         if self._rotation == 90:
-            rotated = np.rot90(scaled, k=-1)  # 90° clockwise = k=-1
+            rotated = np.rot90(scaled, k=-1)
         elif self._rotation == 180:
             rotated = np.rot90(scaled, k=2)
         elif self._rotation == 270:
-            rotated = np.rot90(scaled, k=1)  # 270° clockwise = 90° counter-clockwise
+            rotated = np.rot90(scaled, k=1)
         else:
             rotated = scaled
-        
-        # Calculate destination position with centering offset
-        scaled_x = x * scale + self._offset_x
-        scaled_y = y * scale + self._offset_y
-        
-        if self._rotation == 0:
-            dest_x, dest_y = scaled_x, scaled_y
-        elif self._rotation == 90:
-            # After 90° CW rotation, top-left of scaled region goes to:
-            dest_x = self._logical_height - scaled_y - scaled.shape[0]
-            dest_y = scaled_x
+
+        dest_x = self._offset_x
+        dest_y = self._offset_y
+        if self._rotation == 90:
+            dest_x = self._logical_height - self._offset_y - scaled.shape[0]
+            dest_y = self._offset_x
         elif self._rotation == 180:
-            dest_x = self._logical_width - scaled_x - scaled.shape[1]
-            dest_y = self._logical_height - scaled_y - scaled.shape[0]
+            dest_x = self._logical_width - self._offset_x - scaled.shape[1]
+            dest_y = self._logical_height - self._offset_y - scaled.shape[0]
         elif self._rotation == 270:
-            dest_x = scaled_y
-            dest_y = self._logical_width - scaled_x - scaled.shape[1]
-        else:
-            dest_x, dest_y = scaled_x, scaled_y
-        
-        # Clip to framebuffer bounds
+            dest_x = self._offset_y
+            dest_y = self._logical_width - self._offset_x - scaled.shape[1]
+
         rh_out, rw_out = rotated.shape
         if dest_x < 0:
             rotated = rotated[:, -dest_x:]
@@ -199,8 +191,7 @@ class FbDisplay:
         if dest_y + rh_out > self._display_height:
             rh_out = self._display_height - dest_y
             rotated = rotated[:rh_out, :]
-        
-        # Write directly to mmap via numpy view (very fast!)
+
         if rh_out > 0 and rw_out > 0:
             self._fb_array[dest_y:dest_y+rh_out, dest_x:dest_x+rw_out] = rotated
 

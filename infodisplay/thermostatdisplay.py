@@ -79,9 +79,6 @@ class ThermostatDisplay:
         maximum_temperature = float(thermostat_entity['a']['max_temp'])
         hvac_action = thermostat_entity['a'].get('hvac_action', '?')
 
-        # HA pushes an entity update for ANY attribute change; a redraw
-        # costs a full lower-region SPI push, so skip it unless one of
-        # the values actually shown has changed
         rendered = (current_target, current_temperature, minimum_temperature, maximum_temperature, hvac_action)
         if rendered == self._rendered:
             return
@@ -106,9 +103,6 @@ class ThermostatDisplay:
         # HVAC action label just above main temperature
         await textbox.draw_textbox(self.display, hvac_action, 0, 90, self.display_width, 20, color=0xFFFFFF, font='small')
 
-        # Render only the thermostat region (below the time/temperature displays)
-        self.display.update((0, self.start_y, self.display_width, self.display_height - self.start_y))
-    
     async def activate(self):
         # Another display owned the screen since the last render, so the
         # first update after activation must always draw

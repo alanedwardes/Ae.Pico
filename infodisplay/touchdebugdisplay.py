@@ -59,13 +59,9 @@ class TouchDebugDisplay:
                             
                             radius = self.point_radius
                             self.display.ellipse(x, y, radius, radius, faded_color, fill=True)
-                            d = radius * 2 + 2
-                            self.display.update((max(0, int(x-radius-1)), max(0, int(y-radius-1)), int(d), int(d)))
                         else:
                             radius = self.point_radius
                             self.display.ellipse(x, y, radius, radius, 0x000000, fill=True)
-                            d = radius * 2 + 2
-                            self.display.update((max(0, int(x-radius-1)), max(0, int(y-radius-1)), int(d), int(d)))
                             
                     self.points = active_points
                 except AttributeError:

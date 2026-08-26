@@ -156,5 +156,3 @@ class AnalogueClockDisplay:
         except AttributeError:
             pass
             
-        # Only update our region
-        self.display.update((0, self.y_start, self.display_width, self.avail_height))

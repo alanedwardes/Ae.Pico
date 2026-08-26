@@ -186,9 +186,6 @@ class AsyncSpiDriver:
         self._running[0] = 1
         _thread.start_new_thread(self._loop, ())
 
-    def render(self, fb, width, height, region):
-        pass
-
     def set_backlight(self, b):
         if b <= 0:
             self.stop()

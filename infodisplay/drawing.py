@@ -115,12 +115,3 @@ class Drawing:
         if self._driver is None:
             return
         self._driver.set_backlight(brightness)
-
-    def update(self, region=None):
-        if self._driver is None:
-            return
-
-        if region is None:
-            region = (0, 0, self.width, self.height)
-        
-        self._driver.render(self._framebuffer, self.width, self.height, region)

@@ -226,6 +226,4 @@ class UvDisplay:
         uv_label_width = 40
         await textbox.draw_textbox(self.display, 'UV', key_width + 5, y_start + 5, uv_label_width, label_height, color=0xFFFFFF, font=font_name, align='left')
 
-        # Render only the UV display region
-        self.display.update((0, y_start, self.display_width, self.display_height - y_start))
 

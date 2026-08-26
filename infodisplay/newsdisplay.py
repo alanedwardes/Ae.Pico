@@ -70,5 +70,3 @@ class NewsDisplay:
 
         await textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFFFF, font='regular', wrap=True)
 
-        # Render only the news display region (below the time/temperature displays)
-        self.display.update((0, y_offset, self.display_width, self.display_height - y_offset))
