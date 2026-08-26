@@ -155,6 +155,7 @@ class AsyncSpiDriver:
         self._frames = array.array('i', [0])
         self._stop = array.array('i', [0])
         self._running = array.array('i', [0])
+        self._enabled = array.array('i', [0])
         self._setup_push(display)
 
     def _setup_push(self, disp):
@@ -180,6 +181,7 @@ class AsyncSpiDriver:
             raise RuntimeError('async SPI push unsupported source mode %s' % self._color_mode)
 
     def start(self):
+        self._enabled[0] = 1
         if self._running[0]:
             return
         self._stop[0] = 0
@@ -198,10 +200,7 @@ class AsyncSpiDriver:
         return self._frames[0]
 
     def stop(self):
-        self._stop[0] = 1
-        deadline = time.ticks_add(time.ticks_ms(), 2000)
-        while self._running[0] and time.ticks_diff(deadline, time.ticks_ms()) > 0:
-            time.sleep_ms(5)
+        self._enabled[0] = 0
 
     def _loop(self):
         disp = self.display
@@ -219,6 +218,9 @@ class AsyncSpiDriver:
         else:
             push = core1_spi_push332_565 if cm == 'RGB332' else core1_spi_push565_565
         while self._stop[0] == 0:
+            if self._enabled[0] == 0:
+                time.sleep_ms(20)
+                continue
             disp._set_region_window(0, 0, w, h)
             disp._spi_ctrl.write_cmd(b"\x2c")
             disp._spi_ctrl.start_data()
