@@ -53,7 +53,6 @@ class ILI9488Display:
         driver = AsyncSpiDriver(ili, drawing.framebuffer, fb_width, fb_height)
         driver.start()
         drawing.set_driver(driver)
-        print("ili9488: async core1 push enabled (%s)" % mode)
 
         ili.set_backlight(1.0)
 
