@@ -13,7 +13,7 @@ if not IS_MICROPYTHON:
         def viper(f): return f
 
 class Drawing:
-    def __init__(self, width, height, color_mode='RGB565'):
+    def __init__(self, width, height, color_mode='RGB565', framebuffer=None):
         self.width = width
         self.height = height
         self.color_mode = color_mode
@@ -26,7 +26,15 @@ class Drawing:
             self.mode = framebuf.GS8
             self.bytes_per_pixel = 1
 
-        self._framebuffer = bytearray(width * height * self.bytes_per_pixel)
+        required_size = width * height * self.bytes_per_pixel
+        if framebuffer is None:
+            self._framebuffer = bytearray(required_size)
+        else:
+            if len(framebuffer) != required_size:
+                raise ValueError('framebuffer size %d does not match required size %d for %dx%d %s' % (
+                    len(framebuffer), required_size, width, height, color_mode))
+            self._framebuffer = framebuffer
+
         self.fb = framebuf.FrameBuffer(self._framebuffer, width, height, self.mode)
         self.fb.fill(0)
         

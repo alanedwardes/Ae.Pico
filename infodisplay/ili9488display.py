@@ -45,7 +45,8 @@ class ILI9488Display:
             source_color_mode=mode
         )
 
-        drawing = Drawing(fb_width, fb_height, color_mode=mode)
+        framebuffer = config.get('framebuffer')
+        drawing = Drawing(fb_width, fb_height, color_mode=mode, framebuffer=framebuffer)
 
         from asyncspidriver import AsyncSpiDriver
         driver = AsyncSpiDriver(ili, drawing.framebuffer, fb_width, fb_height)

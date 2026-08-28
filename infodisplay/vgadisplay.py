@@ -22,7 +22,8 @@ class VGADisplay:
         color_base_pin = config.get('color_base_pin', 0)
         vsync_pin = config.get('vsync_pin', 17)
 
-        drawing = Drawing(width, height, color_mode=mode)
+        framebuffer = config.get('framebuffer')
+        drawing = Drawing(width, height, color_mode=mode, framebuffer=framebuffer)
 
         vga = VGA(
             drawing.framebuffer,

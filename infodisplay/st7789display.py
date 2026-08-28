@@ -42,7 +42,8 @@ class ST7789Display:
         rotation = config.get('rotate', 0)
         st.set_rotation_degrees(int(rotation))
 
-        drawing = Drawing(fb_width, fb_height, color_mode=mode)
+        framebuffer = config.get('framebuffer')
+        drawing = Drawing(fb_width, fb_height, color_mode=mode, framebuffer=framebuffer)
 
         from asyncspidriver import AsyncSpiDriver
         driver = AsyncSpiDriver(st, drawing.framebuffer, fb_width, fb_height)
