@@ -85,7 +85,6 @@ class TrainDisplay:
         await self.update()
 
     def _resolve_column_widths(self):
-        """Return a list of (x, width) tuples matching COLUMNS order."""
         return table.column_rects(0, self.display_width, [w for _, _, w in COLUMNS], min_fill_width=50)
 
     async def fetch_departures(self):

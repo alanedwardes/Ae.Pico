@@ -12,6 +12,11 @@ from httpstream import HttpRequest
 from flatjson import load_array
 
 _DAY_NAMES = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
+_WEEKEND_WEEKDAYS = (5, 6)
+
+def _format_temperature(value):
+    rounded = round(value)
+    return f"{abs(rounded) if rounded == 0 else rounded:.0f}°"
 
 async def _draw_text_cell(display, x, y, w, h, text, color, font_name):
     await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name)
@@ -141,10 +146,9 @@ class WeatherDisplay:
             return
 
         usable_height = self.display_height - y_start
-        # Rows: day name, icon, max temp, min temp, rain
         grid = table.grid_rects(0, y_start, self.display_width, usable_height, 5, num_days)
 
-        now = self.time.local_time()
+        today_weekday = self.time.local_time()[6]
         cells = []
         for i in range(num_days):
             data_index = i * 4
@@ -163,21 +167,16 @@ class WeatherDisplay:
             rain_x, rain_y, rain_w, rain_h = grid[4 * num_days + i]
 
             if i == 0:
-                # Today: draw a yellow triangle pointing down instead of the day name
                 cells.append((day_x, day_y, day_w, day_h, _draw_today_cell, ()))
             else:
-                # Get current day of week (0 = Monday, 6 = Sunday)
-                day_of_week = (now[6] + i) % 7
-                day_pen = 0xC8CED4 if day_of_week in (5, 6) else 0xFFFFFF  # Saturday or Sunday
+                day_of_week = (today_weekday + i) % 7
+                day_pen = 0xC8CED4 if day_of_week in _WEEKEND_WEEKDAYS else 0xFFFFFF
                 cells.append((day_x, day_y, day_w, day_h, _draw_text_cell, (_DAY_NAMES[day_of_week], day_pen, font_name)))
 
             cells.append((icon_x, icon_y, icon_w, icon_h, _draw_icon_cell, (self, weather_code)))
 
-            # Format temperatures, avoiding "-0" display
-            max_temp_rounded = round(max_temperature)
-            min_temp_rounded = round(min_temperature)
-            max_temp_str = f"{abs(max_temp_rounded) if max_temp_rounded == 0 else max_temp_rounded:.0f}°"
-            min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
+            max_temp_str = _format_temperature(max_temperature)
+            min_temp_str = _format_temperature(min_temperature)
 
             cells.append((max_x, max_y, max_w, max_h, _draw_text_cell, (max_temp_str, colors.get_color_for_temperature(max_temperature), font_name)))
             cells.append((min_x, min_y, min_w, min_h, _draw_text_cell, (min_temp_str, colors.get_color_for_temperature(min_temperature), font_name)))

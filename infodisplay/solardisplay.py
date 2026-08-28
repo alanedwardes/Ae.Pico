@@ -147,17 +147,14 @@ class SolarDisplay:
     async def __update(self):
         y_start = self.start_y
 
-        # 4 rows x 2 cols: [value, value] / [label, label] repeated for the
-        # two entity pairs (BAT+SOLAR on top, GRID+LOAD below). Values sit
-        # at the bottom of their row, labels at the top of theirs, so each
-        # pair reads as one stacked unit despite being two table cells.
         grid = table.grid_rects(0, y_start, self.display_width, self.display_height - y_start, 4, 2)
+        value_row_top, label_row_top, value_row_bottom, label_row_bottom = grid[0:2], grid[2:4], grid[4:6], grid[6:8]
 
         slots = [
-            (_battery_cell_data(self.battery_soc), grid[0], grid[2]),
-            (_solar_cell_data(self.current_solar), grid[1], grid[3]),
-            (_grid_cell_data(self.current_grid), grid[4], grid[6]),
-            (_load_cell_data(self.current_load), grid[5], grid[7]),
+            (_battery_cell_data(self.battery_soc), value_row_top[0], label_row_top[0]),
+            (_solar_cell_data(self.current_solar), value_row_top[1], label_row_top[1]),
+            (_grid_cell_data(self.current_grid), value_row_bottom[0], label_row_bottom[0]),
+            (_load_cell_data(self.current_load), value_row_bottom[1], label_row_bottom[1]),
         ]
 
         cells = []
