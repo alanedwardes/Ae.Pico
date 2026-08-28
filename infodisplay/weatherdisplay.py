@@ -3,6 +3,7 @@ import gc
 import colors
 import struct
 import textbox
+import table
 import random
 import array
 from bitblt import blit_region
@@ -11,6 +12,27 @@ from httpstream import HttpRequest
 from flatjson import load_array
 
 _DAY_NAMES = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
+
+async def _draw_text_cell(display, x, y, w, h, text, color, font_name):
+    await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name)
+
+async def _draw_today_cell(display, x, y, w, h):
+    display.rect(int(x), int(y), int(w), int(h), 0x000000, True)
+
+    tri_w = w // 3
+    tri_h = h // 3
+    cx = x + w // 2
+    cy = y + h // 2
+    pts = array.array('h', [
+        -tri_w // 2, -tri_h // 2,   # Top-left
+        tri_w // 2, -tri_h // 2,    # Top-right
+        0, tri_h // 2               # Bottom-center
+    ])
+    display.poly(cx, cy, pts, 0xFFFF00, True)
+
+async def _draw_icon_cell(display, x, y, w, h, weather_display, icon_name):
+    display.rect(int(x), int(y), int(w), int(h), 0x000000, True)
+    weather_display.draw_icon(icon_name, display, x, y, w, h)
 
 class WeatherDisplay:
     def __init__(self, display, url, refresh_period_seconds, start_y, time):
@@ -109,24 +131,21 @@ class WeatherDisplay:
     async def update(self):
         if len(self.weather_data) == 0:
             return
-        
+
         y_start = self.start_y
         font_name = 'regular' if self.display_width > 320 else 'small'
 
-
         # Calculate number of days from data (each day has 4 values: code, max_temp, min_temp, rain)
         num_days = len(self.weather_data) // 4
+        if num_days == 0:
+            return
 
         usable_height = self.display_height - y_start
-        slot_height = usable_height // 5
-
-        day_row_y = y_start
-        icon_row_y = day_row_y + slot_height
-        max_row_y = icon_row_y + slot_height
-        min_row_y = max_row_y + slot_height
-        rain_row_y = min_row_y + slot_height
+        # Rows: day name, icon, max temp, min temp, rain
+        grid = table.grid_rects(0, y_start, self.display_width, usable_height, 5, num_days)
 
         now = self.time.local_time()
+        cells = []
         for i in range(num_days):
             data_index = i * 4
             if data_index + 3 >= len(self.weather_data):
@@ -137,44 +156,22 @@ class WeatherDisplay:
             min_temperature = self.weather_data[data_index + 2]
             rain = self.weather_data[data_index + 3]
 
-            # Calculate column position and width to fill the screen evenly
-            sx = (i * self.display_width) // num_days
-            next_sx = ((i + 1) * self.display_width) // num_days
-            column_width = next_sx - sx
-
-            # Clear this column
-            self.display.rect(sx, y_start, column_width, usable_height, 0x000000, True)
+            day_x, day_y, day_w, day_h = grid[0 * num_days + i]
+            icon_x, icon_y, icon_w, icon_h = grid[1 * num_days + i]
+            max_x, max_y, max_w, max_h = grid[2 * num_days + i]
+            min_x, min_y, min_w, min_h = grid[3 * num_days + i]
+            rain_x, rain_y, rain_w, rain_h = grid[4 * num_days + i]
 
             if i == 0:
                 # Today: draw a yellow triangle pointing down instead of the day name
-                # Use a reasonable size for the triangle
-                tri_w = column_width // 3
-                tri_h = slot_height // 3
-                
-                # Center it in the day row slot
-                cx = sx + column_width // 2
-                cy = day_row_y + slot_height // 2
-                
-                # Triangle points (downward arrow)
-                # (x1, y1), (x2, y2), (x3, y3) relative to (cx, cy)
-                pts = array.array('h', [
-                    -tri_w // 2, -tri_h // 2,   # Top-left
-                    tri_w // 2, -tri_h // 2,    # Top-right
-                    0, tri_h // 2               # Bottom-center
-                ])
-                self.display.poly(cx, cy, pts, 0xFFFF00, True)
+                cells.append((day_x, day_y, day_w, day_h, _draw_today_cell, ()))
             else:
                 # Get current day of week (0 = Monday, 6 = Sunday)
                 day_of_week = (now[6] + i) % 7
+                day_pen = 0xC8CED4 if day_of_week in (5, 6) else 0xFFFFFF  # Saturday or Sunday
+                cells.append((day_x, day_y, day_w, day_h, _draw_text_cell, (_DAY_NAMES[day_of_week], day_pen, font_name)))
 
-                if day_of_week == 5 or day_of_week == 6:  # Saturday or Sunday
-                    day_pen = 0xC8CED4
-                else:
-                    day_pen = 0xFFFFFF
-
-                await textbox.draw_textbox(self.display, _DAY_NAMES[day_of_week], sx, day_row_y, column_width, slot_height, color=day_pen, font=font_name)
-
-            self.draw_icon(weather_code, self.display, sx, icon_row_y, column_width, slot_height)
+            cells.append((icon_x, icon_y, icon_w, icon_h, _draw_icon_cell, (self, weather_code)))
 
             # Format temperatures, avoiding "-0" display
             max_temp_rounded = round(max_temperature)
@@ -182,13 +179,10 @@ class WeatherDisplay:
             max_temp_str = f"{abs(max_temp_rounded) if max_temp_rounded == 0 else max_temp_rounded:.0f}°"
             min_temp_str = f"{abs(min_temp_rounded) if min_temp_rounded == 0 else min_temp_rounded:.0f}°"
 
-            await textbox.draw_textbox(self.display, max_temp_str, sx, max_row_y, column_width, slot_height, color=colors.get_color_for_temperature(max_temperature), font=font_name)
-            await textbox.draw_textbox(self.display, min_temp_str, sx, min_row_y, column_width, slot_height, color=colors.get_color_for_temperature(min_temperature), font=font_name)
+            cells.append((max_x, max_y, max_w, max_h, _draw_text_cell, (max_temp_str, colors.get_color_for_temperature(max_temperature), font_name)))
+            cells.append((min_x, min_y, min_w, min_h, _draw_text_cell, (min_temp_str, colors.get_color_for_temperature(min_temperature), font_name)))
 
             rain_color = colors.get_color_for_rain_percentage(rain)
-            await textbox.draw_textbox(self.display, f"{rain}%", sx, rain_row_y, column_width, slot_height, color=rain_color, font=font_name)
+            cells.append((rain_x, rain_y, rain_w, rain_h, _draw_text_cell, (f"{rain}%", rain_color, font_name)))
 
-
-
-            # Allow other work to continue
-            await asyncio.sleep(0)
+        await table.draw_cells(self.display, cells, shuffle=True)

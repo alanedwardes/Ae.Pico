@@ -2,6 +2,7 @@ import utime
 import asyncio
 import gc
 import textbox
+import table
 import random
 from httpstream import HttpRequest
 from flatjson import load_array
@@ -49,6 +50,9 @@ COLUMNS = [
     ('Expected', 6, 70),
 ]
 
+async def _draw_cell(display, x, y, w, h, text, color, align):
+    await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font='small', align=align)
+
 class TrainDisplay:
     def __init__(self, display, url, start_y):
         self.display = display
@@ -81,38 +85,8 @@ class TrainDisplay:
         await self.update()
 
     def _resolve_column_widths(self):
-        """Return (x_positions, widths) lists matching COLUMNS order."""
-        fixed_total = sum(w for _, _, w in COLUMNS if w is not None)
-        fill_width = max(50, self.display_width - fixed_total)
-        widths = [fill_width if w is None else w for _, _, w in COLUMNS]
-        positions = []
-        x = 0
-        for w in widths:
-            positions.append(x)
-            x += w
-        return positions, widths
-
-    async def __draw_header_row(self, y_offset):
-        header_color = 0x848284
-        positions, widths = self._resolve_column_widths()
-        for i, (label, _, _) in enumerate(COLUMNS):
-            align = 'left' if widths[i] > 50 else 'center'
-            await textbox.draw_textbox(self.display, label, positions[i], y_offset, widths[i], 20, color=header_color, background=0x000000, font='small', align=align)
-
-    async def __draw_departure_row(self, departure_idx, y_offset):
-        idx = departure_idx * FIELDS_PER_DEPARTURE
-        if idx + FIELDS_PER_DEPARTURE > len(self.departures):
-            return
-
-        status = self.departures[idx + 3] or 'scheduled'
-        delay_minutes = self.departures[idx + 4]
-        row_pen = get_color_for_train_status(status, delay_minutes)
-
-        positions, widths = self._resolve_column_widths()
-        for i, (_, field_offset, _) in enumerate(COLUMNS):
-            value = self.departures[idx + field_offset] or ''
-            align = 'left' if widths[i] > 50 else 'center'
-            await textbox.draw_textbox(self.display, value, positions[i], y_offset, widths[i], 20, color=row_pen, background=0x000000, font='small', align=align)
+        """Return a list of (x, width) tuples matching COLUMNS order."""
+        return table.column_rects(0, self.display_width, [w for _, _, w in COLUMNS], min_fill_width=50)
 
     async def fetch_departures(self):
         try:
@@ -148,16 +122,27 @@ class TrainDisplay:
         available_height = self.display_height - self.start_y - row_height
         max_rows = available_height // row_height
 
-        await self.__draw_header_row(y_start)
+        col_rects = self._resolve_column_widths()
 
-        # Allow other work to continue
-        await asyncio.sleep(0)
+        header_color = 0x848284
+        cells = []
+        for (label, _, _), (cx, cw) in zip(COLUMNS, col_rects):
+            align = 'left' if cw > 50 else 'center'
+            cells.append((cx, y_start, cw, row_height, _draw_cell, (label, header_color, align)))
 
-        # Draw departure rows
         for row in range(max_rows):
-            row_start = y_start + row_height + row * row_height
+            idx = row * FIELDS_PER_DEPARTURE
+            if idx + FIELDS_PER_DEPARTURE > len(self.departures):
+                break
 
-            await self.__draw_departure_row(row, row_start)
+            row_y = y_start + row_height + row * row_height
+            status = self.departures[idx + 3] or 'scheduled'
+            delay_minutes = self.departures[idx + 4]
+            row_pen = get_color_for_train_status(status, delay_minutes)
 
-            # Allow other work to continue
-            await asyncio.sleep(0)
+            for (_, field_offset, _), (cx, cw) in zip(COLUMNS, col_rects):
+                value = self.departures[idx + field_offset] or ''
+                align = 'left' if cw > 50 else 'center'
+                cells.append((cx, row_y, cw, row_height, _draw_cell, (value, row_pen, align)))
+
+        await table.draw_cells(self.display, cells, shuffle=True)
