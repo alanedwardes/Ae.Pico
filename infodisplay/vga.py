@@ -1454,17 +1454,21 @@ class VGA:
 
     def _suspend(self):
         self._core1_state[_CS_ENABLED] = 0
-        self._fill_active_region_table(black=True)
-        self._hsync_sm.active(0)
-        self._vsync_sm.active(0)
-        self._suspended = True
+        try:
+            self._fill_active_region_table(black=True)
+            self._hsync_sm.active(0)
+            self._vsync_sm.active(0)
+        finally:
+            self._suspended = True
 
     def _resume(self):
-        self._fill_active_region_table(black=False)
-        self._hsync_sm.active(1)
-        self._vsync_sm.active(1)
-        self._core1_state[_CS_ENABLED] = 1
-        self._suspended = False
+        try:
+            self._fill_active_region_table(black=False)
+            self._hsync_sm.active(1)
+            self._vsync_sm.active(1)
+        finally:
+            self._core1_state[_CS_ENABLED] = 1
+            self._suspended = False
 
     def stop(self):
         if not self._started:

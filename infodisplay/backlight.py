@@ -53,12 +53,15 @@ class Backlight:
         if diff == 0:
             return
 
+        step_size = diff / steps
+        sleep_interval = duration / steps
+        new_val = start
         try:
-            for i in range(1, steps + 1):
-                new_val = start + (diff * i / steps)
+            for _ in range(steps):
+                new_val += step_size
                 self.display.set_backlight(new_val)
                 self._current_backlight = new_val
-                await asyncio.sleep(duration / steps)
+                await asyncio.sleep(sleep_interval)
             self.display.set_backlight(target)
             self._current_backlight = target
         except asyncio.CancelledError:
