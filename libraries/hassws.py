@@ -6,10 +6,14 @@ import asyncio
 import asyncutils
 
 class HassWs:
-    def __init__(self, url, token):
+    def __init__(self, url, token, provider, sleep_entity_id=None):
         self.url = url
         self.token = token
-        
+        self.provider = provider
+        self.sleep_entity_id = sleep_entity_id
+        self.event_bus = None
+        self._asleep = None
+
         self.entity_callbacks = {}
         self.subscribed_entities = set()
         self.entities_updated = set()
@@ -25,9 +29,16 @@ class HassWs:
     
     def create(provider):
         config = provider['config']['hass']
-        return HassWs(config['ws'], config['token'])
-    
+        display_config = provider['config'].get('display', {})
+        sleep_entity_id = config.get('sleep_entity_id') or display_config.get('occupancy_entity_id')
+        return HassWs(config['ws'], config['token'], provider, sleep_entity_id)
+
     async def start(self):
+        if self.sleep_entity_id and self.event_bus is None:
+            self.event_bus = self.provider.get('eventbus.EventBus')
+            if self.event_bus is not None:
+                await self.subscribe([self.sleep_entity_id], self._sleep_entity_changed)
+
         while True:
             try:
                 self.socket = await ws.connect(self.url + '/api/websocket')
@@ -108,6 +119,13 @@ class HassWs:
         
         self.message_id += 1
         await self.socket.send('{"id":%i,"type":"call_service","domain":"%s","service":"%s","service_data":%s,"target":{"entity_id":"%s"}}' % (self.message_id, domain, service, json.dumps(data), entity_id))
+
+    def _sleep_entity_changed(self, entity_id, entity):
+        asleep = entity.get('s') == 'off'
+        if asleep == self._asleep:
+            return
+        self._asleep = asleep
+        self.event_bus.publish('system.sleep' if asleep else 'system.wake')
 
     async def subscribe(self, entity_ids, callback = None):
         if not entity_ids:

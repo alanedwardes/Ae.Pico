@@ -35,6 +35,10 @@ class DisplaySwitcher:
             return self.provider.get(target_service)
         return None
 
+    def _on_sleep(self):
+        self.manual_trigger.set()
+        asyncio.create_task(self._cancel_active_task())
+
     async def start(self):
         bus = self.provider.get('eventbus.EventBus')
         focus_queue = None
@@ -45,12 +49,15 @@ class DisplaySwitcher:
         self.current_index = -1
         self.manual_trigger = asyncio.Event()
         self.pause_time = 0
+        self.sleep_gate = asyncutils.SleepGate(bus, on_sleep=self._on_sleep)
 
         while True:
             # Advance index
             if not self.services:
                  await asyncio.sleep(1)
                  continue
+
+            await self.sleep_gate.wait_awake()
 
             if self.pause_time > 0:
                 print(f"DisplaySwitcher: Paused for {self.pause_time}s")
