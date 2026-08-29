@@ -1283,7 +1283,11 @@ class VGA:
         _vsync_reset_shared[_VSR_V_TOTAL] = self.V_TOTAL
         ch_ctrl.irq(handler=_vsync_reset_irq_handler, hard=True)
 
+        self._color_sm.active(1)
+        self._vsync_sm.active(1)
+        self._vsync_sm.put(self.V_IDLE - 1)
         self._arm_video_pipeline()
+        self._hsync_sm.active(1)
         return ch_ctrl_reg_addr, ch_pixel_reg_addr
 
     def _arm_video_pipeline(self):
@@ -1303,16 +1307,7 @@ class VGA:
                               ctrl=self._ctrl_pixel, trigger=False)
         self._ch_ctrl.config(read=self._table_addr, write=self._ch_pixel_al3_trig_addr,
                              count=1, ctrl=self._ctrl_ctrl, trigger=False)
-
-        self._hsync_sm.restart()
-        self._color_sm.restart()
-        self._vsync_sm.restart()
-
-        self._color_sm.active(1)
-        self._vsync_sm.active(1)
-        self._vsync_sm.put(self.V_IDLE - 1)
         self._ch_ctrl.active(1)
-        self._hsync_sm.active(1)
 
     def _clear_array(self, arr):
         for i in range(len(arr)):
@@ -1445,9 +1440,6 @@ class VGA:
 
     def _suspend(self):
         self._core1_state[_CS_ENABLED] = 0
-        self._hsync_sm.active(0)
-        self._color_sm.active(0)
-        self._vsync_sm.active(0)
         self._ch_ctrl.active(0)
         self._ch_pixel.active(0)
         self._suspended = True

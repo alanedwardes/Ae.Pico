@@ -51,32 +51,16 @@ class TestVgaSuspendResume(unittest.TestCase):
         display._ch_pixel = call_order.ch_pixel
         return display, call_order
 
-    def test_resume_restarts_each_sync_state_machine_before_reactivating(self):
+    def test_resume_never_touches_the_sync_state_machines(self):
         display, call_order = self._make_display()
         display._suspended = True
 
         display.resume()
 
-        call_order.hsync_sm.restart.assert_called_once_with()
-        call_order.color_sm.restart.assert_called_once_with()
-        call_order.vsync_sm.restart.assert_called_once_with()
-
-        call_names = [c[0] for c in call_order.mock_calls]
-        self.assertLess(call_names.index('hsync_sm.restart'), call_names.index('hsync_sm.active'))
-        self.assertLess(call_names.index('color_sm.restart'), call_names.index('color_sm.active'))
-        self.assertLess(call_names.index('vsync_sm.restart'), call_names.index('vsync_sm.active'))
+        self.assertEqual(call_order.hsync_sm.mock_calls, [])
+        self.assertEqual(call_order.color_sm.mock_calls, [])
+        self.assertEqual(call_order.vsync_sm.mock_calls, [])
         self.assertFalse(display._suspended)
-
-    def test_resume_reprimes_vsync_idle_count_on_every_cycle(self):
-        display, call_order = self._make_display()
-
-        display.suspend()
-        display.resume()
-        display.suspend()
-        display.resume()
-
-        self.assertEqual(call_order.vsync_sm.put.call_count, 2)
-        call_order.vsync_sm.put.assert_called_with(506)
 
     def test_resume_rearms_dma_from_start_of_table_and_pool(self):
         display, call_order = self._make_display()
@@ -91,6 +75,7 @@ class TestVgaSuspendResume(unittest.TestCase):
         call_order.ch_ctrl.config.assert_called_once_with(
             read=display._table_addr, write=display._ch_pixel_al3_trig_addr,
             count=1, ctrl=display._ctrl_ctrl, trigger=False)
+        call_order.ch_ctrl.active.assert_called_once_with(1)
 
     def test_resume_resets_vsync_line_tracking_shared_state(self):
         display, call_order = self._make_display()
@@ -106,16 +91,16 @@ class TestVgaSuspendResume(unittest.TestCase):
         self.assertEqual(vga._vsync_reset_shared[vga._VSR_RESET_DONE_THIS_FRAME], 0)
         self.assertEqual(vga._vsync_reset_shared[vga._VSR_RESET_LINE_IDX], display._reset_line_idx)
 
-    def test_suspend_disables_all_hardware_and_marks_state(self):
+    def test_suspend_disables_only_the_pixel_feed_dma_and_marks_state(self):
         display, call_order = self._make_display()
 
         display.suspend()
 
-        call_order.hsync_sm.active.assert_called_once_with(0)
-        call_order.color_sm.active.assert_called_once_with(0)
-        call_order.vsync_sm.active.assert_called_once_with(0)
         call_order.ch_ctrl.active.assert_called_once_with(0)
         call_order.ch_pixel.active.assert_called_once_with(0)
+        self.assertEqual(call_order.hsync_sm.mock_calls, [])
+        self.assertEqual(call_order.color_sm.mock_calls, [])
+        self.assertEqual(call_order.vsync_sm.mock_calls, [])
         self.assertTrue(display._suspended)
         self.assertEqual(display._core1_state[vga._CS_ENABLED], 0)
 
