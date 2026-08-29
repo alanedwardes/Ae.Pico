@@ -34,7 +34,6 @@ class TestVgaSuspendResume(unittest.TestCase):
         display._started = True
         display._suspended = False
         display._core1_state = array.array('i', list(vga._CORE1_STATE_INITIAL))
-        display.V_IDLE = 507
         display._reset_line_idx = 42
         display._pool_addrs = [0x20000000, 0x20000100]
         display._words_per_line = 160
