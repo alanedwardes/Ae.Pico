@@ -37,24 +37,23 @@ async def start_application(nic):
         print('Application exit')
 
 async def start():
+    import connectivity
+
+    if hasattr(connectivity, 'hostname'):
+        network.hostname(connectivity.hostname)
+
     nic = network.WLAN(network.STA_IF)
     nic.active(True)
     led = None
-    
-    # Best-effort status LED; ignore failures on hosts without LED access
+
     try:
         import machine
         led = machine.Pin("LED", machine.Pin.OUT)
         led.value(0)
     except Exception:
         pass
-    
-    import connectivity
-    
+
     webrepl.start(getattr(connectivity, 'repl_port', 8266), getattr(connectivity, 'repl_password', ''))
-    
-    if hasattr(connectivity, 'hostname'):
-        nic.config(hostname = connectivity.hostname)
 
     while not nic.isconnected():
         print(f'connecting to {connectivity.ssid}')
