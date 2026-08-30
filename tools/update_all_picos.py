@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from secret_config import PICOS
 except ImportError:
-    print("tools/secret_config.py not found. Create it with:\n  PICOS = ['hostname.home']")
+    print("tools/secret_config.py not found. Create it with:\n  PICOS = ['hostname.local']")
     sys.exit(1)
 
 CONNECT_TIMEOUT = 5.0
