@@ -94,6 +94,21 @@ class TestAsyncIterableJsonParser(unittest.IsolatedAsyncioTestCase):
         result = await load(MockAsyncIterable(payload, 2), ignore_keys={"ignore"})
         self.assertEqual(result, {"keep": 1})
 
+    async def test_fast_skip_object_with_braces_inside_string_value(self):
+        payload = '{"ignore": {"name": "Office {Test} }} weird {{{ value"}, "keep": 1}'
+        result = await load(MockAsyncIterable(payload, 2), ignore_keys={"ignore"})
+        self.assertEqual(result, {"keep": 1})
+
+    async def test_fast_skip_array_with_braces_inside_string_value(self):
+        payload = '{"ignore": ["a {b} c", "}}}", "{{{"], "keep": 1}'
+        result = await load(MockAsyncIterable(payload, 2), ignore_keys={"ignore"})
+        self.assertEqual(result, {"keep": 1})
+
+    async def test_fast_skip_object_with_escaped_quote_before_brace(self):
+        payload = '{"ignore": {"a": "x\\"}y", "b": 2}, "keep": 1}'
+        result = await load(MockAsyncIterable(payload, 2), ignore_keys={"ignore"})
+        self.assertEqual(result, {"keep": 1})
+
     async def test_fast_skip_multikey(self):
         payload = '{"i1": 1, "keep": 2, "i2": {"x": 3}}'
         result = await load(MockAsyncIterable(payload, 2), ignore_keys={"i1", "i2"})
