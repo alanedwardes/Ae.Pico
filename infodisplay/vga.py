@@ -1438,34 +1438,17 @@ class VGA:
         if self._suspended:
             self._resume()
 
-    def _fill_active_region_table(self, black):
-        raw = self._raw
-        offset_words = (self._table_addr - uctypes.addressof(raw)) // 4
-        pool_addrs = self._pool_addrs
-        pool_size = self.POOL_SIZE
-        table_len = self._table_len
-        black_addr = self._black_buffer_addr
-        for i in range(self.V_ACTIVE):
-            if black:
-                raw[offset_words + i] = black_addr
-            else:
-                phase = i % table_len
-                raw[offset_words + i] = pool_addrs[(phase * pool_size) // table_len]
-
     def _suspend(self):
         self._core1_state[_CS_ENABLED] = 0
         try:
-            self._fill_active_region_table(black=True)
-            self._hsync_sm.active(0)
-            self._vsync_sm.active(0)
+            self._ch_ctrl.active(0)
+            self._ch_pixel.active(0)
         finally:
             self._suspended = True
 
     def _resume(self):
         try:
-            self._fill_active_region_table(black=False)
-            self._hsync_sm.active(1)
-            self._vsync_sm.active(1)
+            self._arm_video_pipeline()
         finally:
             self._core1_state[_CS_ENABLED] = 1
             self._suspended = False
