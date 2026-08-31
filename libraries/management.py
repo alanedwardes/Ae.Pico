@@ -535,14 +535,16 @@ class _DuptermStream(io.IOBase):
 
 class MemoryController:
     def route(self, method, path):
-        return path == b'/memory' or path == b'/memorymap'
+        base, _, query = path.partition(b'?')
+        return base == b'/memory' or base == b'/memorymap'
 
     def widget(self):
-        return b' <a href="memory">Memory</a> <a href="memorymap">Memory map</a>'
+        return b' <a href="memory">Memory</a> <a href="memorymap">Memory map</a> <a href="memorymap?verbose">Memory map (verbose)</a>'
 
     async def serve(self, method, path, headers, reader, writer):
-        if path == b'/memorymap':
-            await self._serve_map(writer)
+        base, _, query = path.partition(b'?')
+        if base == b'/memorymap':
+            await self._serve_map(writer, verbose=b'verbose' in query)
             return
 
         writer.write(OK_STATUS)
@@ -565,7 +567,7 @@ class MemoryController:
             writer.write(chunk)
             await writer.drain()
 
-    async def _serve_map(self, writer):
+    async def _serve_map(self, writer, verbose):
         writer.write(OK_STATUS)
         writer.write(b'Content-Type: text/plain; charset=utf-8' + HEADER_TERMINATOR)
         writer.write(HEADER_TERMINATOR)
@@ -573,7 +575,10 @@ class MemoryController:
         stream = _DuptermStream(writer)
         previous = os.dupterm(stream)
         try:
-            micropython.mem_info()
+            if verbose:
+                micropython.mem_info(1)
+            else:
+                micropython.mem_info()
         finally:
             os.dupterm(previous)
 
