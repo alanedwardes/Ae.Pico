@@ -1,16 +1,28 @@
+import sys
 import binascii
 import network
 import machine
 import asyncio
 import utime
 import uos
+import os
+import io
 import gc
 
 try:
-    from micropython import const
+    import micropython
+    IS_MICROPYTHON = sys.implementation.name == 'micropython'
 except ImportError:
-    def const(x):
-        return x
+    IS_MICROPYTHON = False
+
+if not IS_MICROPYTHON:
+    class micropython:
+        @staticmethod
+        def const(x): return x
+        @staticmethod
+        def mem_info(*args): pass
+
+const = micropython.const
 
 HEADER_TERMINATOR = b'\r\n'
 KB = const(1024)
@@ -510,14 +522,29 @@ class ResetController:
     def widget(self):
         return b' <a href="reset">Reset</a>'
 
+class _DuptermStream(io.IOBase):
+    def __init__(self, writer):
+        self.writer = writer
+
+    def write(self, data):
+        self.writer.write(data)
+        return len(data)
+
+    def ioctl(self, request, arg):
+        return 0
+
 class MemoryController:
     def route(self, method, path):
-        return path == b'/memory'
+        return path == b'/memory' or path == b'/memorymap'
 
     def widget(self):
-        return b' <a href="memory">Memory</a>'
+        return b' <a href="memory">Memory</a> <a href="memorymap">Memory map</a>'
 
     async def serve(self, method, path, headers, reader, writer):
+        if path == b'/memorymap':
+            await self._serve_map(writer)
+            return
+
         writer.write(OK_STATUS)
         writer.write(b'Content-Length: %i' % (SRAM_LENGTH) + HEADER_TERMINATOR)
         writer.write(b'Content-Type: application/octet-stream' + HEADER_TERMINATOR)
@@ -537,6 +564,20 @@ class MemoryController:
                 addr += 4
             writer.write(chunk)
             await writer.drain()
+
+    async def _serve_map(self, writer):
+        writer.write(OK_STATUS)
+        writer.write(b'Content-Type: text/plain; charset=utf-8' + HEADER_TERMINATOR)
+        writer.write(HEADER_TERMINATOR)
+
+        stream = _DuptermStream(writer)
+        previous = os.dupterm(stream)
+        try:
+            micropython.mem_info(1)
+        finally:
+            os.dupterm(previous)
+
+        await writer.drain()
 
 class ManagementServer:
     def __init__(self, port = 80):
