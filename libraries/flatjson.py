@@ -4,6 +4,41 @@ Parses elements one at a time without buffering the entire payload.
 Designed for memory-constrained environments.
 """
 
+import sys
+
+try:
+    import micropython
+    _IS_MICROPYTHON = sys.implementation.name == 'micropython'
+except ImportError:
+    _IS_MICROPYTHON = False
+
+if not _IS_MICROPYTHON:
+    class micropython:
+        @staticmethod
+        def viper(f): return f
+
+    ptr8 = object
+
+@micropython.viper
+def _viper_skip_whitespace(buf: ptr8, pos: int, end: int) -> int:
+    i = pos
+    while i < end:
+        c = buf[i]
+        if c != 32 and c != 9 and c != 10 and c != 13:
+            break
+        i += 1
+    return i
+
+@micropython.viper
+def _viper_skip_number_chars(buf: ptr8, pos: int, end: int) -> int:
+    i = pos
+    while i < end:
+        c = buf[i]
+        if not ((c >= 48 and c <= 57) or c == 45 or c == 43 or c == 46 or c == 101 or c == 69):
+            break
+        i += 1
+    return i
+
 def _unescape_string(s):
     if '\\' not in s:
         return s
@@ -40,13 +75,6 @@ def _unescape_string(s):
             res.extend(c.encode('utf-8'))
         i += 1
     return res.decode('utf-8')
-
-def _parse_number_str(val_str, pos_hint=0):
-    if not val_str or val_str in ('-', '+'):
-        raise ValueError(f"Expected number but got empty string near position {pos_hint}")
-    if '.' in val_str or 'e' in val_str or 'E' in val_str:
-        return float(val_str)
-    return int(val_str)
 
 class _ReaderIterable:
     """Wrapper to turn an object with a .read(n) method into an async iterator yielding chunks."""
@@ -113,8 +141,7 @@ class _AsyncJsonParser:
 
     async def skip_whitespace(self):
         while True:
-            while self.pos < len(self.buffer) and self.buffer[self.pos] in b' \t\n\r':
-                self.pos += 1
+            self.pos = _viper_skip_whitespace(self.buffer, self.pos, len(self.buffer))
             if self.pos < len(self.buffer):
                 return
             await self._fill_buffer(1)
@@ -202,8 +229,7 @@ class _AsyncJsonParser:
 
     async def _skip_number_chars(self):
         while True:
-            while self.pos < len(self.buffer) and self.buffer[self.pos] in b'-+0123456789.eE':
-                self.pos += 1
+            self.pos = _viper_skip_number_chars(self.buffer, self.pos, len(self.buffer))
             if self.pos < len(self.buffer):
                 return
             await self._fill_buffer(1)
@@ -391,16 +417,19 @@ class _AsyncJsonParser:
         self.keep_pos = self.pos
         try:
             while True:
-                while self.pos < len(self.buffer) and self.buffer[self.pos] in b'-+0123456789.eE':
-                    self.pos += 1
+                self.pos = _viper_skip_number_chars(self.buffer, self.pos, len(self.buffer))
                 if self.pos < len(self.buffer):
                     break
                 await self._fill_buffer(1)
                 if self.pos >= len(self.buffer):
                     break
 
-            val_str = bytes(memoryview(self.buffer)[self.keep_pos:self.pos]).decode('ascii')
-            return _parse_number_str(val_str, pos_hint=self.keep_pos)
+            val = self.buffer[self.keep_pos:self.pos]
+            if not val or val in (b'-', b'+'):
+                raise ValueError(f"Expected number but got empty string near position {self.keep_pos}")
+            if b'.' in val or b'e' in val or b'E' in val:
+                return float(val)
+            return int(val)
         finally:
             self.keep_pos = None
 
