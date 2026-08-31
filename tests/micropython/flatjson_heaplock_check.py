@@ -1,94 +1,57 @@
 import gc
 import micropython
 
-from flatjson import _AsyncJsonParser
+from flatjson import _SyncJsonParser, _viper_skip_whitespace, _viper_skip_number_chars
 from microcheck import check, summarize
 
 
 def alloc_under_lock(fn):
     gc.collect()
-    before = gc.mem_alloc()
     try:
         micropython.heap_lock()
         fn()
         micropython.heap_unlock()
     except MemoryError:
         micropython.heap_unlock()
-        return ('raised', None)
-    return ('ok', gc.mem_alloc() - before)
-
-
-def run_sync(coro):
-    try:
-        while True:
-            coro.send(None)
-    except StopIteration as e:
-        return e.value
-
-
-def alloc_delta(fn):
-    gc.collect()
-    before = gc.mem_alloc()
-    fn()
-    return gc.mem_alloc() - before
+        return 'raised'
+    return 'ok'
 
 
 def main():
-    p = _AsyncJsonParser([])
-    p.buffer = bytearray(b'   {"a":"bcdefghijklmnop","n":12345,"x":"y\\"z"}   ')
+    buf = bytearray(b'   {"a":"bcdefghijklmnop","n":12345,"x":"y\\"z"}   ')
+    numbuf = bytearray(b'12345')
+
+    warm = _SyncJsonParser(bytearray(buf))
+    warm.parse_value()
+    int(numbuf)
+    buf.find(b'"', 0, len(buf))
+    _viper_skip_whitespace(buf, 0, len(buf))
+    _viper_skip_number_chars(numbuf, 0, len(numbuf))
+
+    p = _SyncJsonParser(buf)
     p.pos = 0
+    res = alloc_under_lock(lambda: p.skip_whitespace())
+    check('skip_whitespace() does not allocate once warmed up', res == 'ok', 'res=%s' % res)
 
-    res, _ = alloc_under_lock(lambda: run_sync(p.skip_whitespace()))
-    check('calling skip_whitespace() allocates a coroutine frame',
-          res == 'raised', 'res=%s' % res)
-    p.pos = 3
+    res = alloc_under_lock(lambda: int(numbuf))
+    check('int(bytearray) does not allocate', res == 'ok', 'res=%s' % res)
 
-    res, _ = alloc_under_lock(lambda: run_sync(p._fill_buffer(1)))
-    check('calling _fill_buffer() allocates a coroutine frame even on its no-op path',
-          res == 'raised', 'res=%s' % res)
+    res = alloc_under_lock(lambda: float(numbuf))
+    check('float(bytearray) always allocates (no tagged-float representation)', res == 'raised', 'res=%s' % res)
 
-    p.pos = 3
-    just_skip_ws = alloc_delta(lambda: run_sync(p.skip_whitespace()))
+    res = alloc_under_lock(lambda: buf.find(b'"', 0, len(buf)))
+    check('bytearray.find() does not allocate', res == 'ok', 'res=%s' % res)
 
-    p.pos = 3
-    def skip_ws_then_redundant_fill():
-        run_sync(p.skip_whitespace())
-        run_sync(p._fill_buffer(1))
-    skip_ws_plus_redundant_call = alloc_delta(skip_ws_then_redundant_fill)
+    res = alloc_under_lock(lambda: _viper_skip_whitespace(buf, 0, len(buf)))
+    check('_viper_skip_whitespace() does not allocate', res == 'ok', 'res=%s' % res)
 
-    redundant_call_cost = skip_ws_plus_redundant_call - just_skip_ws
-    check('the removed redundant _fill_buffer(1) call had a real, nonzero cost',
-          redundant_call_cost > 0,
-          'just_skip_ws=%d combined=%d cost=%d' % (just_skip_ws, skip_ws_plus_redundant_call, redundant_call_cost))
+    res = alloc_under_lock(lambda: _viper_skip_number_chars(numbuf, 0, len(numbuf)))
+    check('_viper_skip_number_chars() does not allocate', res == 'ok', 'res=%s' % res)
 
-    key_start = p.pos
-    res, delta = alloc_under_lock(lambda: p.buffer.find(b'"', key_start, len(p.buffer)))
-    check('bytearray.find() used by parse_string/fast_skip_string does not allocate',
-          res == 'ok' and delta == 0, 'res=%s delta=%s' % (res, delta))
-
-    res, delta = alloc_under_lock(lambda: p._needs_fill(1))
-    check('_needs_fill() does not allocate', res == 'ok' and delta == 0,
-          'res=%s delta=%s' % (res, delta))
-    check('_needs_fill() returns False when buffer already has enough',
-          p._needs_fill(1) is False, 'unexpected result')
-
-    p2 = _AsyncJsonParser([])
-    p2.buffer = bytearray(b'12345,')
-    p2.pos = 0
-    p2.keep_pos = 0
-    def scan_number_chars():
-        while p2.pos < len(p2.buffer) and p2.buffer[p2.pos] in b'-+0123456789.eE':
-            p2.pos += 1
-    res, delta = alloc_under_lock(scan_number_chars)
-    check("parse_number's inner digit-scan loop does not allocate",
-          res == 'ok' and delta == 0, 'res=%s delta=%s' % (res, delta))
-    check('digit scan actually advanced pos', p2.pos == 5, 'pos=%d' % p2.pos)
-
-    def parse_value_call():
-        return p.parse_value()
-    res, delta = alloc_under_lock(parse_value_call)
-    check('calling an async def itself allocates a coroutine (sanity check - expected to raise)',
-          res == 'raised', 'res=%s delta=%s' % (res, delta))
+    p2 = _SyncJsonParser(bytearray(b'{"a":"bcdefghijklmnop","n":12345,"x":"y\\"z"}'))
+    result = p2.parse_value()
+    check('full sync parse produces the correct result',
+          result == {"a": "bcdefghijklmnop", "n": 12345, "x": 'y"z'}, 'result=%r' % (result,))
 
     summarize()
 

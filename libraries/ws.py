@@ -67,7 +67,7 @@ class _FrameDataReader:
         return data
 
 class _RecvStream:
-    """Class-based async iterator for receiving decoded WebSocket messages."""
+    """Class-based async iterator for receiving raw WebSocket message bytes."""
     def __init__(self, ws):
         self.ws = ws
         self._data_reader = None
@@ -119,10 +119,7 @@ class _RecvStream:
 
         # Stream data chunks for TEXT/BYTES
         try:
-            data = await self._data_reader.__anext__()
-            if self._opcode == OP_TEXT:
-                return data.decode('utf-8')
-            return data
+            return await self._data_reader.__anext__()
         except StopAsyncIteration:
             self._finished = True
             raise
@@ -219,18 +216,19 @@ class Websocket:
         return _RecvStream(self)
 
     async def recv(self):
+        stream = self.recv_stream()
         chunks = []
-        async for chunk in self.recv_stream():
+        async for chunk in stream:
             if chunk is not None:
                 chunks.append(chunk)
 
         if not chunks:
             return None
-        
-        if isinstance(chunks[0], str):
-            return ''.join(chunks)
-        else:
-            return b''.join(chunks)
+
+        data = b''.join(chunks)
+        if stream._opcode == OP_TEXT:
+            return data.decode('utf-8')
+        return data
 
     async def send(self, buf):
         if isinstance(buf, str):

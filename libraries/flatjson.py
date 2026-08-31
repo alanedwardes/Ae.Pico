@@ -1,9 +1,3 @@
-"""
-Lean streaming JSON parser for flat arrays and general objects in MicroPython.
-Parses elements one at a time without buffering the entire payload.
-Designed for memory-constrained environments.
-"""
-
 import sys
 
 try:
@@ -76,425 +70,332 @@ def _unescape_string(s):
         i += 1
     return res.decode('utf-8')
 
-class _ReaderIterable:
-    """Wrapper to turn an object with a .read(n) method into an async iterator yielding chunks."""
-    def __init__(self, reader, chunk_size=64):
-        self.reader = reader
-        self.chunk_size = chunk_size
-        
-    def __aiter__(self):
-        return self
-        
-    async def __anext__(self):
-        chunk = await self.reader.read(self.chunk_size)
-        if not chunk:
-            raise StopAsyncIteration
-        return chunk
-
-
-class _AsyncJsonParser:
-    """
-    Memory-efficient JSON parser that reads from an async iterable or stream.
-    Allows filtering out unwanted keys from objects to save memory.
-    """
-    def __init__(self, stream_source, ignore_keys=None):
-        if hasattr(stream_source, "read"):
-            self.iterable = _ReaderIterable(stream_source)
-        elif hasattr(stream_source, "__aiter__"):
-            self.iterable = stream_source.__aiter__()
-        else:
-            self.iterable = stream_source
-            
-        self.ignore_keys = set(ignore_keys) if ignore_keys else ()
-        self.buffer = bytearray()
-        self.pos = 0
-        self.keep_pos = None
-        self.finished = False
-
-    async def _fill_buffer(self, min_length=1):
-        while len(self.buffer) - self.pos < min_length and not self.finished:
-            # Drop consumed bytes to save memory (only when enough has accumulated
-            # to justify the allocation cost of the bytearray slice)
-            drop_pos = self.pos if self.keep_pos is None else self.keep_pos
-            if drop_pos >= 256:
-                self.buffer = self.buffer[drop_pos:]
-                self.pos -= drop_pos
-                if self.keep_pos is not None:
-                    self.keep_pos -= drop_pos
-            
-            try:
-                chunk = await self.iterable.__anext__()
-                if chunk is None:
-                    continue
-                if isinstance(chunk, str):
-                    chunk = chunk.encode('utf-8')
-                self.buffer.extend(chunk)
-            except StopAsyncIteration:
-                self.finished = True
+async def _read_all(source, chunk_size=256):
+    chunks = []
+    if hasattr(source, 'read'):
+        while True:
+            chunk = await source.read(chunk_size)
+            if not chunk:
                 break
-
-    def _at_whitespace_or_buffer_end(self):
-        return self.pos >= len(self.buffer) or self.buffer[self.pos] in b' \t\n\r'
-
-    def _needs_fill(self, min_length):
-        return len(self.buffer) - self.pos < min_length
-
-    async def skip_whitespace(self):
+            chunks.append(chunk)
+    else:
+        iterable = source.__aiter__() if hasattr(source, '__aiter__') else source
         while True:
-            self.pos = _viper_skip_whitespace(self.buffer, self.pos, len(self.buffer))
-            if self.pos < len(self.buffer):
-                return
-            await self._fill_buffer(1)
-            if self.pos >= len(self.buffer):
-                return
+            try:
+                chunk = await iterable.__anext__()
+            except StopAsyncIteration:
+                break
+            if chunk is not None:
+                chunks.append(chunk)
+    return b''.join(chunks)
 
-    async def fast_skip_string(self):
-        self.pos += 1
-        self.keep_pos = self.pos
-        try:
-            while True:
-                if self._needs_fill(1):
-                    await self._fill_buffer(1)
-                if self.pos >= len(self.buffer):
-                    return
 
-                buf = self.buffer
-                buf_len = len(buf)
-                quote_pos = buf.find(b'"', self.pos, buf_len)
-                backslash_pos = buf.find(b'\\', self.pos, buf_len)
-
-                if backslash_pos != -1 and (quote_pos == -1 or backslash_pos < quote_pos):
-                    self.pos = backslash_pos
-                    if self._needs_fill(2):
-                        await self._fill_buffer(2)
-                    if self.pos + 1 >= len(self.buffer):
-                        self.pos = len(self.buffer)
-                        return
-                    self.pos += 2
-                elif quote_pos != -1:
-                    self.pos = quote_pos + 1
-                    return
-                else:
-                    self.pos = buf_len
-
-                if self.pos - self.keep_pos > 1024:
-                    self.keep_pos = self.pos
-        finally:
-            self.keep_pos = None
-
-    async def _skip_container(self, open_byte, close_byte):
-        open_needle = bytes((open_byte,))
-        close_needle = bytes((close_byte,))
-        depth = 1
-        self.pos += 1
-        while depth > 0:
-            if self._needs_fill(1):
-                await self._fill_buffer(1)
-            if self.pos >= len(self.buffer):
-                return
-
-            buf = self.buffer
-            buf_len = len(buf)
-            while self.pos < buf_len:
-                open_pos = buf.find(open_needle, self.pos, buf_len)
-                close_pos = buf.find(close_needle, self.pos, buf_len)
-                quote_pos = buf.find(b'"', self.pos, buf_len)
-
-                nearest = buf_len
-                if open_pos != -1 and open_pos < nearest:
-                    nearest = open_pos
-                if close_pos != -1 and close_pos < nearest:
-                    nearest = close_pos
-                if quote_pos != -1 and quote_pos < nearest:
-                    nearest = quote_pos
-
-                self.pos = nearest
-                if self.pos >= buf_len:
-                    break
-
-                c = buf[self.pos]
-                if c == 0x22:
-                    await self.fast_skip_string()
-                    buf = self.buffer
-                    buf_len = len(buf)
-                    continue
-
-                self.pos += 1
-                if c == open_byte:
-                    depth += 1
-                else:
-                    depth -= 1
-                    if depth == 0:
-                        return
-
-    async def _skip_number_chars(self):
-        while True:
-            self.pos = _viper_skip_number_chars(self.buffer, self.pos, len(self.buffer))
-            if self.pos < len(self.buffer):
-                return
-            await self._fill_buffer(1)
-            if self.pos >= len(self.buffer):
-                return
-
-    async def fast_skip_value(self):
-        if self._at_whitespace_or_buffer_end():
-            await self.skip_whitespace()
-        if self.pos >= len(self.buffer): return
-
-        c = self.buffer[self.pos]
-        if c == ord('{'):
-            await self._skip_container(ord('{'), ord('}'))
-        elif c == ord('['):
-            await self._skip_container(ord('['), ord(']'))
-        elif c == ord('"'):
-            await self.fast_skip_string()
-        elif c == ord('t'):
-            if self._needs_fill(4):
-                await self._fill_buffer(4)
-            self.pos += 4
-        elif c == ord('f'):
-            if self._needs_fill(5):
-                await self._fill_buffer(5)
-            self.pos += 5
-        elif c == ord('n'):
-            if self._needs_fill(4):
-                await self._fill_buffer(4)
-            self.pos += 4
+class _SyncJsonParser:
+    def __init__(self, buf, ignore_keys=None):
+        self.buf = buf
+        self.pos = 0
+        self.end = len(buf)
+        if not ignore_keys:
+            self.ignore_keys = ()
+        elif isinstance(ignore_keys, (set, frozenset)):
+            self.ignore_keys = ignore_keys
         else:
-            await self._skip_number_chars()
+            self.ignore_keys = set(ignore_keys)
 
-    async def parse_value(self):
-        if self._at_whitespace_or_buffer_end():
-            await self.skip_whitespace()
-        if self.pos >= len(self.buffer): return None
-        
-        c = self.buffer[self.pos]
-        if c == ord('{'): return await self.parse_object()
-        elif c == ord('['): return await self.parse_array()
-        elif c == ord('"'): return await self.parse_string()
+    def skip_whitespace(self):
+        self.pos = _viper_skip_whitespace(self.buf, self.pos, self.end)
+
+    def parse_value(self):
+        self.skip_whitespace()
+        if self.pos >= self.end:
+            return None
+
+        c = self.buf[self.pos]
+        if c == ord('{'): return self.parse_object()
+        elif c == ord('['): return self.parse_array()
+        elif c == ord('"'): return self.parse_string()
         elif c == ord('t'):
-            if self._needs_fill(4):
-                await self._fill_buffer(4)
+            if self.pos + 4 > self.end or self.buf[self.pos:self.pos + 4] != b'true':
+                raise ValueError(f"Invalid literal at position {self.pos}")
             self.pos += 4
             return True
         elif c == ord('f'):
-            if self._needs_fill(5):
-                await self._fill_buffer(5)
+            if self.pos + 5 > self.end or self.buf[self.pos:self.pos + 5] != b'false':
+                raise ValueError(f"Invalid literal at position {self.pos}")
             self.pos += 5
             return False
         elif c == ord('n'):
-            if self._needs_fill(4):
-                await self._fill_buffer(4)
+            if self.pos + 4 > self.end or self.buf[self.pos:self.pos + 4] != b'null':
+                raise ValueError(f"Invalid literal at position {self.pos}")
             self.pos += 4
             return None
         elif c in b']}:,':
             raise ValueError(f"Unexpected character '{chr(c)}' at position {self.pos}")
         elif c in b'-+0123456789':
-            return await self.parse_number()
+            return self.parse_number()
         else:
             raise ValueError(f"Unexpected character '{chr(c)}' at position {self.pos}")
 
-    async def parse_object(self):
-        self.pos += 1 # skip '{'
-        if self._at_whitespace_or_buffer_end():
-            await self.skip_whitespace()
-        
+    def parse_number(self):
+        start = self.pos
+        self.pos = _viper_skip_number_chars(self.buf, self.pos, self.end)
+        val = self.buf[start:self.pos]
+        if not val or val in (b'-', b'+'):
+            raise ValueError(f"Expected number but got empty string near position {start}")
+        if b'.' in val or b'e' in val or b'E' in val:
+            return float(val)
+        return int(val)
+
+    def _find_close_quote(self, pos):
+        buf = self.buf
+        end = self.end
+        while True:
+            quote_pos = buf.find(b'"', pos, end)
+            if quote_pos == -1:
+                raise ValueError("Unterminated string")
+            backslash_pos = buf.find(b'\\', pos, quote_pos)
+            if backslash_pos == -1:
+                return quote_pos
+            pos = backslash_pos + 2
+
+    def parse_string(self):
+        self.pos += 1
+        start = self.pos
+        quote_pos = self._find_close_quote(start)
+        segment = self.buf[start:quote_pos].decode('utf-8')
+        self.pos = quote_pos + 1
+        return _unescape_string(segment)
+
+    def skip_string(self):
+        self.pos += 1
+        self.pos = self._find_close_quote(self.pos) + 1
+
+    def skip_container(self, open_byte, close_byte):
+        open_needle = bytes((open_byte,))
+        close_needle = bytes((close_byte,))
+        depth = 1
+        self.pos += 1
+        buf = self.buf
+        end = self.end
+        while depth > 0:
+            open_pos = buf.find(open_needle, self.pos, end)
+            close_pos = buf.find(close_needle, self.pos, end)
+            quote_pos = buf.find(b'"', self.pos, end)
+
+            nearest = end
+            if open_pos != -1 and open_pos < nearest:
+                nearest = open_pos
+            if close_pos != -1 and close_pos < nearest:
+                nearest = close_pos
+            if quote_pos != -1 and quote_pos < nearest:
+                nearest = quote_pos
+
+            self.pos = nearest
+            if self.pos >= end:
+                return
+
+            c = buf[self.pos]
+            if c == 0x22:
+                self.skip_string()
+                continue
+
+            self.pos += 1
+            if c == open_byte:
+                depth += 1
+            else:
+                depth -= 1
+                if depth == 0:
+                    return
+
+    def fast_skip_value(self):
+        self.skip_whitespace()
+        if self.pos >= self.end:
+            return
+
+        c = self.buf[self.pos]
+        if c == ord('{'):
+            self.skip_container(ord('{'), ord('}'))
+        elif c == ord('['):
+            self.skip_container(ord('['), ord(']'))
+        elif c == ord('"'):
+            self.skip_string()
+        elif c == ord('t'):
+            if self.pos + 4 > self.end or self.buf[self.pos:self.pos + 4] != b'true':
+                raise ValueError(f"Invalid literal at position {self.pos}")
+            self.pos += 4
+        elif c == ord('f'):
+            if self.pos + 5 > self.end or self.buf[self.pos:self.pos + 5] != b'false':
+                raise ValueError(f"Invalid literal at position {self.pos}")
+            self.pos += 5
+        elif c == ord('n'):
+            if self.pos + 4 > self.end or self.buf[self.pos:self.pos + 4] != b'null':
+                raise ValueError(f"Invalid literal at position {self.pos}")
+            self.pos += 4
+        else:
+            self.pos = _viper_skip_number_chars(self.buf, self.pos, self.end)
+
+    def parse_object(self):
+        self.pos += 1
+        self.skip_whitespace()
+
         obj = {}
-        if self.pos < len(self.buffer) and self.buffer[self.pos] == ord('}'):
+        if self.pos < self.end and self.buf[self.pos] == ord('}'):
             self.pos += 1
             return obj
-            
+
         while True:
-            if self._at_whitespace_or_buffer_end():
-                await self.skip_whitespace()
-            if self.pos >= len(self.buffer) or self.buffer[self.pos] == ord('}'):
-                # Reached end gracefully
+            self.skip_whitespace()
+            if self.pos >= self.end or self.buf[self.pos] == ord('}'):
                 break
 
             key = None
-            if self.buffer[self.pos] == ord('"'):
-                key = await self.parse_string()
+            if self.buf[self.pos] == ord('"'):
+                key = self.parse_string()
 
-            if self._at_whitespace_or_buffer_end():
-                await self.skip_whitespace()
-            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(':'):
-                self.pos += 1 # skip ':'
+            self.skip_whitespace()
+            if self.pos < self.end and self.buf[self.pos] == ord(':'):
+                self.pos += 1
 
             if key in self.ignore_keys:
-                await self.fast_skip_value()
+                self.fast_skip_value()
             else:
-                val = await self.parse_value()
+                val = self.parse_value()
                 if key is not None:
                     obj[key] = val
 
-            if self._at_whitespace_or_buffer_end():
-                await self.skip_whitespace()
-            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord('}'):
+            self.skip_whitespace()
+            if self.pos < self.end and self.buf[self.pos] == ord('}'):
                 self.pos += 1
                 break
-            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(','):
-                self.pos += 1 # skip ','
+            if self.pos < self.end and self.buf[self.pos] == ord(','):
+                self.pos += 1
         return obj
 
-    async def parse_array(self):
-        self.pos += 1 # skip '['
-        if self._at_whitespace_or_buffer_end():
-            await self.skip_whitespace()
+    def parse_array(self):
+        self.pos += 1
+        self.skip_whitespace()
 
         arr = []
-        if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(']'):
+        if self.pos < self.end and self.buf[self.pos] == ord(']'):
             self.pos += 1
             return arr
 
         while True:
-            if self._at_whitespace_or_buffer_end():
-                await self.skip_whitespace()
-            if self.pos >= len(self.buffer) or self.buffer[self.pos] == ord(']'):
-                break
+            arr.append(self.parse_value())
 
-            val = await self.parse_value()
-            arr.append(val)
-
-            if self._at_whitespace_or_buffer_end():
-                await self.skip_whitespace()
-            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(']'):
+            self.skip_whitespace()
+            if self.pos < self.end and self.buf[self.pos] == ord(']'):
                 self.pos += 1
                 break
-            if self.pos < len(self.buffer) and self.buffer[self.pos] == ord(','):
-                self.pos += 1 # skip ','
+            if self.pos < self.end and self.buf[self.pos] == ord(','):
+                self.pos += 1
         return arr
 
-    async def parse_string(self):
-        self.pos += 1 # skip '"'
-        self.keep_pos = self.pos
 
-        try:
-            # Lazy pieces list - only allocated for strings > 1024 bytes
-            pieces = None
-            closed = False
+def loads(data, ignore_keys=None):
+    return _SyncJsonParser(data, ignore_keys).parse_value()
 
-            while not closed:
-                if self._needs_fill(1):
-                    await self._fill_buffer(1)
-                if self.pos >= len(self.buffer):
-                    break
+async def load(async_iterable, ignore_keys=None):
+    data = await _read_all(async_iterable)
+    return loads(data, ignore_keys)
 
-                buf = self.buffer
-                buf_len = len(buf)
-                quote_pos = buf.find(b'"', self.pos, buf_len)
-                backslash_pos = buf.find(b'\\', self.pos, buf_len)
-
-                if backslash_pos != -1 and (quote_pos == -1 or backslash_pos < quote_pos):
-                    self.pos = backslash_pos
-                    if self._needs_fill(2):
-                        await self._fill_buffer(2)
-                    if self.pos + 1 >= len(self.buffer):
-                        self.pos = len(self.buffer)
-                        break
-                    self.pos += 2
-                elif quote_pos != -1:
-                    self.pos = quote_pos
-                    closed = True
-                else:
-                    self.pos = buf_len
-
-                if not closed and self.pos - self.keep_pos > 1024:
-                    if pieces is None:
-                        pieces = []
-                    pieces.append(self.buffer[self.keep_pos:self.pos].decode('utf-8'))
-                    self.keep_pos = self.pos
-
-            segment = self.buffer[self.keep_pos:self.pos].decode('utf-8')
-            val = "".join(pieces) + segment if pieces else segment
-
-            if closed:
-                self.pos += 1 # skip closing '"'
-            return _unescape_string(val)
-        finally:
-            self.keep_pos = None
-
-    async def parse_number(self):
-        self.keep_pos = self.pos
-        try:
-            while True:
-                self.pos = _viper_skip_number_chars(self.buffer, self.pos, len(self.buffer))
-                if self.pos < len(self.buffer):
-                    break
-                await self._fill_buffer(1)
-                if self.pos >= len(self.buffer):
-                    break
-
-            val = self.buffer[self.keep_pos:self.pos]
-            if not val or val in (b'-', b'+'):
-                raise ValueError(f"Expected number but got empty string near position {self.keep_pos}")
-            if b'.' in val or b'e' in val or b'E' in val:
-                return float(val)
-            return int(val)
-        finally:
-            self.keep_pos = None
-
-
-class _AsyncArrayIterator:
-    """Iterator to return array elements from an async stream"""
-    def __init__(self, parser):
-        self.parser = parser
+class _AsyncListIterator:
+    def __init__(self, async_iterable):
+        self.source = async_iterable
+        self.iterable = None
+        self.buf = bytearray()
+        self.pos = 0
+        self.exhausted = False
         self.started = False
         self.finished = False
 
     def __aiter__(self):
         return self
 
+    async def _fetch(self):
+        if self.exhausted:
+            return False
+        if hasattr(self.source, 'read'):
+            chunk = await self.source.read(256)
+        else:
+            if self.iterable is None:
+                self.iterable = self.source.__aiter__() if hasattr(self.source, '__aiter__') else self.source
+            try:
+                chunk = await self.iterable.__anext__()
+            except StopAsyncIteration:
+                chunk = None
+        if not chunk:
+            self.exhausted = True
+            return False
+        self.buf.extend(chunk)
+        return True
+
+    def _drop_consumed(self):
+        if self.pos > 0:
+            self.buf = self.buf[self.pos:]
+            self.pos = 0
+
+    async def _skip_whitespace_incremental(self):
+        while True:
+            self._drop_consumed()
+            self.pos = _viper_skip_whitespace(self.buf, self.pos, len(self.buf))
+            if self.pos < len(self.buf):
+                return True
+            if not await self._fetch():
+                return False
+
+    async def _parse_value_incremental(self):
+        while True:
+            parser = _SyncJsonParser(self.buf)
+            parser.pos = self.pos
+            try:
+                val = parser.parse_value()
+            except (IndexError, ValueError):
+                if not await self._fetch():
+                    raise
+                continue
+            if isinstance(val, (int, float)) and parser.pos == len(self.buf):
+                if await self._fetch():
+                    continue
+            self.pos = parser.pos
+            return val
+
     async def __anext__(self):
         if self.finished:
             raise StopAsyncIteration
 
         if not self.started:
-            if self.parser._at_whitespace_or_buffer_end():
-                await self.parser.skip_whitespace()
-            if self.parser.pos >= len(self.parser.buffer) or self.parser.buffer[self.parser.pos] != ord('['):
+            if not await self._skip_whitespace_incremental():
+                self.finished = True
+                raise StopAsyncIteration
+            if self.buf[self.pos] != ord('['):
                 self.finished = True
                 raise ValueError("Expected '[' at start of array")
-            self.parser.pos += 1
+            self.pos += 1
             self.started = True
 
-        if self.parser._at_whitespace_or_buffer_end():
-            await self.parser.skip_whitespace()
-
-        if self.parser.pos >= len(self.parser.buffer) or self.parser.buffer[self.parser.pos] == ord(']'):
+        if not await self._skip_whitespace_incremental():
             self.finished = True
             raise StopAsyncIteration
 
-        val = await self.parser.parse_value()
+        if self.buf[self.pos] == ord(']'):
+            self.pos += 1
+            self.finished = True
+            raise StopAsyncIteration
 
-        if self.parser._at_whitespace_or_buffer_end():
-            await self.parser.skip_whitespace()
-        if self.parser.pos < len(self.parser.buffer):
-            c = self.parser.buffer[self.parser.pos]
+        val = await self._parse_value_incremental()
+
+        if await self._skip_whitespace_incremental():
+            c = self.buf[self.pos]
             if c == ord(']'):
-                self.parser.pos += 1
+                self.pos += 1
                 self.finished = True
             elif c == ord(','):
-                self.parser.pos += 1
-                
+                self.pos += 1
+        else:
+            self.finished = True
+
         return val
 
-
-# ==========================================
-# Public API
-# ==========================================
-
-async def load(async_iterable, ignore_keys=None):
-    """
-    Parse a single top-level JSON object from an asynchronous stream, skipping unwanted fields.
-    Useful for reading WebSockets block by block.
-    """
-    parser = _AsyncJsonParser(async_iterable, ignore_keys=ignore_keys)
-    return await parser.parse_value()
-
 def load_array(async_iterable):
-    """
-    Returns an async iterator that parses a flat JSON array from an async stream lazily.
-    Yields array elements one by one.
-    """
-    parser = _AsyncJsonParser(async_iterable)
-    return _AsyncArrayIterator(parser)
+    return _AsyncListIterator(async_iterable)

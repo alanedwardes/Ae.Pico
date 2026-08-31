@@ -10,7 +10,7 @@ from flatjson import load
 
 class MockAsyncIterable:
     def __init__(self, data_str, chunk_size=5):
-        self.data_str = data_str
+        self.data_bytes = data_str.encode('utf-8') if isinstance(data_str, str) else data_str
         self.chunk_size = chunk_size
         self.pos = 0
 
@@ -18,29 +18,29 @@ class MockAsyncIterable:
         return self
 
     async def __anext__(self):
-        if self.pos >= len(self.data_str):
+        if self.pos >= len(self.data_bytes):
             raise StopAsyncIteration
-        chunk = self.data_str[self.pos:self.pos + self.chunk_size]
+        chunk = self.data_bytes[self.pos:self.pos + self.chunk_size]
         self.pos += len(chunk)
         return chunk
 
 
 class TestTruncatedStream(unittest.IsolatedAsyncioTestCase):
 
-    async def test_stream_ends_mid_string_does_not_raise(self):
+    async def test_stream_ends_mid_string_raises(self):
         payload = '{"a":"this string never gets a closing quote'
-        result = await load(MockAsyncIterable(payload, 3))
-        self.assertEqual(result, {'a': 'this string never gets a closing quote'})
+        with self.assertRaises(ValueError):
+            await load(MockAsyncIterable(payload, 3))
 
-    async def test_stream_ends_immediately_after_opening_quote(self):
+    async def test_stream_ends_immediately_after_opening_quote_raises(self):
         payload = '{"a":"'
-        result = await load(MockAsyncIterable(payload, 3))
-        self.assertEqual(result, {'a': ''})
+        with self.assertRaises(ValueError):
+            await load(MockAsyncIterable(payload, 3))
 
-    async def test_stream_ends_mid_escape_sequence(self):
+    async def test_stream_ends_mid_escape_sequence_raises(self):
         payload = '{"a":"abc\\'
-        result = await load(MockAsyncIterable(payload, 3))
-        self.assertEqual(result, {'a': 'abc'})
+        with self.assertRaises(ValueError):
+            await load(MockAsyncIterable(payload, 3))
 
     async def test_stream_ends_mid_number(self):
         payload = '{"a":123.4'

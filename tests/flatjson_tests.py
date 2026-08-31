@@ -7,7 +7,7 @@ from flatjson import load, load_array
 
 class MockAsyncIterable:
     def __init__(self, data_str, chunk_size=5):
-        self.data_str = data_str
+        self.data_bytes = data_str.encode('utf-8') if isinstance(data_str, str) else data_str
         self.chunk_size = chunk_size
         self.pos = 0
 
@@ -15,10 +15,10 @@ class MockAsyncIterable:
         return self
 
     async def __anext__(self):
-        if self.pos >= len(self.data_str):
+        if self.pos >= len(self.data_bytes):
             raise StopAsyncIteration
-        
-        chunk = self.data_str[self.pos:self.pos+self.chunk_size]
+
+        chunk = self.data_bytes[self.pos:self.pos+self.chunk_size]
         self.pos += self.chunk_size
         return chunk
 
@@ -242,12 +242,30 @@ class TestFlatJsonParser(unittest.IsolatedAsyncioTestCase):
         payload = b' [ 1, "text", true , false, null, 1.23, -42, "escaped\\"quote" ] '
         reader = MockAsyncReader(payload, 3)
         parser = load_array(reader)
-        
+
         results = []
         async for item in parser:
             results.append(item)
-            
+
         self.assertEqual(results, [1, "text", True, False, None, 1.23, -42, 'escaped"quote'])
+
+    async def test_parse_flat_array_number_split_across_every_chunk_boundary(self):
+        payload = b'[123456789, -987654321, 3.14159265, 1000000, 42]'
+        expected = [123456789, -987654321, 3.14159265, 1000000, 42]
+        for chunk_size in range(1, 12):
+            with self.subTest(chunk_size=chunk_size):
+                reader = MockAsyncReader(payload, chunk_size)
+                results = [item async for item in load_array(reader)]
+                self.assertEqual(results, expected)
+
+    async def test_parse_flat_array_literal_split_across_every_chunk_boundary(self):
+        payload = b'[true, false, null, true, "x", 5]'
+        expected = [True, False, None, True, "x", 5]
+        for chunk_size in range(1, 10):
+            with self.subTest(chunk_size=chunk_size):
+                reader = MockAsyncReader(payload, chunk_size)
+                results = [item async for item in load_array(reader)]
+                self.assertEqual(results, expected)
 
     async def test_parse_unicode_escape(self):
         payload = b'["\\u00A9"]' # Copyright symbol
