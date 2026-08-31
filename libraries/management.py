@@ -573,7 +573,7 @@ class MemoryController:
         stream = _DuptermStream(writer)
         previous = os.dupterm(stream)
         try:
-            micropython.mem_info(1)
+            micropython.mem_info()
         finally:
             os.dupterm(previous)
 
