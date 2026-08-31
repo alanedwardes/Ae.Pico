@@ -252,7 +252,7 @@ class RemoteUpdate:
         return False
     
     def widget(self):
-        return b' <form action="remoteupdate" method="post"><button>Remote Update</button></form>'
+        return b' <a href="remoteupdate">Remote Update</a>'
 
     async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))

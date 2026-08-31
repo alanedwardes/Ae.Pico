@@ -218,7 +218,7 @@ class FilesystemController:
         return path == b'/filesystem'
     
     def widget(self):
-        return b' <form action="filesystem" method="post"><button>Filesystem</button></form>'
+        return b' <a href="filesystem">Filesystem</a>'
     
     async def serve(self, method, path, headers, reader, writer):
         writer.write(OK_STATUS)
@@ -473,7 +473,7 @@ class DownloadController:
             
 class ResetController:
     def route(self, method, path):
-        return method == b'POST' and path == b'/reset'
+        return path == b'/reset'
     
     async def serve(self, method, path, headers, reader, writer):
         content_length = int(headers.get(b'content-length', '0'))
@@ -502,13 +502,13 @@ class ResetController:
             writer.write(b'<label for="type">Reset type:</label>')
             writer.write(b'<select name="type" id="type">')
             writer.write(b'<option value="soft">Soft</option>')
-            writer.write(b'<option value="hard">Hard</option>')
+            writer.write(b'<option value="hard" selected>Hard</option>')
             writer.write(b'</select>')
             writer.write(b'<input type="submit"/>')
             writer.write(b'</form>')
     
     def widget(self):
-        return b'<form action="reset" method="post"><button>Reset</button></form>'
+        return b' <a href="reset">Reset</a>'
 
 class MemoryController:
     def route(self, method, path):
