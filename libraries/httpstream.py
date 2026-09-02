@@ -184,7 +184,6 @@ async def stream_reader_to_buffer(reader, framebuffer):
             if chunk_bytes is None or chunk_bytes == 0:
                 break
             bytes_read += chunk_bytes
-            await asyncio.sleep(0)
     else:
         # CPython - keep reading until no more data
         while bytes_read < len(framebuffer):
