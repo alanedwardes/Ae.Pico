@@ -68,5 +68,5 @@ class NewsDisplay:
 
         label_height = 16
 
-        await textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFFFF, font='regular', wrap=True)
+        textbox.draw_textbox(self.display, story, 0, y_offset, self.display_width, self.display_height - y_offset, color=0xFFFFFF, font='regular', wrap=True)
 

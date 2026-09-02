@@ -1,4 +1,3 @@
-import asyncio
 import gc
 
 from bmfont import BMFont
@@ -31,9 +30,9 @@ def main():
         def make(bg):
             def fn():
                 if collect: gc.collect()
-                asyncio.run(textbox.draw_textbox(
+                textbox.draw_textbox(
                     display, text, x, y, w, h, color=0xFFFFFF, font=font,
-                    scale=scale, wrap=wrap, background=bg))
+                    scale=scale, wrap=wrap, background=bg)
             return fn
         compare(label + ' (transparent)', make(None), label + ' (background)', make(0x000000))
 

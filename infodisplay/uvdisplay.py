@@ -163,7 +163,7 @@ class UvDisplay:
                     tx = self.display_width - label_box_width
 
                 local_label_hour = (hour + utc_offset_hours) % 24
-                await textbox.draw_textbox(self.display, f'{local_label_hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
+                textbox.draw_textbox(self.display, f'{local_label_hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
 
         # Draw UV chart
         await chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
@@ -196,7 +196,7 @@ class UvDisplay:
                 if ty < y_start + 2:
                     ty = y_start + 2
                     
-                await textbox.draw_textbox(self.display, str(max_uv), tx, ty, peak_box_w, label_height, color=0xFFFFFF, font=font_name, align='center')
+                textbox.draw_textbox(self.display, str(max_uv), tx, ty, peak_box_w, label_height, color=0xFFFFFF, font=font_name, align='center')
         # Draw current time vertical line
         current_minute = now[4]
         current_time_decimal = (now[3] - utc_offset_hours) % 24 + (current_minute / 60.0)
@@ -224,6 +224,6 @@ class UvDisplay:
 
         # Draw "UV" label in top-left of the chart area
         uv_label_width = 40
-        await textbox.draw_textbox(self.display, 'UV', key_width + 5, y_start + 5, uv_label_width, label_height, color=0xFFFFFF, font=font_name, align='left')
+        textbox.draw_textbox(self.display, 'UV', key_width + 5, y_start + 5, uv_label_width, label_height, color=0xFFFFFF, font=font_name, align='left')
 
 

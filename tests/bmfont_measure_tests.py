@@ -1,6 +1,5 @@
 import sys
 import struct
-import asyncio
 import unittest
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -114,7 +113,7 @@ class TestWordWrapBmfont(unittest.TestCase):
         self.font = make_font()
 
     def _wrap(self, text, max_width_pixels, scale=1):
-        return asyncio.run(textbox._word_wrap_bmfont(self.font, text, max_width_pixels, scale))
+        return textbox._word_wrap_bmfont(self.font, text, max_width_pixels, scale)
 
     def test_empty_string(self):
         self.assertEqual(self._wrap('', 100), '')

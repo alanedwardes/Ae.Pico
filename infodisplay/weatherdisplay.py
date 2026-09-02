@@ -19,7 +19,7 @@ def _format_temperature(value):
     return f"{abs(rounded) if rounded == 0 else rounded:.0f}°"
 
 async def _draw_text_cell(display, x, y, w, h, text, color, font_name):
-    await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name)
+    textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name)
 
 async def _draw_today_cell(display, x, y, w, h):
     display.rect(int(x), int(y), int(w), int(h), 0x000000, True)

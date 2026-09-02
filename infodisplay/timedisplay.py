@@ -126,7 +126,7 @@ class TimeDisplay:
             min_str = self._padded_numbers[now[4]]
             time_text = hour_str + ":" + min_str # String concatenation of interned strings is optimized in MicroPython
 
-            await textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale, background=0x000000)
+            textbox.draw_textbox(self.display, time_text, 0, 5, time_width, height - 5, color=0xFFFFFF, font='headline', scale=font_scale, background=0x000000)
 
         # 2. Day / Date / Month Display
         day_region_changed = (
@@ -148,8 +148,8 @@ class TimeDisplay:
             day_date_text = self.DAYS[now[6]] + ' ' + str(now[2])
             month_text = self.MONTHS[now[1] - 1]
 
-            await textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
-            await textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
+            textbox.draw_textbox(self.display, day_date_text, cal_x, cal_y, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
+            textbox.draw_textbox(self.display, month_text, cal_x, cal_y + row_h, cal_w, row_h, color=0xFFFFFF, font='small', scale=font_scale, background=0x000000)
 
         # 3. Seconds Display
         if now[5] != self._last_second:

@@ -72,7 +72,7 @@ def _load_cell_data(current_load):
     return format_power(load_value), _BLUE, "LOAD"
 
 async def _draw_cell(display, x, y, w, h, text, color, font_name, valign):
-    await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name, valign=valign)
+    textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name, valign=valign)
 
 class SolarDisplay:
     def __init__(self, display, hass, entity_ids, start_y):

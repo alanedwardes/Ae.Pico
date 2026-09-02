@@ -1,5 +1,3 @@
-import asyncio
-
 from bmfont import BMFont
 import mpassets
 from drawing import Drawing
@@ -27,28 +25,28 @@ def main():
     display = Drawing(WIDTH, HEIGHT, 'RGB565')
 
     bench('textbox 1 digit (small)',
-          lambda: asyncio.run(textbox.draw_textbox(
-              display, '7', 250, 35, 36, 35, color=0xFFFFFF, font='small', scale=1.0)))
+          lambda: textbox.draw_textbox(
+              display, '7', 250, 35, 36, 35, color=0xFFFFFF, font='small', scale=1.0))
 
     bench('textbox 2 digits (regular)',
-          lambda: asyncio.run(textbox.draw_textbox(
-              display, '42', 200, 35, 36, 35, color=0xFFFFFF, font='regular', scale=1.0)))
+          lambda: textbox.draw_textbox(
+              display, '42', 200, 35, 36, 35, color=0xFFFFFF, font='regular', scale=1.0))
 
     bench('textbox HH:MM (headline)',
-          lambda: asyncio.run(textbox.draw_textbox(
-              display, '13:37', 0, 5, 200, 65, color=0xFFFFFF, font='headline', scale=1.0)))
+          lambda: textbox.draw_textbox(
+              display, '13:37', 0, 5, 200, 65, color=0xFFFFFF, font='headline', scale=1.0))
 
     bench('textbox clock number (small)',
-          lambda: asyncio.run(textbox.draw_textbox(
-              display, '12', 100, 100, 30, 30, color=0xFFFFFF, font='small')))
+          lambda: textbox.draw_textbox(
+              display, '12', 100, 100, 30, 30, color=0xFFFFFF, font='small'))
 
     bench('textbox wrapped news (regular)',
-          lambda: asyncio.run(textbox.draw_textbox(
+          lambda: textbox.draw_textbox(
               display, NEWS, 0, 70, WIDTH, HEIGHT - 70,
-              color=0xFFFFFF, font='regular', wrap=True)))
+              color=0xFFFFFF, font='regular', wrap=True))
 
     font_obj = textbox._BM_FONT_CACHE['regular'][0]
     bench('word wrap news (measure only)',
-          lambda: asyncio.run(textbox._word_wrap_bmfont(font_obj, NEWS, WIDTH, 1)))
+          lambda: textbox._word_wrap_bmfont(font_obj, NEWS, WIDTH, 1))
 
 main()

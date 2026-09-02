@@ -1,6 +1,7 @@
 import struct
 import gc
 import sys
+from array import array
 
 try:
     import micropython
@@ -288,7 +289,7 @@ def draw_text(framebuffer, display_width, display_height, font: BMFont, page_fil
 
 _MISSING = 65535
 _CODE_MASK = 0x1FFFFF
-_MEASURE_OUT = bytearray(16)
+_MEASURE_OUT = array('i', [0, 0, 0, 0])
 
 def _decode_codepoint(text, i):
     b0 = text[i]
@@ -523,8 +524,7 @@ def measure_text(font: BMFont, text: bytes, kerning=False):
             micropython.heap_unlock()
         if not found:
             return 0, 0, 0, 0
-        w, h, min_left, min_top = struct.unpack('<iiii', _MEASURE_OUT)
-        return w, h, min_left, min_top
+        return _MEASURE_OUT[0], _MEASURE_OUT[1], _MEASURE_OUT[2], _MEASURE_OUT[3]
     return _measure_text_pure(font, text, kerning)
 
 
@@ -539,7 +539,7 @@ def measure_extend(font: BMFont, text: bytes, cx, prev_id, min_left, max_right, 
             found = _measure_extend_viper(font._glyph_data, text, len(text), cx, prev_id_in, found_in, min_left_in, max_right_in, font._char_off, _MEASURE_OUT)
         finally:
             micropython.heap_unlock()
-        cx_out, prev_id_out, min_left_out, max_right_out = struct.unpack('<iiii', _MEASURE_OUT)
+        cx_out, prev_id_out, min_left_out, max_right_out = _MEASURE_OUT[0], _MEASURE_OUT[1], _MEASURE_OUT[2], _MEASURE_OUT[3]
         prev_id = None if prev_id_out == -1 else prev_id_out
         if not found:
             return cx_out, prev_id, None, None

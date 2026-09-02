@@ -108,7 +108,7 @@ class AnalogueClockDisplay:
             bx = num_x - (box_size // 2)
             by = num_y - (box_size // 2)
             
-            await textbox.draw_textbox(self.display, str(number), bx, by, box_size, box_size, color=0xFFFFFF, font='small', align='center', valign='middle')
+            textbox.draw_textbox(self.display, str(number), bx, by, box_size, box_size, color=0xFFFFFF, font='small', align='center', valign='middle')
 
             
         # Draw hands

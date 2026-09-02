@@ -51,7 +51,7 @@ COLUMNS = [
 ]
 
 async def _draw_cell(display, x, y, w, h, text, color, align):
-    await textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font='small', align=align)
+    textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font='small', align=align)
 
 class TrainDisplay:
     def __init__(self, display, url, start_y):

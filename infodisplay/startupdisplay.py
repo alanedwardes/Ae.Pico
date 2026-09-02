@@ -45,21 +45,21 @@ class StartupDisplay:
             ip = self.nic.ifconfig()[0]
         except Exception:
             ip = "?"
-        await textbox.draw_textbox(self.display, f"IP: {ip}", self.x, self.ip_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+        textbox.draw_textbox(self.display, f"IP: {ip}", self.x, self.ip_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
         # Hostname
         try:
             hostname = self.nic.config('hostname')
         except Exception:
             hostname = "?"
-        await textbox.draw_textbox(self.display, f"Host: {hostname}", self.x, self.host_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+        textbox.draw_textbox(self.display, f"Host: {hostname}", self.x, self.host_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
         # SSID
         try:
             ssid = self.nic.config('ssid')
         except Exception:
             ssid = "?"
-        await textbox.draw_textbox(self.display, f"WiFi: {ssid}", self.x, self.ssid_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+        textbox.draw_textbox(self.display, f"WiFi: {ssid}", self.x, self.ssid_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
         # MAC Address
         try:
@@ -67,7 +67,7 @@ class StartupDisplay:
             mac = binascii.hexlify(mac_bytes, ':').decode().upper()
         except Exception:
             mac = "?"
-        await textbox.draw_textbox(self.display, f"MAC: {mac}", self.x, self.mac_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+        textbox.draw_textbox(self.display, f"MAC: {mac}", self.x, self.mac_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
     async def update(self):
         if not self._static_drawn:
@@ -82,4 +82,4 @@ class StartupDisplay:
 
         if rssi != self._last_rssi:
             self._last_rssi = rssi
-            await textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", self.x, self.signal_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
+            textbox.draw_textbox(self.display, f"Signal: {rssi} dBm", self.x, self.signal_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
