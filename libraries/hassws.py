@@ -17,6 +17,7 @@ class HassWs:
         self.entity_callbacks = {}
         self.subscribed_entities = set()
         self.entities_updated = set()
+        self.entities = {}
         self._ignore_keys = {
             "lc", "lu", "friendly_name", "device_class",
             "unit_of_measurement", "state_class", "context",
@@ -108,7 +109,6 @@ class HassWs:
         self.socket = None
         self.authenticated = False
         self.message_id = 1
-        self.entities = {}
     
     async def _authenticate(self):
         await self.socket.send('{"type":"auth","access_token":"%s"}' % self.token)
