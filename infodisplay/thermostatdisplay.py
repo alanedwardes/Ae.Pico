@@ -70,7 +70,7 @@ class ThermostatDisplay:
         await self.hass.subscribe([self.entity_id], self.entity_updated)
         await asyncio.Event().wait()
         
-    async def update(self):       
+    def update(self):
         default_entity = dict(s = '0')
         thermostat_entity = self.entities.get(self.entity_id, default_entity)
         current_target = float(thermostat_entity['a']['temperature'])
@@ -108,5 +108,5 @@ class ThermostatDisplay:
         # first update after activation must always draw
         self._rendered = None
         while True:
-            await self.update()
+            self.update()
             await self.tsf.wait()

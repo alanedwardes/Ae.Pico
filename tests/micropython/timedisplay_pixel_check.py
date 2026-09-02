@@ -38,22 +38,22 @@ def main():
     td = timedisplay.TimeDisplay(display, faketime, 70, True)
 
     asyncio.run(_prime(td))
-    asyncio.run(td.update())
+    td.update()
     check_pixels('first render rgb565', display._framebuffer, EXPECTED.get('first render rgb565'))
 
     faketime.now[8] = 400
-    asyncio.run(td.update())
+    td.update()
     check_pixels('tenth changed rgb565', display._framebuffer, EXPECTED.get('tenth changed rgb565'))
 
     faketime.now[5] = 43
     faketime.now[8] = 500
-    asyncio.run(td.update())
+    td.update()
     check_pixels('second changed rgb565', display._framebuffer, EXPECTED.get('second changed rgb565'))
 
     display_gs8 = Drawing(WIDTH, HEIGHT, 'GS8')
     td_gs8 = timedisplay.TimeDisplay(display_gs8, FakeTime(), 70, True)
     asyncio.run(_prime(td_gs8))
-    asyncio.run(td_gs8.update())
+    td_gs8.update()
     check_pixels('first render gs8', display_gs8._framebuffer, EXPECTED.get('first render gs8'))
 
     summarize()

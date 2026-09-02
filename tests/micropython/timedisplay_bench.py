@@ -36,18 +36,18 @@ def main():
         task.cancel()
 
     asyncio.run(prime())
-    asyncio.run(td.update())
+    td.update()
 
     def tenth_tick():
         faketime.now[8] = (faketime.now[8] + 100) % 1000
-        asyncio.run(td.update())
+        td.update()
 
     def second_tick():
         faketime.now[5] = (faketime.now[5] + 1) % 60
-        asyncio.run(td.update())
+        td.update()
 
     def idle_tick():
-        asyncio.run(td.update())
+        td.update()
 
     bench('tenths tick (10 Hz path)', tenth_tick)
     bench('seconds tick (1 Hz path)', second_tick)

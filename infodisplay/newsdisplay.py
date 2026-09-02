@@ -33,7 +33,7 @@ class NewsDisplay:
         return len(self.stories) > 0
 
     async def activate(self):
-        await self.update()
+        self.update()
         self.story_index = (self.story_index + 1) % len(self.stories) if len(self.stories) > 0 else 0
     
     async def fetch_news_data(self):
@@ -54,7 +54,7 @@ class NewsDisplay:
         except Exception as e:
             print(f"Error fetching news data: {e}")
 
-    async def update(self):
+    def update(self):
         stories = self.stories
 
         y_offset = self.start_y

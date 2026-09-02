@@ -50,7 +50,7 @@ COLUMNS = [
     ('Expected', 6, 70),
 ]
 
-async def _draw_cell(display, x, y, w, h, text, color, align):
+def _draw_cell(display, x, y, w, h, text, color, align):
     textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font='small', align=align)
 
 class TrainDisplay:
@@ -82,7 +82,7 @@ class TrainDisplay:
         return num_departures > 0 and utime.ticks_diff(utime.ticks_ms(), self.departures_last_updated) < 600_000
 
     async def activate(self):
-        await self.update()
+        self.update()
 
     def _resolve_column_widths(self):
         return table.column_rects(0, self.display_width, [w for _, _, w in COLUMNS], min_fill_width=50)
@@ -115,7 +115,7 @@ class TrainDisplay:
         except Exception as e:
             print(f"Error fetching train data: {e}")
 
-    async def update(self):
+    def update(self):
         y_start = self.start_y
         row_height = 17
         available_height = self.display_height - self.start_y - row_height
@@ -144,4 +144,4 @@ class TrainDisplay:
                 align = 'left' if cw > 50 else 'center'
                 cells.append((cx, row_y, cw, row_height, _draw_cell, (value, row_pen, align)))
 
-        await table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, cells, shuffle=True)

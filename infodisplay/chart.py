@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from array import array
 
@@ -156,8 +155,8 @@ def _curve_cols_viper(yfp: ptr32, npts: int, out: ptr32, ncols: int, y_origin: i
 
 
 # Reused across redraws (grown on demand) so computing a curve doesn't
-# allocate. Only the single active display renders at a time; these are
-# scratch for one draw_* call, not valid across awaits from two charts.
+# allocate. Scratch for one draw_* call; safe because rendering is
+# synchronous and MicroPython's scheduler can't interleave two calls.
 _cols_cache = None
 _yfp_cache = None
 
@@ -227,9 +226,6 @@ def map_px_to_index(px, x, width, num_points):
 #
 # Scratch: only the single active display renders at a time
 _render_params = array('i', (0 for _ in range(19)))
-
-# Guards _cols_cache/_yfp_cache/_render_params against concurrent draw_* calls.
-_render_lock = asyncio.Lock()
 
 
 @micropython.viper
@@ -342,65 +338,59 @@ def _render_cols_viper(dest8: ptr8, dest16: ptr16, cols: ptr32, p: ptr32):
         c += 1
 
 
-async def _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, has_area, alpha_divisor, has_line, radius):
+def _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, has_area, alpha_divisor, has_line, radius):
     if not normalized_values or not raw_values or len(normalized_values) != len(raw_values):
         return
     num_points = len(raw_values)
     if width <= 0 or num_points < 2:
         return
 
-    async with _render_lock:
-        cols = _compute_curve(y, width, height, normalized_values, int(smoothing * 256))
-        max_index = num_points - 1
-        d = alpha_divisor if alpha_divisor > 1 else 1
+    cols = _compute_curve(y, width, height, normalized_values, int(smoothing * 256))
+    max_index = num_points - 1
+    d = alpha_divisor if alpha_divisor > 1 else 1
 
-        fbw, fbh = display.get_bounds()
-        bpp = display.bytes_per_pixel
-        p = _render_params
-        p[2] = x
-        p[3] = fbh
-        p[4] = y + height
-        p[5] = 1 if has_line else 0
-        p[6] = int(radius) << 8
-        p[7] = 1 if has_area else 0
-        p[8] = bpp
-        p[9] = fbw
-        p[10] = fbw * bpp
-        d8 = _as_ptr8(display)
-        d16 = _as_ptr16(display) if bpp == 2 else d8
+    fbw, fbh = display.get_bounds()
+    bpp = display.bytes_per_pixel
+    p = _render_params
+    p[2] = x
+    p[3] = fbh
+    p[4] = y + height
+    p[5] = 1 if has_line else 0
+    p[6] = int(radius) << 8
+    p[7] = 1 if has_area else 0
+    p[8] = bpp
+    p[9] = fbw
+    p[10] = fbw * bpp
+    d8 = _as_ptr8(display)
+    d16 = _as_ptr16(display) if bpp == 2 else d8
 
-        # color_fn is assumed pure: one kernel call per run of columns
-        # sharing a data index, yielding to the scheduler between runs
-        c = 0
-        while c <= width:
-            data_index = (c * max_index) // width
-            c_end = ((data_index + 1) * width + max_index - 1) // max_index
-            if c_end > width + 1:
-                c_end = width + 1
-            base = color_fn(data_index, raw_values[data_index])
-            r = (base >> 16) & 0xFF
-            g = (base >> 8) & 0xFF
-            b = base & 0xFF
-            p[0] = c
-            p[1] = c_end
-            p[11] = r; p[12] = g; p[13] = b
-            p[14] = r // d; p[15] = g // d; p[16] = b // d
-            p[17] = display.pack((r << 16) | (g << 8) | b)
-            p[18] = display.pack(((r // d) << 16) | ((g // d) << 8) | (b // d))
-            micropython.heap_lock()
-            try:
-                _render_cols_viper(d8, d16, cols, p)
-            finally:
-                micropython.heap_unlock()
-            c = c_end
-            await asyncio.sleep(0)
+    c = 0
+    while c <= width:
+        data_index = (c * max_index) // width
+        c_end = ((data_index + 1) * width + max_index - 1) // max_index
+        if c_end > width + 1:
+            c_end = width + 1
+        base = color_fn(data_index, raw_values[data_index])
+        r = (base >> 16) & 0xFF
+        g = (base >> 8) & 0xFF
+        b = base & 0xFF
+        p[0] = c
+        p[1] = c_end
+        p[11] = r; p[12] = g; p[13] = b
+        p[14] = r // d; p[15] = g // d; p[16] = b // d
+        p[17] = display.pack((r << 16) | (g << 8) | b)
+        p[18] = display.pack(((r // d) << 16) | ((g // d) << 8) | (b // d))
+        micropython.heap_lock()
+        try:
+            _render_cols_viper(d8, d16, cols, p)
+        finally:
+            micropython.heap_unlock()
+        c = c_end
 
 
-async def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
-    # step is accepted for API compatibility; the columnar kernel always
-    # renders every column
-    await _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, True, alpha_divisor, False, 0)
+def draw_segmented_area(display, x, y, width, height, raw_values, normalized_values, color_fn, step=1, smoothing=1.0, alpha_divisor=2):
+    _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, True, alpha_divisor, False, 0)
 
 
-async def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
-    await _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, False, 1, True, radius)
+def draw_colored_points(display, x, y, width, height, raw_values, normalized_values, color_fn, radius=2, step=1, smoothing=1.0):
+    _render_columns(display, x, y, width, height, raw_values, normalized_values, color_fn, smoothing, False, 1, True, radius)

@@ -58,13 +58,13 @@ class TemperatureDisplay:
         await asyncio.sleep(random.randint(5, 10))
         while True:
             await self.fetch_temperature_data()
-            await self.update()
+            self.update()
             await asyncio.sleep(self.refresh_period_seconds)
-        
-    async def update(self):
-        await self.__update()
 
-    async def __update(self):
+    def update(self):
+        self.__update()
+
+    def __update(self):
         if len(self.temperature_data) < 3:
             return
 

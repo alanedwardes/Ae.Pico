@@ -62,7 +62,7 @@ class XPT2046Touch:
         # we will primarily rely on pure background polling.
         while True:
             # Poll the raw hardware driver
-            touch_point = await self.driver.get_touch()
+            touch_point = self.driver.get_touch()
             
             if touch_point is not None:
                 if touch_point != last_touch:

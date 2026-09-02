@@ -101,15 +101,15 @@ class TimeDisplay:
 
         if not self.show_milliseconds:
             while True:
-                await self.update()
+                self.update()
                 await asyncio.sleep(1)
         else:
             while True:
-                await self.update()
+                self.update()
                 # Update frequently for milliseconds (approx 20fps)
                 await asyncio.sleep(0.05)
 
-    async def update(self):
+    def update(self):
         height = self.height
         section_height = self.section_height
         time_width = self.time_width

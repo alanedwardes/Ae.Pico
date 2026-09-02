@@ -34,14 +34,14 @@ class LocalDisplay:
 
     async def activate(self):
         # Update once, then cycle for next time
-        await self.update()
+        self.update()
         if self.paths:
             self.path_index = (self.path_index + 1) % len(self.paths)
         
         # After updating once, wait for next activation
         await asyncio.Event().wait()
 
-    async def update(self):
+    def update(self):
         if not self.paths:
             return
 

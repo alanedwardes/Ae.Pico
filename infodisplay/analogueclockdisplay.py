@@ -47,11 +47,11 @@ class AnalogueClockDisplay:
         self.display.rect(0, self.y_start, self.display_width, self.avail_height, 0x000000, True)
         
         while True:
-            await self.update()
+            self.update()
             # Update often enough to feel responsive when the second turns
             await asyncio.sleep(0.1)
 
-    async def update(self):
+    def update(self):
         now = self.time.local_time()
         hour = now[3]
         minute = now[4]

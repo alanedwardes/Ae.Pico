@@ -1,5 +1,3 @@
-import asyncio
-
 from drawing import Drawing
 import chart
 from microcheck import check, check_pixels, summarize
@@ -27,7 +25,7 @@ def color_fn(index, value):
 
 def scenario(label, color_mode, render):
     display = Drawing(WIDTH, HEIGHT, color_mode)
-    asyncio.run(render(display))
+    render(display)
     check_pixels(label, display._framebuffer, EXPECTED.get(label))
 
 def check_kernel_matches_reference():

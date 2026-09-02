@@ -71,7 +71,7 @@ def _load_cell_data(current_load):
         return "?", _WHITE, "LOAD"
     return format_power(load_value), _BLUE, "LOAD"
 
-async def _draw_cell(display, x, y, w, h, text, color, font_name, valign):
+def _draw_cell(display, x, y, w, h, text, color, font_name, valign):
     textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name, valign=valign)
 
 class SolarDisplay:
@@ -138,13 +138,13 @@ class SolarDisplay:
 
     async def activate(self):
         while True:
-            await self.update()
+            self.update()
             await self.tsf.wait()
 
-    async def update(self):
-        await self.__update()
+    def update(self):
+        self.__update()
 
-    async def __update(self):
+    def __update(self):
         y_start = self.start_y
 
         grid = table.grid_rects(0, y_start, self.display_width, self.display_height - y_start, 4, 2)
@@ -164,4 +164,4 @@ class SolarDisplay:
             cells.append((vx, vy, vw, vh, _draw_cell, (value_text, value_color, 'regular', 'bottom')))
             cells.append((lx, ly, lw, lh, _draw_cell, (label_text, _WHITE, 'small', 'top')))
 
-        await table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, cells, shuffle=True)

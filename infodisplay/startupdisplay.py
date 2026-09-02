@@ -36,10 +36,10 @@ class StartupDisplay:
     async def activate(self):
         self.pending_activation = False
         while True:
-            await self.update()
+            self.update()
             await asyncio.sleep(0.1)
 
-    async def _draw_static(self):
+    def _draw_static(self):
         # IP Address
         try:
             ip = self.nic.ifconfig()[0]
@@ -69,10 +69,10 @@ class StartupDisplay:
             mac = "?"
         textbox.draw_textbox(self.display, f"MAC: {mac}", self.x, self.mac_y, self.width, self.line_height, color=0xFFFFFF, background=0x000000, font='small', align='left')
 
-    async def update(self):
+    def update(self):
         if not self._static_drawn:
             self._static_drawn = True
-            await self._draw_static()
+            self._draw_static()
 
         # Signal strength is the only field that actually changes while active
         try:

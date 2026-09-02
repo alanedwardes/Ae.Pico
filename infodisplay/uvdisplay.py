@@ -166,10 +166,10 @@ class UvDisplay:
                 textbox.draw_textbox(self.display, f'{local_label_hour:02d}', tx, self.display_height - label_height, label_box_width, label_height, color=0xFFFFFF, font=font_name, align='center')
 
         # Draw UV chart
-        await chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
+        chart.draw_segmented_area(self.display, key_width, chart_y, data_width, chart_height,
                                    self.uv_data, self._normalized_data, _uv_color_fn)
 
-        await chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
+        chart.draw_colored_points(self.display, key_width, chart_y, data_width, chart_height,
                                    self.uv_data, self._normalized_data, _uv_color_fn, radius=2)
 
         # Draw peak UV label on the graph (last to be on top)

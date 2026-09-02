@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 import mpassets
@@ -37,23 +36,23 @@ def main():
     td = ThermostatDisplay(display, None, ENTITY, 70)
     td.entities[ENTITY] = _entity(21.5, 20.9, 'heating')
 
-    asyncio.run(td.update())
+    td.update()
     check('first update renders', draws[0] == 1, 'draws = %d' % draws[0])
     check_pixels('thermostat rgb565', display._framebuffer, EXPECTED.get('thermostat rgb565'))
 
-    asyncio.run(td.update())
+    td.update()
     check('identical update skipped', draws[0] == 1, 'draws = %d' % draws[0])
 
     td.entities[ENTITY] = _entity(21.5, 20.9, 'heating', extra=1)
-    asyncio.run(td.update())
+    td.update()
     check('unrelated attribute skipped', draws[0] == 1, 'draws = %d' % draws[0])
 
     td.entities[ENTITY] = _entity(21.5, 21.0, 'heating')
-    asyncio.run(td.update())
+    td.update()
     check('changed value renders', draws[0] == 2, 'draws = %d' % draws[0])
 
     td._rendered = None
-    asyncio.run(td.update())
+    td.update()
     check('reactivation renders', draws[0] == 3, 'draws = %d' % draws[0])
 
     summarize()

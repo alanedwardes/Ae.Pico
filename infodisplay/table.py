@@ -1,4 +1,3 @@
-import asyncio
 import random
 
 
@@ -30,12 +29,11 @@ def _shuffle_in_place(items):
         items[i], items[j] = items[j], items[i]
 
 
-async def draw_cells(display, cells, *, shuffle=False, clear_color=None):
+def draw_cells(display, cells, *, shuffle=False, clear_color=None):
     cells = list(cells)
     if shuffle:
         _shuffle_in_place(cells)
     for x, y, w, h, draw_fn, args in cells:
         if clear_color is not None:
             display.rect(int(x), int(y), int(w), int(h), clear_color, True)
-        await draw_fn(display, x, y, w, h, *args)
-        await asyncio.sleep(0)
+        draw_fn(display, x, y, w, h, *args)

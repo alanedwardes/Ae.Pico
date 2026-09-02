@@ -248,9 +248,9 @@ class RainDisplay:
 
         # Draw chart segment for this column
         # We need to draw the chart segments that fall within this column
-        await chart.draw_segmented_area(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+        chart.draw_segmented_area(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
                                     self._r_values, self._normalized_r, rain_color_fn)
 
-        await chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
+        chart.draw_colored_points(self.display, key_width, chart_y, self.display_width - key_width, chart_height,
                                     self._r_values, self._normalized_r, rain_color_fn, radius=2)
 

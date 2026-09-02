@@ -117,7 +117,7 @@ class XPT2046:
         else:
             return None
 
-    async def get_raw(self):
+    def get_raw(self):
         """
         Take a few quick samples and use a median filter to remove noise.
         This provides much better responsiveness than standard deviation arrays 
@@ -151,9 +151,9 @@ class XPT2046:
         mid = len(samples) // 2
         return xs[mid], ys[mid]
 
-    async def get_touch(self):
+    def get_touch(self):
         """Returns the scaled and optionally swapped/inverted X and Y values."""
-        raw = await self.get_raw()
+        raw = self.get_raw()
         self.last_raw = raw
         if raw is None:
             return None

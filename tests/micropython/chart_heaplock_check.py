@@ -1,4 +1,3 @@
-import asyncio
 import binascii
 import gc
 import micropython
@@ -98,8 +97,8 @@ def main():
 
     display = Drawing(WIDTH, HEIGHT, 'RGB565')
     try:
-        asyncio.run(chart.draw_segmented_area(
-            display, 10, 10, 300, 100, RAW, Q8, color_fn))
+        chart.draw_segmented_area(
+            display, 10, 10, 300, 100, RAW, Q8, color_fn)
     except MemoryError as e:
         check('draw_segmented_area under production lock', False,
               'raised MemoryError: %s' % e)

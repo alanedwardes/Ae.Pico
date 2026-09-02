@@ -18,10 +18,10 @@ def _format_temperature(value):
     rounded = round(value)
     return f"{abs(rounded) if rounded == 0 else rounded:.0f}°"
 
-async def _draw_text_cell(display, x, y, w, h, text, color, font_name):
+def _draw_text_cell(display, x, y, w, h, text, color, font_name):
     textbox.draw_textbox(display, text, x, y, w, h, color=color, background=0x000000, font=font_name)
 
-async def _draw_today_cell(display, x, y, w, h):
+def _draw_today_cell(display, x, y, w, h):
     display.rect(int(x), int(y), int(w), int(h), 0x000000, True)
 
     tri_w = w // 3
@@ -35,7 +35,7 @@ async def _draw_today_cell(display, x, y, w, h):
     ])
     display.poly(cx, cy, pts, 0xFFFF00, True)
 
-async def _draw_icon_cell(display, x, y, w, h, weather_display, icon_name):
+def _draw_icon_cell(display, x, y, w, h, weather_display, icon_name):
     display.rect(int(x), int(y), int(w), int(h), 0x000000, True)
     weather_display.draw_icon(icon_name, display, x, y, w, h)
 
@@ -81,7 +81,7 @@ class WeatherDisplay:
 
     async def activate(self):
         while True:
-            await self.update()
+            self.update()
             await self.tsf.wait()
 
     async def fetch_weather_data(self):
@@ -184,4 +184,4 @@ class WeatherDisplay:
             rain_color = colors.get_color_for_rain_percentage(rain)
             cells.append((rain_x, rain_y, rain_w, rain_h, _draw_text_cell, (f"{rain}%", rain_color, font_name)))
 
-        await table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, cells, shuffle=True)
