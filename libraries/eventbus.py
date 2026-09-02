@@ -43,43 +43,48 @@ class EventBus:
 	def subscribe(self, event, callback):
 		token = self._next_token
 		self._next_token += 1
-		self._subs.setdefault(event, set()).add((token, callback))
-		self._tokens[token] = event
+		q = SimpleQueue()
+		task = asyncio.create_task(self._dispatch_loop(callback, q))
+		self._subs.setdefault(event, set()).add((token, q))
+		self._tokens[token] = (event, q, task)
 		return token
 
 	def unsubscribe(self, token):
-		event = self._tokens.pop(token, None)
-		if event is None:
+		entry = self._tokens.pop(token, None)
+		if entry is None:
 			return
+		event, q, task = entry
 		subs = self._subs.get(event)
-		if not subs:
-			return
-		for item in list(subs):
-			if item[0] == token:
-				subs.remove(item)
-		if not subs:
-			self._subs.pop(event, None)
+		if subs:
+			for item in list(subs):
+				if item[0] == token:
+					subs.remove(item)
+			if not subs:
+				self._subs.pop(event, None)
+		task.cancel()
 
 	def publish(self, event, data=None):
 		ev = Event(event, data)
-		for _, cb in list(self._subs.get(event, ())):
-			asyncio.create_task(self._run_cb(cb, ev))
+		for _, q in list(self._subs.get(event, ())):
+			q.put_nowait(ev)
 		for q in list(self._queues.get(event, ())):
 			try:
 				q.put_nowait(ev)
 			except:
 				pass
 
-	async def _run_cb(self, cb, ev):
-		try:
-			res = cb(ev)
-			if hasattr(res, "__await__"):
-				await res
-		except Exception as e:
+	async def _dispatch_loop(self, cb, q):
+		while True:
+			ev = await q.get()
 			try:
-				print("EventBus callback error:", type(e).__name__, str(e))
-			except:
-				pass
+				res = cb(ev)
+				if hasattr(res, "send"):
+					await res
+			except Exception as e:
+				try:
+					print("EventBus callback error:", type(e).__name__, str(e))
+				except:
+					pass
 
 	async def wait(self, event, predicate=None):
 		q, cancel = self.stream(event, maxsize=1)
