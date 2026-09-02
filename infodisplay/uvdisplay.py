@@ -68,7 +68,7 @@ class UvDisplay:
 
     async def activate(self):
         while True:
-            await self.update()
+            self.update()
             await self.tsf.wait()
     
     async def fetch_uv_data(self):
@@ -91,7 +91,7 @@ class UvDisplay:
         except Exception as e:
             print(f"Error fetching UV data: {e}")
         
-    async def update(self):
+    def update(self):
         if len(self.uv_data) == 0:
             return
         

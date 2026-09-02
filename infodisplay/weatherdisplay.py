@@ -133,7 +133,7 @@ class WeatherDisplay:
             print(f"Warning: Could not load icon '{icon_name}': {e}")
             return
             
-    async def update(self):
+    def update(self):
         if len(self.weather_data) == 0:
             return
 
