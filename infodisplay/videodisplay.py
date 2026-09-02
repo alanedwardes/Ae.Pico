@@ -44,6 +44,7 @@ class VideoDisplay:
 
     async def activate(self):
         framebuffer = self.display.framebuffer[self.start_offset:]
+        chunk = bytearray(min(1024, len(framebuffer)))
 
         bytes_per_pixel = self.display.bytes_per_pixel
         y_offset = (self.start_offset // bytes_per_pixel) // self.display_width
@@ -58,7 +59,7 @@ class VideoDisplay:
 
             try:
                 while True:
-                    bytes_read = await stream_reader_to_buffer(reader, framebuffer)
+                    bytes_read = await stream_reader_to_buffer(reader, framebuffer, chunk)
                     if bytes_read < len(framebuffer):
                         break
 

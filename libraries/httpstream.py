@@ -1,5 +1,26 @@
 from collections import namedtuple
+import sys
 import asyncio
+
+try:
+    import micropython
+    _IS_MICROPYTHON = sys.implementation.name == 'micropython'
+except ImportError:
+    _IS_MICROPYTHON = False
+
+if not _IS_MICROPYTHON:
+    class micropython:
+        @staticmethod
+        def viper(f): return f
+
+    ptr8 = object
+
+@micropython.viper
+def _viper_copy(dest: ptr8, dest_off: int, src: ptr8, n: int):
+    i = 0
+    while i < n:
+        dest[dest_off + i] = src[i]
+        i += 1
 
 URI = namedtuple('URI', ('hostname', 'port', 'path', 'secure', 'protocol'))
 
@@ -164,25 +185,33 @@ class HttpRequest:
         return ScopedConnection(self.get)
 
 
-async def stream_reader_to_buffer(reader, framebuffer):
+async def stream_reader_to_buffer(reader, framebuffer, chunk=None):
     """
     Stream data from a reader directly into a framebuffer.
 
     Args:
         reader: The async reader to read from
         framebuffer (memoryview): The framebuffer to stream data into
+        chunk (bytearray, optional): Reusable scratch buffer for MicroPython
+            reads; pass the same one in across calls to avoid a fresh
+            allocation per call. A local one is created if omitted.
 
     Returns:
         int: Number of bytes read
     """
     bytes_read = 0
     if hasattr(reader, 'readinto'):
-        # MicroPython - keep reading chunks until no more data
-        while bytes_read < len(framebuffer):
-            remaining_buffer = framebuffer[bytes_read:]
-            chunk_bytes = await reader.readinto(remaining_buffer)
+        total = len(framebuffer)
+        if chunk is None:
+            chunk = bytearray(min(1024, total))
+        chunk_len = len(chunk)
+        while bytes_read < total:
+            remaining = total - bytes_read
+            target = chunk if remaining >= chunk_len else memoryview(chunk)[:remaining]
+            chunk_bytes = await reader.readinto(target)
             if chunk_bytes is None or chunk_bytes == 0:
                 break
+            _viper_copy(framebuffer, bytes_read, chunk, chunk_bytes)
             bytes_read += chunk_bytes
     else:
         # CPython - keep reading until no more data
