@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from drawing import Drawing
 from framebuffercontroller import FramebufferController
 
@@ -72,7 +73,10 @@ class DisplayController:
             service.display_height = render_height
 
         try:
-            await service.update()
+            if inspect.iscoroutinefunction(service.update):
+                await service.update()
+            else:
+                service.update()
         finally:
             service.display = original_display
             if original_start_y is not None:
