@@ -1,5 +1,6 @@
 import asyncio
 import asyncutils
+import gc
 
 class DisplaySwitcher:
     def __init__(self, provider, services, time_ms):
@@ -159,6 +160,8 @@ class DisplaySwitcher:
             except asyncio.TimeoutError:
                 # Should be caught inside wait_condition usually
                 pass
+
+            gc.collect()
 
     def next(self):
         """Skip to the next display immediately."""
