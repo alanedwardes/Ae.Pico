@@ -89,6 +89,8 @@ class SolarDisplay:
         self.current_solar = None
         self.current_load = None
 
+        self._cells = table.CellBatch()
+
         self.tsf = asyncio.ThreadSafeFlag()
 
     CREATION_PRIORITY = 1
@@ -157,11 +159,11 @@ class SolarDisplay:
             (_load_cell_data(self.current_load), value_row_bottom[1], label_row_bottom[1]),
         ]
 
-        cells = []
+        self._cells.begin()
         for (value_text, value_color, label_text), value_rect, label_rect in slots:
             vx, vy, vw, vh = value_rect
             lx, ly, lw, lh = label_rect
-            cells.append((vx, vy, vw, vh, _draw_cell, (value_text, value_color, 'regular', 'bottom')))
-            cells.append((lx, ly, lw, lh, _draw_cell, (label_text, _WHITE, 'small', 'top')))
+            self._cells.add(vx, vy, vw, vh, _draw_cell, (value_text, value_color, 'regular', 'bottom'))
+            self._cells.add(lx, ly, lw, lh, _draw_cell, (label_text, _WHITE, 'small', 'top'))
 
-        table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, self._cells, shuffle=True)

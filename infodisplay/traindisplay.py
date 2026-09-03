@@ -66,6 +66,8 @@ class TrainDisplay:
         # Pre-allocate HTTP request helper
         self._http_request = HttpRequest(url)
 
+        self._cells = table.CellBatch()
+
     CREATION_PRIORITY = 1
     def create(provider):
         y_separator = provider['config']['display'].get('y_separator', 70)
@@ -124,10 +126,10 @@ class TrainDisplay:
         col_rects = self._resolve_column_widths()
 
         header_color = 0x848284
-        cells = []
+        self._cells.begin()
         for (label, _, _), (cx, cw) in zip(COLUMNS, col_rects):
             align = 'left' if cw > 50 else 'center'
-            cells.append((cx, y_start, cw, row_height, _draw_cell, (label, header_color, align)))
+            self._cells.add(cx, y_start, cw, row_height, _draw_cell, (label, header_color, align))
 
         for row in range(max_rows):
             idx = row * FIELDS_PER_DEPARTURE
@@ -142,6 +144,6 @@ class TrainDisplay:
             for (_, field_offset, _), (cx, cw) in zip(COLUMNS, col_rects):
                 value = self.departures[idx + field_offset] or ''
                 align = 'left' if cw > 50 else 'center'
-                cells.append((cx, row_y, cw, row_height, _draw_cell, (value, row_pen, align)))
+                self._cells.add(cx, row_y, cw, row_height, _draw_cell, (value, row_pen, align))
 
-        table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, self._cells, shuffle=True)

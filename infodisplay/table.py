@@ -1,4 +1,5 @@
 import random
+from array import array
 
 
 def grid_rects(x, y, width, height, rows, cols):
@@ -23,17 +24,55 @@ def column_rects(x, width, widths, *, min_fill_width=0):
     return rects
 
 
-def _shuffle_in_place(items):
-    for i in range(len(items) - 1, 0, -1):
-        j = random.randint(0, i)
-        items[i], items[j] = items[j], items[i]
+class CellBatch:
+    def __init__(self):
+        self._x = []
+        self._y = []
+        self._w = []
+        self._h = []
+        self._fn = []
+        self._args = []
+        self._order = array('i', [])
+        self._n = 0
+
+    def begin(self):
+        self._n = 0
+
+    def add(self, x, y, w, h, fn, args):
+        n = self._n
+        if n < len(self._x):
+            self._x[n] = x
+            self._y[n] = y
+            self._w[n] = w
+            self._h[n] = h
+            self._fn[n] = fn
+            self._args[n] = args
+        else:
+            self._x.append(x)
+            self._y.append(y)
+            self._w.append(w)
+            self._h.append(h)
+            self._fn.append(fn)
+            self._args.append(args)
+        self._n += 1
 
 
-def draw_cells(display, cells, *, shuffle=False, clear_color=None):
-    cells = list(cells)
+def draw_cells(display, batch, *, shuffle=False, clear_color=None):
+    n = batch._n
+    order = batch._order
+    if len(order) < n:
+        order.extend(array('i', range(len(order), n)))
+    for i in range(n):
+        order[i] = i
     if shuffle:
-        _shuffle_in_place(cells)
-    for x, y, w, h, draw_fn, args in cells:
+        for i in range(n - 1, 0, -1):
+            j = random.randint(0, i)
+            order[i], order[j] = order[j], order[i]
+
+    x, y, w, h, fn, args = batch._x, batch._y, batch._w, batch._h, batch._fn, batch._args
+    for k in range(n):
+        idx = order[k]
+        cx, cy, cw, ch = x[idx], y[idx], w[idx], h[idx]
         if clear_color is not None:
-            display.rect(int(x), int(y), int(w), int(h), clear_color, True)
-        draw_fn(display, x, y, w, h, *args)
+            display.rect(int(cx), int(cy), int(cw), int(ch), clear_color, True)
+        fn[idx](display, cx, cy, cw, ch, *args[idx])

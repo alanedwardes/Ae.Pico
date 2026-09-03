@@ -59,6 +59,8 @@ class WeatherDisplay:
         # Pre-allocate HTTP request helper to reduce memory allocations
         self._http_request = HttpRequest(url)
 
+        self._cells = table.CellBatch()
+
         self.tsf = asyncio.ThreadSafeFlag()
     
     CREATION_PRIORITY = 2
@@ -149,7 +151,7 @@ class WeatherDisplay:
         grid = table.grid_rects(0, y_start, self.display_width, usable_height, 5, num_days)
 
         today_weekday = self.time.local_time()[6]
-        cells = []
+        self._cells.begin()
         for i in range(num_days):
             data_index = i * 4
             if data_index + 3 >= len(self.weather_data):
@@ -167,21 +169,21 @@ class WeatherDisplay:
             rain_x, rain_y, rain_w, rain_h = grid[4 * num_days + i]
 
             if i == 0:
-                cells.append((day_x, day_y, day_w, day_h, _draw_today_cell, ()))
+                self._cells.add(day_x, day_y, day_w, day_h, _draw_today_cell, ())
             else:
                 day_of_week = (today_weekday + i) % 7
                 day_pen = 0xC8CED4 if day_of_week in _WEEKEND_WEEKDAYS else 0xFFFFFF
-                cells.append((day_x, day_y, day_w, day_h, _draw_text_cell, (_DAY_NAMES[day_of_week], day_pen, font_name)))
+                self._cells.add(day_x, day_y, day_w, day_h, _draw_text_cell, (_DAY_NAMES[day_of_week], day_pen, font_name))
 
-            cells.append((icon_x, icon_y, icon_w, icon_h, _draw_icon_cell, (self, weather_code)))
+            self._cells.add(icon_x, icon_y, icon_w, icon_h, _draw_icon_cell, (self, weather_code))
 
             max_temp_str = _format_temperature(max_temperature)
             min_temp_str = _format_temperature(min_temperature)
 
-            cells.append((max_x, max_y, max_w, max_h, _draw_text_cell, (max_temp_str, colors.get_color_for_temperature(max_temperature), font_name)))
-            cells.append((min_x, min_y, min_w, min_h, _draw_text_cell, (min_temp_str, colors.get_color_for_temperature(min_temperature), font_name)))
+            self._cells.add(max_x, max_y, max_w, max_h, _draw_text_cell, (max_temp_str, colors.get_color_for_temperature(max_temperature), font_name))
+            self._cells.add(min_x, min_y, min_w, min_h, _draw_text_cell, (min_temp_str, colors.get_color_for_temperature(min_temperature), font_name))
 
             rain_color = colors.get_color_for_rain_percentage(rain)
-            cells.append((rain_x, rain_y, rain_w, rain_h, _draw_text_cell, (f"{rain}%", rain_color, font_name)))
+            self._cells.add(rain_x, rain_y, rain_w, rain_h, _draw_text_cell, (f"{rain}%", rain_color, font_name))
 
-        table.draw_cells(self.display, cells, shuffle=True)
+        table.draw_cells(self.display, self._cells, shuffle=True)
