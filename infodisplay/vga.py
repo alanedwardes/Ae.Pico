@@ -1243,10 +1243,14 @@ class VGA:
         color_prog, color_back_porch_deviation_cycles = make_color_prog(self.H_SYNC, self.H_BACK_PORCH, max_flat_deviation=0)
         self.color_back_porch_deviation_cycles = color_back_porch_deviation_cycles
         color_sm = StateMachine(1, color_prog, freq=self.PIXEL_CLOCK, out_base=Pin(self._color_base_pin))
-        vsync_sm = StateMachine(2, make_vsync_prog(self.V_PULSE - 1, self._v_pulse_level, self._v_idle_level), freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
+        vsync_prog = make_vsync_prog(self.V_PULSE - 1, self._v_pulse_level, self._v_idle_level)
+        vsync_sm = StateMachine(2, vsync_prog, freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
         self._hsync_sm = hsync_sm
         self._color_sm = color_sm
         self._vsync_sm = vsync_sm
+        self._hsync_prog = hsync_prog
+        self._color_prog = color_prog
+        self._vsync_prog = vsync_prog
 
         ch_pixel = DMA()
         ch_ctrl = DMA()
@@ -1438,17 +1442,45 @@ class VGA:
         if self._suspended:
             self._resume()
 
-    def _suspend(self):
-        self._core1_state[_CS_ENABLED] = 0
+    def _dma_set_enabled(self, channel, enabled):
+        addr = self.DMA_BASE + channel * self.DMA_CH_STRIDE + 0x0C
+        value = machine.mem32[addr]
+        if enabled:
+            value |= 1
+        else:
+            value &= ~1
+        machine.mem32[addr] = value
+
+    def _dma_quiesce(self):
         try:
+            self._dma_set_enabled(self._ch_pixel.channel, 0)
+            self._dma_set_enabled(self._ch_ctrl.channel, 0)
             self._ch_ctrl.active(0)
             self._ch_pixel.active(0)
+            machine.mem32[self.DMA_BASE + 0x400] = (1 << self._ch_ctrl.channel) | (1 << self._ch_pixel.channel)
         finally:
             self._suspended = True
 
+    def _suspend(self):
+        self._core1_state[_CS_ENABLED] = 0
+        self._dma_quiesce()
+        self._hsync_sm.active(0)
+        self._color_sm.active(0)
+        self._vsync_sm.active(0)
+
+    def _restart_state_machines(self):
+        self._color_sm.init(self._color_prog, freq=self.PIXEL_CLOCK, out_base=Pin(self._color_base_pin))
+        self._vsync_sm.init(self._vsync_prog, freq=self.PIXEL_CLOCK, sideset_base=Pin(self._vsync_pin))
+        self._hsync_sm.init(self._hsync_prog, freq=self.PIXEL_CLOCK, set_base=Pin(self._hsync_pin))
+
     def _resume(self):
         try:
+            self._restart_state_machines()
+            self._color_sm.active(1)
+            self._vsync_sm.active(1)
+            self._vsync_sm.put(self.V_IDLE - 1)
             self._arm_video_pipeline()
+            self._hsync_sm.active(1)
         finally:
             self._core1_state[_CS_ENABLED] = 1
             self._suspended = False
