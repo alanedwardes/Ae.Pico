@@ -187,9 +187,8 @@ class SolarDisplay:
         battery.draw_battery(self.display, (icon_x, icon_y), (icon_w, icon_h), battery_pct, orientation='right')
 
         battery_label = f"{battery_pct:.0f}%" if battery_pct is not None else "-"
-        label_font_scale = max(1, label_area_h // 60)
         textbox.draw_textbox(self.display, battery_label, 0, y_start + battery_area_h, battery_col_w, label_area_h,
-                              color=_WHITE, font='regular', scale=label_font_scale, align='center')
+                              color=_WHITE, font='regular', scale=1, align='center')
 
         rows_x0 = battery_col_w
         rows_w = self.display_width - rows_x0
