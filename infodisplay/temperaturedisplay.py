@@ -1,3 +1,4 @@
+import colors
 import gauge
 import textbox
 import math
@@ -79,13 +80,13 @@ class TemperatureDisplay:
         gauge.draw_gauge(self.display, position, size, minimum_temperature, maximum_temperature, current_temperature)
         
         # Draw current temperature in the gauge
-        white_pen = 0xFFFFFF
         primary_scale = size[1] * 0.06
         primary_height = size[1]
         font_scale = self.height / 70.0
         displayed_current = round(current_temperature)
         current_temp_str = f"{abs(displayed_current) if displayed_current == 0 else displayed_current:.0f}°"
-        textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=white_pen, font='regular', scale=font_scale)
+        current_color = colors.get_color_for_temperature(current_temperature)
+        textbox.draw_textbox(self.display, current_temp_str, position[0], position[1], size[0], primary_height, color=current_color, font='regular', scale=font_scale)
         
         # Draw min/max labels under the gauge
         centre_x = size[0] / 2 + position[0]
@@ -100,6 +101,8 @@ class TemperatureDisplay:
         displayed_maximum = round(maximum_temperature)
         min_temp_str = f"{abs(displayed_minimum) if displayed_minimum == 0 else displayed_minimum:.0f}°"
         max_temp_str = f"{abs(displayed_maximum) if displayed_maximum == 0 else displayed_maximum:.0f}°"
-        textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
-        textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=white_pen, font='small', scale=font_scale)
+        min_color = colors.get_color_for_temperature(minimum_temperature)
+        max_color = colors.get_color_for_temperature(maximum_temperature)
+        textbox.draw_textbox(self.display, min_temp_str, extent_left, text_y, text_size_x, text_size_y, color=min_color, font='small', scale=font_scale)
+        textbox.draw_textbox(self.display, max_temp_str, centre_x, text_y, text_size_x, text_size_y, color=max_color, font='small', scale=font_scale)
 
