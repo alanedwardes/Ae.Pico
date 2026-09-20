@@ -317,7 +317,7 @@ def _clamp_pct(percentage):
 
 
 def draw_battery(display, position, size, percentage=None, lit_color=None,
-                  outline_color=0x444444, empty_color=0x222222,
+                  outline_color=0x555555, empty_color=0x252525,
                   orientation='right'):
     px = int(position[0]); py = int(position[1])
     w = int(size[0]); h = int(size[1])
