@@ -1,3 +1,6 @@
+# Archival
+I ported this to C, because I realised anyway it was becoming C, but limited by MicroPython.
+
 # Ae.Pico
 
 A collection of Micropython libraries for the Raspberry Pi Pico.
